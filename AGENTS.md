@@ -1,104 +1,227 @@
-Now I have everything I need. Let me give you the updated code clearly.
+Now I have the full picture. Let me map out the complete restructure plan for you.
 
 ---
 
-## Changes needed: 2 files only
+## Full Website Restructure Guide
 
-### 1. `app/globals.css` — set background to `#151515` (always dark)
+Here's the complete architecture split into 3 panels — **Public**, **User Panel**, and **Admin Panel** — with the dock only showing in the User Panel. Zero UI changes.
 
-Replace your entire `globals.css` with this:
+---
 
-```css
-@import "tailwindcss";
+## 🗂️ New Folder Structure
 
-:root {
-  --background: #151515;
-  --foreground: #ededed;
-  --border: #2a2a2a;
-  --muted: #1f1f1f;
-  --muted-foreground: #71717a;
-  --ring: #60a5fa;
-  --primary: #60a5fa;
-  --card: #1c1c1c;
-  --destructive: #ef4444;
-  --success: #4ade80;
-}
+```
+app/
+  (public)/                    ← Public layout group (no dock)
+    layout.tsx                 ← Public layout (no GlobalDock)
+    page.tsx                   ← Landing page (existing home page)
+    about/
+      page.tsx                 ← About page
+    pricing/
+      page.tsx                 ← Pricing page
+    contact/
+      page.tsx                 ← Contact page
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #151515;
-    --foreground: #ededed;
-    --border: #2a2a2a;
-    --muted: #1f1f1f;
-    --muted-foreground: #71717a;
-    --ring: #60a5fa;
-    --primary: #60a5fa;
-    --card: #1c1c1c;
-    --destructive: #ef4444;
-    --success: #4ade80;
-  }
-}
+  (user)/                      ← User Panel layout group (WITH dock)
+    layout.tsx                 ← User layout (has GlobalDock)
+    dashboard/
+      page.tsx                 ← Existing dashboard (unchanged UI)
+    markets/
+      page.tsx                 ← Markets page
+    wallet/
+      page.tsx
+    fund/
+      page.tsx
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-border: var(--border);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-ring: var(--ring);
-  --color-primary: var(--primary);
-  --color-card: var(--card);
-  --color-destructive: var(--destructive);
-  --color-success: var(--success);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  (admin)/                     ← Admin Panel layout group (no dock)
+    layout.tsx                 ← Admin layout (no GlobalDock)
+    dashboard/
+      page.tsx                 ← Admin dashboard
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+app/
+  layout.tsx                   ← Root layout (fonts, globals.css ONLY — no dock)
+  globals.css                  ← Unchanged
+
+components/
+  app/
+    global-dock.tsx            ← Unchanged
+    icons.tsx                  ← Unchanged
+  motion/
+    ...                        ← All unchanged
+lib/
+  ...                          ← All unchanged
+```
+
+---
+
+## How Route Groups Work
+
+Next.js App Router supports **route groups** using `(folderName)` — the parens make the folder invisible to the URL. So:
+
+- `app/(public)/page.tsx` → renders at `/`
+- `app/(user)/dashboard/page.tsx` → renders at `/dashboard`
+- `app/(admin)/dashboard/page.tsx` → renders at `/admin/dashboard`
+
+Each group gets its own `layout.tsx` that can include (or exclude) the dock.
+
+---
+
+## Step 1 — Update Root Layout (remove dock from here)
+
+The current `app/layout.tsx` has `<GlobalDock />` in the body. Move it out of here. The root layout should ONLY handle fonts and global CSS.
+
+**`app/layout.tsx`** — replace entirely:
+
+```tsx
+// app/layout.tsx
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Crypto Invest",
+  description: "Your investment platform",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="h-full antialiased">{children}</body>
+    </html>
+  );
 }
 ```
 
-**Why:** Both `:root` blocks now set `#151515` so the color is always dark regardless of OS theme. I also added `--destructive` and `--success` which the context menu component uses.
+---
+
+## Step 2 — Create Public Layout Group
+
+**`app/(public)/layout.tsx`** — new file:
+
+```tsx
+// app/(public)/layout.tsx
+// Public pages: landing, about, pricing, contact etc.
+// No dock here.
+
+export default function PublicLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <>{children}</>;
+}
+```
+
+**`app/(public)/page.tsx`** — move your existing `app/page.tsx` here (exact same content, zero change):
+
+```tsx
+// app/(public)/page.tsx
+"use client";
+
+export default function HomePage() {
+  return (
+    <div className="flex flex-col flex-1 items-center justify-center min-h-screen bg-zinc-50 font-sans dark:bg-black">
+      <h1 className="text-2xl font-semibold text-foreground">Home Page</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        The dock is now fixed at the bottom on every page.
+      </p>
+    </div>
+  );
+}
+```
+
+> After moving, **delete** `app/page.tsx` (the original root one). The `(public)/page.tsx` covers `/`.
 
 ---
 
-### 2. `app/dashboard/page.tsx` — wire the Profile button to the context menu
-
-You need to:
-- Add the context menu component file (see below)
-- Update the dashboard page to import and use it on the Profile button
-
-First, **create this new file** `components/motion/context-menu.tsx` — just paste the full source from the `components/motion/context-menu.tsx` code you already shared in your message above. It's the exact same file, no changes needed to it.
-
-Then also **create `lib/touch.ts`** — paste the full `lib/touch.ts` source from your message above. No changes needed there either.
-
-Now **update `app/dashboard/page.tsx`**. Here's the full updated file:
+**`app/(public)/about/page.tsx`** — example public page:
 
 ```tsx
+// app/(public)/about/page.tsx
+export default function AboutPage() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <h1 className="text-2xl font-semibold text-foreground">About Us</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        About page — public, no dock.
+      </p>
+    </div>
+  );
+}
+```
+
+---
+
+## Step 3 — Create User Panel Layout Group (Dock lives here)
+
+**`app/(user)/layout.tsx`** — new file. This is where `GlobalDock` goes:
+
+```tsx
+// app/(user)/layout.tsx
+// User panel: dashboard, markets, wallet, fund, referral, support etc.
+// ONLY this layout has the GlobalDock.
+
+import { GlobalDock } from "@/components/app/global-dock";
+
+export default function UserLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      {children}
+      <GlobalDock />
+    </>
+  );
+}
+```
+
+**`app/(user)/dashboard/page.tsx`** — move your existing `app/dashboard/page.tsx` here. **Zero code changes** — exact same file:
+
+```tsx
+// app/(user)/dashboard/page.tsx
+// (paste the entire existing dashboard/page.tsx content here — no changes at all)
 "use client";
 
 import {
+  BadgeCheck,
+  Bell,
   Building2,
   ChevronRight,
   ChevronsUpDown,
   CircleUserRound,
   Command,
-  Copy,
-  CreditCard,
+  History,
+  Inbox,
   LayoutGrid,
   LogOut,
   NotebookTabs,
   PanelLeft,
   Settings,
+  ShieldCheck,
   Sparkles,
   Target,
   User,
   Workflow,
   X,
-  Inbox,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -124,11 +247,9 @@ import {
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuCheckboxItem,
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
-  ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/motion/context-menu";
 
@@ -174,17 +295,13 @@ const destinations = [
 export default function DashboardPage() {
   const [active, setActive] = useState("Dashboard");
   const [openSection, setOpenSection] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState(true);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Opens the context menu positioned above the profile button, centered on it
   const handleProfileClick = () => {
     const btn = profileButtonRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
-    // We dispatch a synthetic contextmenu event at the top-center of the button
-    // so the context menu's built-in positioning logic places it above the button.
     const syntheticEvent = new MouseEvent("contextmenu", {
       bubbles: true,
       cancelable: true,
@@ -273,7 +390,6 @@ export default function DashboardPage() {
           </AnimatedSidebarGroup>
         </AnimatedSidebarContent>
 
-        {/* Profile button with context menu */}
         <AnimatedSidebarFooter className="gap-3 border-none p-3">
           <ContextMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
             <ContextMenuTrigger>
@@ -302,49 +418,49 @@ export default function DashboardPage() {
             </ContextMenuTrigger>
 
             <ContextMenuContent ariaLabel="Profile actions" className="w-60">
-              <ContextMenuLabel>Ava Stone</ContextMenuLabel>
+              <ContextMenuLabel>Profile</ContextMenuLabel>
               <ContextMenuItem
-                textValue="Profile"
-                onSelect={() => setActive("Profile")}
+                textValue="Personal Information"
+                onSelect={() => setActive("Personal Information")}
               >
                 <User aria-hidden="true" className="h-4 w-4" />
-                Profile
-                <ContextMenuShortcut>⌘P</ContextMenuShortcut>
+                Personal Information
               </ContextMenuItem>
               <ContextMenuItem
-                textValue="Billing"
-                onSelect={() => setActive("Billing")}
+                textValue="Security"
+                onSelect={() => setActive("Security")}
               >
-                <CreditCard aria-hidden="true" className="h-4 w-4" />
-                Billing
-                <ContextMenuShortcut>⌘B</ContextMenuShortcut>
+                <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                Security
               </ContextMenuItem>
               <ContextMenuItem
-                textValue="Settings"
-                onSelect={() => setActive("Settings")}
+                textValue="KYC Verification"
+                onSelect={() => setActive("KYC Verification")}
+              >
+                <BadgeCheck aria-hidden="true" className="h-4 w-4" />
+                KYC Verification
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Login History"
+                onSelect={() => setActive("Login History")}
+              >
+                <History aria-hidden="true" className="h-4 w-4" />
+                Login History
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Notification Settings"
+                onSelect={() => setActive("Notification Settings")}
+              >
+                <Bell aria-hidden="true" className="h-4 w-4" />
+                Notification Settings
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Account Settings"
+                onSelect={() => setActive("Account Settings")}
               >
                 <Settings aria-hidden="true" className="h-4 w-4" />
-                Settings
-                <ContextMenuShortcut>⌘S</ContextMenuShortcut>
+                Account Settings
               </ContextMenuItem>
-              <ContextMenuItem
-                textValue="Copy email"
-                onSelect={() => navigator.clipboard.writeText("ava@solace.app")}
-              >
-                <Copy aria-hidden="true" className="h-4 w-4" />
-                Copy email
-              </ContextMenuItem>
-
-              <ContextMenuSeparator />
-
-              <ContextMenuCheckboxItem
-                textValue="Notifications"
-                checked={notifications}
-                closeOnSelect={false}
-                onCheckedChange={setNotifications}
-              >
-                Notifications
-              </ContextMenuCheckboxItem>
 
               <ContextMenuSeparator />
 
@@ -355,7 +471,6 @@ export default function DashboardPage() {
               >
                 <LogOut aria-hidden="true" className="h-4 w-4" />
                 Log out
-                <ContextMenuShortcut>⌘Q</ContextMenuShortcut>
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
@@ -407,14 +522,93 @@ export default function DashboardPage() {
 }
 ```
 
+> After creating this file, **delete** the old `app/dashboard/page.tsx`.
+
 ---
 
-## Quick guide (3 steps)
+## Step 4 — Create Admin Panel Layout Group
 
-**Step 1** — Replace `app/globals.css` with the CSS above. This locks the whole site to `#151515` dark background.
+**`app/(admin)/layout.tsx`** — new file:
 
-**Step 2** — Create `components/motion/context-menu.tsx` and `lib/touch.ts` by pasting the exact source code you already have in the snippets at the top of your message. No edits needed to those files.
+```tsx
+// app/(admin)/layout.tsx
+// Admin panel: admin-only pages, no dock.
 
-**Step 3** — Replace `app/dashboard/page.tsx` with the updated version above.
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <>{children}</>;
+}
+```
 
-**How the positioning works:** The Profile button dispatches a `contextmenu` event at `clientX = button center X`, `clientY = button top Y` when clicked. The context menu's own viewport-clamping logic in `ContextMenuContent` then positions it above the button, centered on it — no manual positioning math needed from our side, the component handles it cleanly.
+**`app/(admin)/dashboard/page.tsx`** — new file (starter admin page):
+
+```tsx
+// app/(admin)/dashboard/page.tsx
+// Access route: /admin/dashboard
+// Add your admin auth guard here later.
+
+export default function AdminDashboardPage() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <h1 className="text-2xl font-semibold text-foreground">Admin Panel</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Admin-only area. No dock here.
+      </p>
+    </div>
+  );
+}
+```
+
+> **Important:** The admin route above renders at `/admin/dashboard` — not `/dashboard`. The `(admin)` folder doesn't prefix the route, but the `dashboard` subfolder does. So to get `/admin/dashboard`, the structure is `app/(admin)/admin/dashboard/page.tsx` — or just name the folder explicitly. Here's the cleaner approach: keep it as `app/(admin)/admin/dashboard/page.tsx` so the URL is `/admin/dashboard`.
+
+Adjust to:
+
+```
+app/
+  (admin)/
+    admin/
+      dashboard/
+        page.tsx   → /admin/dashboard
+      users/
+        page.tsx   → /admin/users
+```
+
+---
+
+## Step 5 — Delete Old Files
+
+After creating the new group structure, delete these originals:
+
+- `app/page.tsx` → replaced by `app/(public)/page.tsx`
+- `app/dashboard/page.tsx` → replaced by `app/(user)/dashboard/page.tsx`
+
+---
+
+## Summary of All File Changes
+
+| Action | File |
+|--------|------|
+| **MODIFY** | `app/layout.tsx` — remove `GlobalDock`, fonts only |
+| **CREATE** | `app/(public)/layout.tsx` — empty wrapper, no dock |
+| **MOVE** | `app/page.tsx` → `app/(public)/page.tsx` |
+| **CREATE** | `app/(public)/about/page.tsx` — example public page |
+| **CREATE** | `app/(user)/layout.tsx` — wrapper WITH `GlobalDock` |
+| **MOVE** | `app/dashboard/page.tsx` → `app/(user)/dashboard/page.tsx` |
+| **CREATE** | `app/(admin)/layout.tsx` — empty wrapper, no dock |
+| **CREATE** | `app/(admin)/admin/dashboard/page.tsx` — admin starter |
+| **DELETE** | `app/page.tsx` (original) |
+| **DELETE** | `app/dashboard/page.tsx` (original) |
+| **UNCHANGED** | Everything in `components/`, `lib/`, `globals.css`, configs |
+
+---
+
+## Key Points
+
+- **No UI code changes** — zero. All your sidebar, context menu, dock, animations stay identical.
+- **Dock only in `(user)` group** — it's in that layout only, so it shows on `/dashboard`, `/markets`, etc. but NOT on landing page or admin.
+- **Route groups** (`(public)`, `(user)`, `(admin)`) don't affect URLs — they're invisible to the router.
+- **Admin auth** — the `(admin)` layout is just the shell. You'll add middleware or a server-side auth check later to protect those routes.
+- **No `middleware.ts` needed yet** — the structure is clean and ready for it when you add auth.

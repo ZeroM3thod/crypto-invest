@@ -53,10 +53,12 @@ components/
     icons.tsx
   motion/
     animated-sidebar.tsx
+    context-menu.tsx
     dock.tsx
     shared-layout-bg.tsx
 lib/
   ease.ts
+  touch.ts
   utils.ts
 public/
   file.svg
@@ -147,150 +149,6 @@ export function GithubIcon(props: SVGProps<SVGSVGElement>) {
         d="M12 .5C5.65.5.5 5.65.5 12.02c0 5.1 3.29 9.43 7.86 10.96.58.1.79-.25.79-.56v-2.01c-3.2.7-3.87-1.54-3.87-1.54-.52-1.33-1.27-1.68-1.27-1.68-1.04-.71.08-.69.08-.69 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.68 1.25 3.34.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.18.91-.25 1.89-.38 2.87-.39.97 0 1.96.13 2.87.39 2.19-1.49 3.15-1.18 3.15-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.84 1.18 3.1 0 4.42-2.7 5.4-5.27 5.68.42.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56 4.57-1.53 7.85-5.86 7.85-10.96C23.5 5.65 18.35.5 12 .5Z"
       />
     </svg>
-  );
-}
-</file>
-
-<file path="components/motion/dock.tsx">
-// components/motion/dock.tsx
-"use client";
-// beui.dev/components/motion/dock
-
-import { motion, useReducedMotion } from "motion/react";
-import { createContext, useContext, useId, useMemo, type ReactNode } from "react";
-import { SPRING_LAYOUT } from "@/lib/ease";
-import { cn } from "@/lib/utils";
-
-type DockContextValue = {
-  size: number;
-  pillLayoutId: string;
-};
-
-const DockContext = createContext<DockContextValue | null>(null);
-
-export interface DockProps {
-  children: ReactNode;
-  className?: string;
-  /** Size of each item in px. */
-  size?: number;
-}
-
-export function Dock({ children, size = 44, className }: DockProps) {
-  const pillLayoutId = useId();
-  const ctx = useMemo<DockContextValue>(
-    () => ({ size, pillLayoutId }),
-    [size, pillLayoutId],
-  );
-
-  return (
-    <DockContext.Provider value={ctx}>
-      <div
-        className={cn(
-          "inline-flex h-auto items-end gap-1.5 rounded-2xl border border-border bg-card/80 px-2 py-1 shadow-2xl backdrop-blur-xl",
-          className,
-        )}
-      >
-        {children}
-      </div>
-    </DockContext.Provider>
-  );
-}
-
-export interface DockItemProps {
-  children: ReactNode;
-  className?: string;
-  /** When set, the item renders as a <button>. Omit when children carry their own link or button. */
-  onClick?: () => void;
-  active?: boolean;
-  "aria-label"?: string;
-}
-
-export function DockItem({
-  children,
-  className,
-  onClick,
-  active,
-  ...rest
-}: DockItemProps) {
-  const dock = useContext(DockContext);
-  const reduce = useReducedMotion();
-  const size = dock?.size ?? 44;
-  const pillLayoutId = dock?.pillLayoutId ?? "dock-pill";
-
-  const pill = active ? (
-    <motion.span
-      layoutId={pillLayoutId}
-      transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
-      className="absolute inset-0.5 -z-10 rounded-xl bg-primary/5"
-    />
-  ) : null;
-  const sharedStyle = { width: size, height: size };
-  const sharedClass = cn(
-    "relative flex shrink-0 items-center justify-center rounded-full text-foreground",
-    className,
-  );
-
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label={rest["aria-label"]}
-        aria-pressed={active}
-        style={sharedStyle}
-        className={cn(
-          sharedClass,
-          "cursor-pointer border-0 bg-transparent p-0 outline-none",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        )}
-      >
-        {pill}
-        {children}
-      </button>
-    );
-  }
-
-  // Children carry their own link or button (and its accessible name).
-  return (
-    <div style={sharedStyle} className={sharedClass}>
-      {pill}
-      {children}
-    </div>
-  );
-}
-
-export function DockSeparator({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn("mx-1 h-6 w-px self-center bg-border", className)}
-    />
-  );
-}
-</file>
-
-<file path="app/page.tsx">
-// app/page.tsx
-"use client";
-
-import { useState } from "react";
-
-const ITEMS = [
-  { id: "home", label: "Home" },
-  { id: "mail", label: "Mail" },
-  { id: "calendar", label: "Calendar" },
-  { id: "music", label: "Music" },
-  { id: "discover", label: "Discover" },
-];
-
-export default function HomePage() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center min-h-screen bg-zinc-50 font-sans dark:bg-black">
-      <h1 className="text-2xl font-semibold text-foreground">Home Page</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        The dock is now fixed at the bottom on every page.
-      </p>
-    </div>
   );
 }
 </file>
@@ -1473,6 +1331,918 @@ export function AnimatedSidebarMenuButton({
 }
 </file>
 
+<file path="components/motion/context-menu.tsx">
+"use client";
+// beui.dev/components/motion/context-menu
+
+import { Check } from "lucide-react";
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+} from "motion/react";
+import {
+  cloneElement,
+  createContext,
+  isValidElement,
+  type ReactElement,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  type Ref,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
+import { EASE_OUT, SPRING_LAYOUT, SPRING_PANEL } from "@/lib/ease";
+import { holdSelection, TOUCH_GESTURE_CONTENT_CLASS } from "@/lib/touch";
+import { cn } from "@/lib/utils";
+
+type OpenModality = "pointer" | "keyboard" | "touch";
+type MenuPoint = { x: number; y: number };
+
+const VIEWPORT_PADDING = 8;
+const LONG_PRESS_DELAY = 520;
+const LONG_PRESS_TOLERANCE = 10;
+const MORPH_DURATION = 0.3;
+
+type TriggerElementProps = React.HTMLAttributes<HTMLElement> & {
+  ref?: Ref<HTMLElement>;
+};
+
+interface ContextMenuContextValue {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  openAt: (point: MenuPoint, modality: OpenModality) => void;
+  point: MenuPoint;
+  modality: OpenModality;
+  invocation: number;
+  menuId: string;
+  triggerRef: React.MutableRefObject<HTMLElement | null>;
+  contentRef: React.MutableRefObject<HTMLDivElement | null>;
+  activeId: string | null;
+  setActiveId: (id: string | null) => void;
+  reduce: boolean;
+}
+
+const ContextMenuContext = createContext<ContextMenuContextValue | null>(null);
+
+function useContextMenuContext(component: string) {
+  const context = useContext(ContextMenuContext);
+  if (!context) {
+    throw new Error(`${component} must be used within <ContextMenu>`);
+  }
+  return context;
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === "function") {
+    ref(value);
+  } else if (ref) {
+    ref.current = value;
+  }
+}
+
+function getEnabledItems(container: HTMLElement | null) {
+  if (!container) return [];
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      '[data-context-menu-item="true"]:not([data-disabled="true"])',
+    ),
+  );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function collapsedClip(
+  origin: MenuPoint,
+  size: { width: number; height: number },
+) {
+  const half = 8;
+  const top = clamp(origin.y - half, 0, size.height);
+  const right = clamp(size.width - origin.x - half, 0, size.width);
+  const bottom = clamp(size.height - origin.y - half, 0, size.height);
+  const left = clamp(origin.x - half, 0, size.width);
+  return `inset(${top}px ${right}px ${bottom}px ${left}px round 10px)`;
+}
+
+export interface ContextMenuProps {
+  children: ReactNode;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  className?: string;
+}
+
+export function ContextMenu({
+  children,
+  open: controlledOpen,
+  defaultOpen = false,
+  onOpenChange,
+  className,
+}: ContextMenuProps) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const [point, setPoint] = useState<MenuPoint>({ x: 0, y: 0 });
+  const [modality, setModality] = useState<OpenModality>("pointer");
+  const [invocation, setInvocation] = useState(0);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : internalOpen;
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const menuId = useId();
+  const reduce = useReducedMotion() ?? false;
+
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (!controlled) setInternalOpen(next);
+      onOpenChange?.(next);
+      if (!next) setActiveId(null);
+    },
+    [controlled, onOpenChange],
+  );
+
+  const openAt = useCallback(
+    (nextPoint: MenuPoint, nextModality: OpenModality) => {
+      setPoint(nextPoint);
+      setModality(nextModality);
+      setInvocation((current) => current + 1);
+      setActiveId(null);
+      setOpen(true);
+    },
+    [setOpen],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!contentRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onWindowChange = () => setOpen(false);
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("resize", onWindowChange);
+    window.addEventListener("scroll", onWindowChange);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("resize", onWindowChange);
+      window.removeEventListener("scroll", onWindowChange);
+    };
+  }, [open, setOpen]);
+
+  const value = useMemo<ContextMenuContextValue>(
+    () => ({
+      open,
+      setOpen,
+      openAt,
+      point,
+      modality,
+      invocation,
+      menuId,
+      triggerRef,
+      contentRef,
+      activeId,
+      setActiveId,
+      reduce,
+    }),
+    [
+      open,
+      setOpen,
+      openAt,
+      point,
+      modality,
+      invocation,
+      menuId,
+      activeId,
+      reduce,
+    ],
+  );
+
+  return (
+    <ContextMenuContext.Provider value={value}>
+      <div className={cn("contents", className)}>{children}</div>
+    </ContextMenuContext.Provider>
+  );
+}
+
+export interface ContextMenuTriggerProps {
+  children: ReactElement<TriggerElementProps>;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function ContextMenuTrigger({
+  children,
+  disabled = false,
+  className,
+}: ContextMenuTriggerProps) {
+  const context = useContextMenuContext("ContextMenuTrigger");
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchOrigin = useRef<MenuPoint | null>(null);
+  const releaseSelection = useRef<(() => void) | null>(null);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    touchOrigin.current = null;
+  }, []);
+
+  // Held for the whole press, not just the timer: a gesture that turned into a
+  // drag must not paint a selection under the finger either.
+  const endPress = useCallback(() => {
+    cancelLongPress();
+    releaseSelection.current?.();
+    releaseSelection.current = null;
+  }, [cancelLongPress]);
+
+  useEffect(() => endPress, [endPress]);
+
+  if (!isValidElement(children)) {
+    throw new Error("<ContextMenuTrigger> requires a single React element");
+  }
+
+  const childProps = children.props;
+  const childRef = children.props.ref;
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    childProps.onPointerDown?.(event);
+    // A pen presses the same way a finger does and gets no `contextmenu` out
+    // of the platform for it, so it holds to open too. A mouse has the right
+    // button and is left to `onContextMenu`.
+    const pressToOpen =
+      event.pointerType === "touch" || event.pointerType === "pen";
+    if (event.defaultPrevented || disabled || !pressToOpen) return;
+
+    // `pointer-coarse:select-none` misses this press on a laptop whose mouse
+    // is the primary pointer and whose touchscreen is not, and the platform's
+    // own long-press selection then claims the gesture and cancels ours. The
+    // press is the only thing that knows which input is on the glass, so it
+    // takes selection away itself — for its own duration, and no longer.
+    releaseSelection.current?.();
+    releaseSelection.current = holdSelection(event.currentTarget);
+
+    const origin = { x: event.clientX, y: event.clientY };
+    touchOrigin.current = origin;
+    longPressTimer.current = setTimeout(() => {
+      context.openAt(origin, "touch");
+      longPressTimer.current = null;
+      touchOrigin.current = null;
+    }, LONG_PRESS_DELAY);
+  };
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    childProps.onPointerMove?.(event);
+    const origin = touchOrigin.current;
+    if (
+      origin &&
+      Math.hypot(event.clientX - origin.x, event.clientY - origin.y) >
+        LONG_PRESS_TOLERANCE
+    ) {
+      cancelLongPress();
+    }
+  };
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    childProps.onKeyDown?.(event);
+    if (event.defaultPrevented || disabled) return;
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))
+      return;
+
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    context.openAt(
+      { x: rect.left + Math.min(24, rect.width / 2), y: rect.top + rect.height / 2 },
+      "keyboard",
+    );
+  };
+
+  return cloneElement(children, {
+    ref: (node: HTMLElement | null) => {
+      context.triggerRef.current = node;
+      assignRef(childRef, node);
+    },
+    "aria-controls": context.open ? context.menuId : undefined,
+    "aria-haspopup": "menu",
+    "aria-expanded": context.open,
+    // The long press is ours: without this iOS runs its own on the same
+    // gesture and drops the selection callout and its handles on top of the
+    // menu we just opened. Only the press gesture is ours though — the child
+    // is the consumer's content, so a mouse can still select the text in it
+    // and right-click the selection. `touch-none` stays off too: the page
+    // still has to scroll from the trigger.
+    className: cn(TOUCH_GESTURE_CONTENT_CLASS, childProps.className, className),
+    onContextMenu: (event: ReactMouseEvent<HTMLElement>) => {
+      childProps.onContextMenu?.(event);
+      if (event.defaultPrevented || disabled) return;
+      event.preventDefault();
+      endPress();
+      context.openAt({ x: event.clientX, y: event.clientY }, "pointer");
+    },
+    onKeyDown,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp: (event: ReactPointerEvent<HTMLElement>) => {
+      childProps.onPointerUp?.(event);
+      endPress();
+    },
+    onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => {
+      childProps.onPointerCancel?.(event);
+      endPress();
+    },
+  });
+}
+
+export interface ContextMenuContentProps {
+  children: ReactNode;
+  className?: string;
+  ariaLabel?: string;
+}
+
+export function ContextMenuContent({
+  children,
+  className,
+  ariaLabel = "Context menu",
+}: ContextMenuContentProps) {
+  const context = useContextMenuContext("ContextMenuContent");
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState<MenuPoint>(context.point);
+  const [origin, setOrigin] = useState<MenuPoint>({ x: 0, y: 0 });
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [morphReady, setMorphReady] = useState(false);
+  const typeahead = useRef("");
+  const typeaheadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => setMounted(true), []);
+
+  useLayoutEffect(() => {
+    if (!context.open) {
+      setMorphReady(false);
+      return;
+    }
+    const content = context.contentRef.current;
+    if (!content) return;
+    content.dataset.invocation = String(context.invocation);
+
+    const rect = content.getBoundingClientRect();
+    const left = Math.max(
+      VIEWPORT_PADDING,
+      Math.min(
+        Math.max(context.point.x, VIEWPORT_PADDING),
+        window.innerWidth - rect.width - VIEWPORT_PADDING,
+      ),
+    );
+    const top = Math.max(
+      VIEWPORT_PADDING,
+      Math.min(
+        Math.max(context.point.y, VIEWPORT_PADDING),
+        window.innerHeight - rect.height - VIEWPORT_PADDING,
+      ),
+    );
+
+    setPosition({ x: left, y: top });
+    setSize({ width: rect.width, height: rect.height });
+    setOrigin({
+      x: clamp(context.point.x - left, 12, Math.max(12, rect.width - 12)),
+      y: clamp(context.point.y - top, 12, Math.max(12, rect.height - 12)),
+    });
+    setMorphReady(false);
+
+    if (context.reduce || context.modality === "keyboard") {
+      setMorphReady(true);
+      return;
+    }
+
+    // Let the measured collapsed clip paint once before expanding it. Without
+    // this preparation frame, the first invocation can batch both states and
+    // appear at full size without the morph.
+    let openFrame = 0;
+    const prepareFrame = requestAnimationFrame(() => {
+      openFrame = requestAnimationFrame(() => setMorphReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(prepareFrame);
+      cancelAnimationFrame(openFrame);
+    };
+  }, [
+    context.open,
+    context.point,
+    context.contentRef,
+    context.invocation,
+    context.modality,
+    context.reduce,
+  ]);
+
+  useEffect(() => {
+    if (!context.open) return;
+    const frame = requestAnimationFrame(() => {
+      const first = getEnabledItems(context.contentRef.current)[0];
+      first?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [context.open, context.contentRef]);
+
+  useEffect(
+    () => () => {
+      if (typeaheadTimer.current) clearTimeout(typeaheadTimer.current);
+    },
+    [],
+  );
+
+  const moveFocus = (direction: 1 | -1) => {
+    const items = getEnabledItems(context.contentRef.current);
+    if (items.length === 0) return;
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    const next = current < 0 ? 0 : (current + direction + items.length) % items.length;
+    items[next]?.focus();
+  };
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      context.setOpen(false);
+      context.triggerRef.current?.focus();
+      return;
+    }
+    if (event.key === "Tab") {
+      context.setOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveFocus(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      const items = getEnabledItems(context.contentRef.current);
+      items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+      return;
+    }
+    if (
+      event.key.length === 1 &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      typeahead.current += event.key.toLocaleLowerCase();
+      if (typeaheadTimer.current) clearTimeout(typeaheadTimer.current);
+      typeaheadTimer.current = setTimeout(() => {
+        typeahead.current = "";
+      }, 500);
+      const match = getEnabledItems(context.contentRef.current).find((item) =>
+        (item.dataset.label ?? item.textContent ?? "")
+          .trim()
+          .toLocaleLowerCase()
+          .startsWith(typeahead.current),
+      );
+      match?.focus();
+    }
+  };
+
+  if (!mounted) return null;
+
+  const visualOpen = context.open && morphReady;
+  const clipHidden = collapsedClip(origin, size);
+  const clipShown = "inset(0px 0px 0px 0px round 12px)";
+
+  return createPortal(
+    <div
+      data-context-menu-portal=""
+      aria-hidden={!context.open}
+      inert={!context.open}
+      style={{ left: position.x, top: position.y }}
+      className={cn(
+        "fixed z-[100] [filter:drop-shadow(0_18px_28px_rgba(0,0,0,0.2))]",
+        context.open ? "pointer-events-auto" : "pointer-events-none",
+      )}
+    >
+      <motion.div
+        ref={context.contentRef}
+        id={context.menuId}
+        role="menu"
+        aria-label={ariaLabel}
+        data-morph-ready={morphReady ? "true" : "false"}
+        tabIndex={-1}
+        initial={false}
+        animate={{
+          opacity: visualOpen ? 1 : 0,
+          clipPath:
+            context.reduce || context.modality === "keyboard" || visualOpen
+              ? clipShown
+              : clipHidden,
+        }}
+        transition={
+          context.modality === "keyboard"
+            ? { duration: 0 }
+            : context.reduce
+              ? { duration: 0.1, ease: EASE_OUT }
+              : {
+                  clipPath: {
+                    duration: MORPH_DURATION,
+                    ease: EASE_OUT,
+                  },
+                  opacity: {
+                    duration: MORPH_DURATION,
+                    ease: EASE_OUT,
+                  },
+                }
+        }
+        onKeyDown={onKeyDown}
+        onContextMenu={(event) => event.preventDefault()}
+        className={cn(
+          "min-w-56 overflow-hidden rounded-xl border border-border bg-card p-1.5 text-foreground outline-none",
+          className,
+        )}
+      >
+        {children}
+      </motion.div>
+    </div>,
+    document.body,
+  );
+}
+
+type ContextMenuItemTone = "default" | "destructive";
+
+export interface ContextMenuItemProps {
+  children: ReactNode;
+  onSelect?: () => void;
+  disabled?: boolean;
+  closeOnSelect?: boolean;
+  tone?: ContextMenuItemTone;
+  inset?: boolean;
+  className?: string;
+  textValue?: string;
+}
+
+function ContextMenuItemBase({
+  children,
+  onSelect,
+  disabled = false,
+  closeOnSelect = true,
+  tone = "default",
+  inset = false,
+  className,
+  textValue,
+  role = "menuitem",
+  ariaChecked,
+}: ContextMenuItemProps & {
+  role?: "menuitem" | "menuitemcheckbox" | "menuitemradio";
+  ariaChecked?: boolean;
+}) {
+  const context = useContextMenuContext("ContextMenuItem");
+  const id = useId();
+  const active = context.activeId === id;
+  const checkedProps =
+    role === "menuitem" ? {} : { "aria-checked": ariaChecked };
+
+  return (
+    <button
+      type="button"
+      id={id}
+      role={role}
+      {...checkedProps}
+      disabled={disabled}
+      data-context-menu-item="true"
+      data-disabled={disabled ? "true" : undefined}
+      data-label={textValue}
+      tabIndex={-1}
+      onFocus={() => context.setActiveId(id)}
+      onPointerMove={(event) => {
+        if (!disabled && event.pointerType !== "touch") event.currentTarget.focus();
+      }}
+      onClick={() => {
+        if (disabled) return;
+        onSelect?.();
+        if (closeOnSelect) context.setOpen(false);
+      }}
+      className={cn(
+        "relative isolate flex w-full select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] outline-none",
+        "focus-visible:ring-2 focus-visible:ring-foreground/15",
+        "disabled:pointer-events-none disabled:opacity-40",
+        inset && "pl-8",
+        tone === "destructive" ? "text-destructive" : "text-foreground",
+        className,
+      )}
+    >
+      {active ? (
+        <motion.span
+          layoutId={`${context.menuId}-active`}
+          className={cn(
+            "absolute inset-0 -z-10 rounded-lg",
+            tone === "destructive"
+              ? "bg-destructive/10"
+              : "bg-foreground/[0.065]",
+          )}
+          transition={context.reduce ? { duration: 0 } : SPRING_LAYOUT}
+        />
+      ) : null}
+      {children}
+    </button>
+  );
+}
+
+export function ContextMenuItem(props: ContextMenuItemProps) {
+  return <ContextMenuItemBase {...props} />;
+}
+
+export interface ContextMenuCheckboxItemProps
+  extends Omit<ContextMenuItemProps, "onSelect"> {
+  checked: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+}
+
+export function ContextMenuCheckboxItem({
+  checked,
+  onCheckedChange,
+  children,
+  ...props
+}: ContextMenuCheckboxItemProps) {
+  const context = useContextMenuContext("ContextMenuCheckboxItem");
+  return (
+    <ContextMenuItemBase
+      {...props}
+      role="menuitemcheckbox"
+      ariaChecked={checked}
+      onSelect={() => onCheckedChange?.(!checked)}
+    >
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+        <AnimatePresence initial={false}>
+          {checked ? (
+            <motion.span
+              key="check"
+              initial={context.reduce ? false : { opacity: 0, scale: 0.75 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: context.reduce ? 1 : 0.75 }}
+              transition={context.reduce ? { duration: 0.08 } : SPRING_PANEL}
+            >
+              <Check aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.4} />
+            </motion.span>
+          ) : null}
+        </AnimatePresence>
+      </span>
+      {children}
+    </ContextMenuItemBase>
+  );
+}
+
+interface ContextMenuRadioGroupContextValue {
+  value: string;
+  onValueChange?: (value: string) => void;
+}
+
+const ContextMenuRadioGroupContext =
+  createContext<ContextMenuRadioGroupContextValue | null>(null);
+
+export interface ContextMenuRadioGroupProps {
+  value: string;
+  onValueChange?: (value: string) => void;
+  children: ReactNode;
+  className?: string;
+}
+
+export function ContextMenuRadioGroup({
+  value,
+  onValueChange,
+  children,
+  className,
+}: ContextMenuRadioGroupProps) {
+  const context = useMemo(
+    () => ({ value, onValueChange }),
+    [value, onValueChange],
+  );
+  return (
+    <ContextMenuRadioGroupContext.Provider value={context}>
+      <div className={className}>{children}</div>
+    </ContextMenuRadioGroupContext.Provider>
+  );
+}
+
+export interface ContextMenuRadioItemProps
+  extends Omit<ContextMenuItemProps, "onSelect"> {
+  value: string;
+}
+
+export function ContextMenuRadioItem({
+  value,
+  children,
+  ...props
+}: ContextMenuRadioItemProps) {
+  const group = useContext(ContextMenuRadioGroupContext);
+  if (!group) {
+    throw new Error(
+      "ContextMenuRadioItem must be used within <ContextMenuRadioGroup>",
+    );
+  }
+  const checked = group.value === value;
+  return (
+    <ContextMenuItemBase
+      {...props}
+      role="menuitemradio"
+      ariaChecked={checked}
+      onSelect={() => group.onValueChange?.(value)}
+    >
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full bg-current transition-opacity",
+            checked ? "opacity-100" : "opacity-0",
+          )}
+        />
+      </span>
+      {children}
+    </ContextMenuItemBase>
+  );
+}
+
+export interface ContextMenuLabelProps {
+  children: ReactNode;
+  inset?: boolean;
+  className?: string;
+}
+
+export function ContextMenuLabel({
+  children,
+  inset = false,
+  className,
+}: ContextMenuLabelProps) {
+  return (
+    <div
+      className={cn(
+        "px-2.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground",
+        inset && "pl-8",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export interface ContextMenuSeparatorProps {
+  className?: string;
+}
+
+export function ContextMenuSeparator({
+  className,
+}: ContextMenuSeparatorProps) {
+  return (
+    <hr className={cn("-mx-1 my-1 h-px border-0 bg-border", className)} />
+  );
+}
+
+export interface ContextMenuShortcutProps {
+  children: ReactNode;
+  className?: string;
+}
+
+export function ContextMenuShortcut({
+  children,
+  className,
+}: ContextMenuShortcutProps) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "ml-auto pl-4 text-[10px] font-medium tracking-wide text-muted-foreground",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+</file>
+
+<file path="components/motion/dock.tsx">
+// components/motion/dock.tsx
+"use client";
+// beui.dev/components/motion/dock
+
+import { motion, useReducedMotion } from "motion/react";
+import { createContext, useContext, useId, useMemo, type ReactNode } from "react";
+import { SPRING_LAYOUT } from "@/lib/ease";
+import { cn } from "@/lib/utils";
+
+type DockContextValue = {
+  size: number;
+  pillLayoutId: string;
+};
+
+const DockContext = createContext<DockContextValue | null>(null);
+
+export interface DockProps {
+  children: ReactNode;
+  className?: string;
+  /** Size of each item in px. */
+  size?: number;
+}
+
+export function Dock({ children, size = 44, className }: DockProps) {
+  const pillLayoutId = useId();
+  const ctx = useMemo<DockContextValue>(
+    () => ({ size, pillLayoutId }),
+    [size, pillLayoutId],
+  );
+
+  return (
+    <DockContext.Provider value={ctx}>
+      <div
+        className={cn(
+          "inline-flex h-auto items-end gap-1.5 rounded-2xl border border-border bg-card/80 px-2 py-1 shadow-2xl backdrop-blur-xl",
+          className,
+        )}
+      >
+        {children}
+      </div>
+    </DockContext.Provider>
+  );
+}
+
+export interface DockItemProps {
+  children: ReactNode;
+  className?: string;
+  /** When set, the item renders as a <button>. Omit when children carry their own link or button. */
+  onClick?: () => void;
+  active?: boolean;
+  "aria-label"?: string;
+}
+
+export function DockItem({
+  children,
+  className,
+  onClick,
+  active,
+  ...rest
+}: DockItemProps) {
+  const dock = useContext(DockContext);
+  const reduce = useReducedMotion();
+  const size = dock?.size ?? 44;
+  const pillLayoutId = dock?.pillLayoutId ?? "dock-pill";
+
+  const pill = active ? (
+    <motion.span
+      layoutId={pillLayoutId}
+      transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+      className="absolute inset-0.5 -z-10 rounded-xl bg-primary/5"
+    />
+  ) : null;
+  const sharedStyle = { width: size, height: size };
+  const sharedClass = cn(
+    "relative flex shrink-0 items-center justify-center rounded-full text-foreground",
+    className,
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={rest["aria-label"]}
+        aria-pressed={active}
+        style={sharedStyle}
+        className={cn(
+          sharedClass,
+          "cursor-pointer border-0 bg-transparent p-0 outline-none",
+          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        )}
+      >
+        {pill}
+        {children}
+      </button>
+    );
+  }
+
+  // Children carry their own link or button (and its accessible name).
+  return (
+    <div style={sharedStyle} className={sharedClass}>
+      {pill}
+      {children}
+    </div>
+  );
+}
+
+export function DockSeparator({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn("mx-1 h-6 w-px self-center bg-border", className)}
+    />
+  );
+}
+</file>
+
 <file path="components/motion/shared-layout-bg.tsx">
 "use client";
 
@@ -1675,6 +2445,126 @@ export const SPRING_GLIDE = {
 } as const;
 </file>
 
+<file path="lib/touch.ts">
+// Shared touch primitives. iOS and iPadOS run their own gestures on top of the
+// page — the long-press selection callout and the selection it drags in with
+// it — and they win: once the platform claims a touch it cancels ours
+// mid-gesture, so a press-and-hold or a drag simply dies. Surfaces that own
+// their gesture have to opt out.
+//
+// What the two classes below cover, precisely:
+// - `-webkit-touch-callout: none` stops iOS's long-press callout. WebKit-only:
+//   it is not a property other engines have, so it is inert everywhere else.
+// - `user-select: none` stops the long-press selection on every engine,
+//   Android included, and stops a drag from painting a selection under the
+//   cursor. It is inherited, so it reaches every descendant — which is why the
+//   two classes differ only in whether they apply it unconditionally.
+// What neither covers:
+// - Chrome for Android's long-press menu on a link or an image. No CSS
+//   suppresses it; a gesture surface that wraps one needs its own
+//   `onContextMenu` with `preventDefault()`.
+// - The native drag of an `<img>` or `<a>` descendant. `-webkit-user-drag` is
+//   not inherited and plain divs and buttons are not drag sources, so setting
+//   it on the surface does nothing — the child itself needs `draggable={false}`.
+
+/**
+ * Classes for a surface that *is* the control: a thumb, a drum, a stage, a
+ * handle, a hold button. Selection is suppressed on every input, because a
+ * drag that highlights the control's own label is wrong on a mouse too.
+ * Compose with `touch-none` when the surface also owns the scroll axis — leave
+ * it off when the page must still scroll from there.
+ */
+export const TOUCH_GESTURE_CLASS = "select-none [-webkit-touch-callout:none]";
+
+/**
+ * The same opt-out for a gesture surface that wraps content the consumer owns:
+ * a scroller, a context-menu trigger, a sheet header, a list row. Selection is
+ * suppressed only where the platform runs its own press gestures — a coarse
+ * pointer — so a mouse user can still select and copy that content. If the
+ * gesture itself would paint a selection under the cursor, add `select-none`
+ * for the duration of the gesture rather than reaching for
+ * `TOUCH_GESTURE_CLASS`.
+ *
+ * `pointer: coarse` describes the *primary* pointer and nothing else, so a
+ * hybrid machine reads it wrong in both directions: a tablet with a mouse
+ * plugged in keeps touch as primary and loses mouse selection, and a laptop
+ * with a touchscreen keeps the mouse as primary and leaves selection live
+ * under a finger. No media query can answer per interaction — the query is
+ * about the device, and the question is about the gesture in progress. The
+ * default stays here because it is right on the machines that are one thing or
+ * the other, and losing a selection is a nuisance; where the miss costs a
+ * *gesture* instead, the surface pairs it with `holdSelection` on the press.
+ */
+export const TOUCH_GESTURE_CONTENT_CLASS =
+  "[-webkit-touch-callout:none] pointer-coarse:select-none";
+
+/**
+ * Suppress selection on `element` for as long as a gesture is running on it,
+ * whatever the primary pointer of the machine happens to be. Returns the
+ * release. Inline, so it wins over the class above and is gone again the
+ * moment the gesture ends.
+ *
+ * For the press gestures a native selection would otherwise steal — a
+ * long-press that opens a menu. Elsewhere prefer the classes: a surface that
+ * takes selection away for the whole session is a surface whose text nobody
+ * can copy.
+ */
+export function holdSelection(element: HTMLElement) {
+  element.style.setProperty("user-select", "none");
+  element.style.setProperty("-webkit-user-select", "none");
+  return () => {
+    element.style.removeProperty("user-select");
+    element.style.removeProperty("-webkit-user-select");
+  };
+}
+
+/**
+ * Pointer capture, best effort. WebKit throws `NotFoundError` when the pointer
+ * is already gone by the time the handler runs — routine on iOS, where the
+ * system can claim the touch first — and an uncaught throw takes the rest of
+ * the handler, the gesture included, down with it. Touch pointers carry
+ * implicit capture anyway, so losing it is never fatal.
+ */
+export function capturePointer(element: Element, pointerId: number) {
+  try {
+    element.setPointerCapture(pointerId);
+  } catch {
+    // Pointer is no longer active — implicit capture still applies on touch.
+  }
+}
+
+/** Release a capture taken with `capturePointer`, ignoring a stale pointer. */
+export function releasePointer(element: Element, pointerId: number) {
+  try {
+    if (element.hasPointerCapture(pointerId)) {
+      element.releasePointerCapture(pointerId);
+    }
+  } catch {
+    // Capture was already dropped by the browser.
+  }
+}
+
+/**
+ * Whether this event came from a pointer that is *hovering*: not a touch, and
+ * not currently pressed. Which input the user is holding right now is not
+ * something a device capability can answer — a touchscreen laptop hovers and
+ * taps, and iPadOS reports a fine hovering pointer for a finger — so both
+ * paths stay live and each handler branches on the event it was given.
+ *
+ * A pen resting on the glass is making contact, not hovering: `buttons` is the
+ * tell, and it sends a pen tap down the same route a finger takes.
+ *
+ * This answers what an *enter* asks. A leave is the other half of a pair and
+ * has to be read against the enter that started it — `useHoverGesture` in
+ * `lib/hooks/use-hover-gesture` does that, and hover surfaces should use it
+ * rather than asking this question twice.
+ */
+export const isHoveringPointer = (event: {
+  pointerType: string;
+  buttons: number;
+}) => event.pointerType !== "touch" && event.buttons === 0;
+</file>
+
 <file path="lib/utils.ts">
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -1865,668 +2755,30 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 }
 </file>
 
-<file path="app/dashboard/page.tsx">
-"use client";
-
-import {
-  Building2,
-  ChevronRight,
-  ChevronsUpDown,
-  CircleUserRound,
-  Command,
-  LayoutGrid,
-  NotebookTabs,
-  PanelLeft,
-  Sparkles,
-  Target,
-  Workflow,
-  X,
-  Inbox,
-} from "lucide-react";
-import { useState } from "react";
-import {
-  AnimatedSidebar,
-  AnimatedSidebarClose,
-  AnimatedSidebarContent,
-  AnimatedSidebarFooter,
-  AnimatedSidebarGroup,
-  AnimatedSidebarGroupContent,
-  AnimatedSidebarGroupLabel,
-  AnimatedSidebarHeader,
-  AnimatedSidebarInset,
-  AnimatedSidebarMenu,
-  AnimatedSidebarMenuButton,
-  AnimatedSidebarMenuItem,
-  AnimatedSidebarMenuSub,
-  AnimatedSidebarMenuSubButton,
-  AnimatedSidebarMenuSubItem,
-  AnimatedSidebarProvider,
-  AnimatedSidebarRail,
-  AnimatedSidebarTrigger,
-} from "@/components/motion/animated-sidebar";
-
-const destinations = [
-  {
-    label: "Dashboard",
-    icon: LayoutGrid,
-  },
-  {
-    label: "Markets",
-    icon: Target,
-  },
-  {
-    label: "Investment",
-    icon: Sparkles,
-    children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining", "OTC Trading"],
-  },
-  {
-    label: "Trading",
-    icon: Workflow,
-    children: ["Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
-  },
-  {
-    label: "Wallet",
-    icon: Building2,
-    children: ["Main Wallet", "Investment Wallet", "Trading Wallet", "Mining Wallet", "Referral Wallet", "Wallet History"],
-  },
-  {
-    label: "Fund",
-    icon: Inbox,
-    children: ["Deposit", "Withdraw", "Transfer", "Fund History"],
-  },
-  {
-    label: "Referral",
-    icon: CircleUserRound,
-    children: ["Referral Dashboard", "My Referrals", "Referral Earnings", "Referral History"],
-  },
-  {
-    label: "Support",
-    icon: NotebookTabs,
-    children: ["Help Center", "My Tickets", "Create Ticket"],
-  },
-] satisfies {
-  label: string;
-  icon: typeof CircleUserRound;
-  children?: string[];
-}[];
-
-export default function DashboardPage() {
-  const [active, setActive] = useState("Dashboard");
-  const [openSection, setOpenSection] = useState<string | null>(null);
-
-  return (
-    <AnimatedSidebarProvider className="min-h-svh">
-      <AnimatedSidebar
-        ariaLabel="User Panel"
-        collapsible="icon"
-        panelClassName="border-foreground/[0.08]"
-      >
-        <AnimatedSidebarHeader className="p-3 pb-2">
-          <div className="flex min-h-11 items-center gap-3 overflow-hidden px-2">
-            <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-foreground text-background">
-              <Command aria-hidden="true" className="size-4" />
-            </div>
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[state=collapsed]/sidebar:hidden"
-            >
-              <span className="truncate text-sm font-semibold text-foreground">
-                Acme Inc
-              </span>
-              <ChevronsUpDown
-                aria-hidden="true"
-                className="size-3.5 shrink-0 text-muted-foreground"
-              />
-            </button>
-            <AnimatedSidebarClose className="ml-auto text-muted-foreground hover:bg-muted md:hidden">
-              <X aria-hidden="true" className="size-4" />
-            </AnimatedSidebarClose>
-          </div>
-        </AnimatedSidebarHeader>
-
-        <AnimatedSidebarContent className="px-2 pt-1">
-          <AnimatedSidebarGroup className="pt-1">
-            <AnimatedSidebarGroupLabel>
-              User Panel
-            </AnimatedSidebarGroupLabel>
-            <AnimatedSidebarGroupContent>
-              <AnimatedSidebarMenu>
-                {destinations.map(({ label, icon: Icon, children }) => (
-                  <AnimatedSidebarMenuItem key={label}>
-                    <AnimatedSidebarMenuButton
-                      isActive={
-                        active === label ||
-                        children?.includes(active) === true
-                      }
-                      ariaExpanded={
-                        children ? openSection === label : undefined
-                      }
-                      icon={<Icon className="size-4" />}
-                      onSelect={() => {
-                        setOpenSection((current) => {
-                          if (!children) {
-                            setActive(label);
-                            return null;
-                          }
-                          return current === label ? null : label;
-                        });
-                      }}
-                    >
-                      {label}
-                    </AnimatedSidebarMenuButton>
-                    {children ? (
-                      <AnimatedSidebarMenuSub
-                        open={openSection === label}
-                      >
-                        {children.map((child) => (
-                          <AnimatedSidebarMenuSubItem key={child}>
-                            <AnimatedSidebarMenuSubButton
-                              isActive={active === child}
-                              onSelect={() => setActive(child)}
-                            >
-                              {child}
-                            </AnimatedSidebarMenuSubButton>
-                          </AnimatedSidebarMenuSubItem>
-                        ))}
-                      </AnimatedSidebarMenuSub>
-                    ) : null}
-                  </AnimatedSidebarMenuItem>
-                ))}
-              </AnimatedSidebarMenu>
-            </AnimatedSidebarGroupContent>
-          </AnimatedSidebarGroup>
-        </AnimatedSidebarContent>
-
-        <AnimatedSidebarFooter className="gap-3 border-none p-3">
-          <button
-            type="button"
-            className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#d5ff66] text-xs font-semibold text-[#172000]">
-              AS
-            </span>
-            <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
-              <span className="block truncate text-sm font-medium text-foreground">
-                Ava Stone
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                ava@solace.app
-              </span>
-            </span>
-            <ChevronRight
-              aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground group-data-[state=collapsed]/sidebar:hidden"
-            />
-          </button>
-        </AnimatedSidebarFooter>
-
-        <AnimatedSidebarRail />
-      </AnimatedSidebar>
-
-      <AnimatedSidebarInset className="bg-background">
-        <header className="flex h-16 shrink-0 items-center gap-3 border-border border-b px-4">
-          <AnimatedSidebarTrigger className="text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <PanelLeft aria-hidden="true" className="size-4" />
-          </AnimatedSidebarTrigger>
-          <div className="h-5 w-px bg-border" />
-          <p className="text-sm font-medium text-foreground">{active}</p>
-        </header>
-
-        <div className="flex min-h-0 flex-1 flex-col justify-between overflow-hidden p-5 sm:p-7">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">
-              Wednesday, July 29
-            </p>
-            <h3 className="mt-2 max-w-md text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              Good morning, Ava.
-            </h3>
-            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Your workspace stays in place while the navigation folds down
-              to a focused icon rail.
-            </p>
-          </div>
-
-          <div className="flex items-end justify-between border-border border-t pt-4">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                Active view
-              </p>
-              <p className="mt-1 text-sm font-medium text-foreground">
-                {active}
-              </p>
-            </div>
-            <p className="hidden text-xs text-muted-foreground sm:block">
-              Press ⌘B to toggle
-            </p>
-          </div>
-        </div>
-      </AnimatedSidebarInset>
-    </AnimatedSidebarProvider>
-  );
-}
-</file>
-
-<file path="app/globals.css">
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --border: #e5e7eb;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --ring: #3b82f6;
-  --primary: #3b82f6;
-  --card: #ffffff;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --border: #27272a;
-    --muted: #18181b;
-    --muted-foreground: #71717a;
-    --ring: #60a5fa;
-    --primary: #60a5fa;
-    --card: #111111;
-  }
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-border: var(--border);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-ring: var(--ring);
-  --color-primary: var(--primary);
-  --color-card: var(--card);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
-}
-</file>
-
-<file path="app/layout.tsx">
-// app/layout.tsx
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { GlobalDock } from "@/components/app/global-dock";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "Create Next App",
-  description: "Generated by create next app",
-};
-
-export default function RootLayout({ children }: LayoutProps<"/">) {
-  return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="h-full antialiased">
-        {children}
-        <GlobalDock />
-      </body>
-    </html>
-  );
-}
-</file>
-
-<file path="AGENTS.md">
-Let me read the uploaded file to understand your website's codebase first.Now I have everything I need. Here are all the files you need to create/update:
-
----
-
-## 1. `lib/ease.ts` — update it (add the missing tokens)
-
-Your existing `lib/ease.ts` is missing some tokens. Replace it entirely with:
-
-```ts
-// lib/ease.ts
-export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
-export const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
-export const EASE_DRAWER = [0.32, 0.72, 0, 1] as const;
-
-export const EASE_OUT_CSS = "cubic-bezier(0.16, 1, 0.3, 1)";
-
-export const SPRING_PRESS = {
-  type: "spring",
-  stiffness: 500,
-  damping: 30,
-  mass: 0.6,
-} as const;
-
-export const SPRING_SWAP = {
-  type: "spring",
-  stiffness: 460,
-  damping: 30,
-  mass: 0.55,
-} as const;
-
-export const SPRING_PANEL = {
-  type: "spring",
-  stiffness: 420,
-  damping: 40,
-  mass: 0.5,
-} as const;
-
-export const SPRING_LAYOUT = {
-  type: "spring",
-  stiffness: 360,
-  damping: 32,
-  mass: 0.6,
-} as const;
-
-export const SPRING_MOUSE = {
-  stiffness: 200,
-  damping: 15,
-  mass: 0.3,
-} as const;
-
-export const SPRING_GLIDE = {
-  stiffness: 700,
-  damping: 50,
-  mass: 0.5,
-} as const;
-```
-
-*(Your existing file already matches this — no change needed if it's identical.)*
-
----
-
-## 2. `components/app/icons.tsx` — **new file**
-
-```tsx
-// components/app/icons.tsx
-import type { SVGProps } from "react";
-
-export function GithubIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M12 .5C5.65.5.5 5.65.5 12.02c0 5.1 3.29 9.43 7.86 10.96.58.1.79-.25.79-.56v-2.01c-3.2.7-3.87-1.54-3.87-1.54-.52-1.33-1.27-1.68-1.27-1.68-1.04-.71.08-.69.08-.69 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.68 1.25 3.34.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.18.91-.25 1.89-.38 2.87-.39.97 0 1.96.13 2.87.39 2.19-1.49 3.15-1.18 3.15-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.84 1.18 3.1 0 4.42-2.7 5.4-5.27 5.68.42.36.78 1.07.78 2.16v3.2c0 .31.21.67.8.56 4.57-1.53 7.85-5.86 7.85-10.96C23.5 5.65 18.35.5 12 .5Z"
-      />
-    </svg>
-  );
-}
-```
-
----
-
-## 3. `components/motion/dock.tsx` — **new file**
-
-```tsx
-// components/motion/dock.tsx
-"use client";
-// beui.dev/components/motion/dock
-
-import { motion, useReducedMotion } from "motion/react";
-import { createContext, useContext, useId, useMemo, type ReactNode } from "react";
-import { SPRING_LAYOUT } from "@/lib/ease";
-import { cn } from "@/lib/utils";
-
-type DockContextValue = {
-  size: number;
-  pillLayoutId: string;
-};
-
-const DockContext = createContext<DockContextValue | null>(null);
-
-export interface DockProps {
-  children: ReactNode;
-  className?: string;
-  /** Size of each item in px. */
-  size?: number;
-}
-
-export function Dock({ children, size = 44, className }: DockProps) {
-  const pillLayoutId = useId();
-  const ctx = useMemo<DockContextValue>(
-    () => ({ size, pillLayoutId }),
-    [size, pillLayoutId],
-  );
-
-  return (
-    <DockContext.Provider value={ctx}>
-      <div
-        className={cn(
-          "inline-flex h-auto items-end gap-1.5 rounded-2xl border border-border bg-card/80 px-2 py-1 shadow-2xl backdrop-blur-xl",
-          className,
-        )}
-      >
-        {children}
-      </div>
-    </DockContext.Provider>
-  );
-}
-
-export interface DockItemProps {
-  children: ReactNode;
-  className?: string;
-  /** When set, the item renders as a <button>. Omit when children carry their own link or button. */
-  onClick?: () => void;
-  active?: boolean;
-  "aria-label"?: string;
-}
-
-export function DockItem({
-  children,
-  className,
-  onClick,
-  active,
-  ...rest
-}: DockItemProps) {
-  const dock = useContext(DockContext);
-  const reduce = useReducedMotion();
-  const size = dock?.size ?? 44;
-  const pillLayoutId = dock?.pillLayoutId ?? "dock-pill";
-
-  const pill = active ? (
-    <motion.span
-      layoutId={pillLayoutId}
-      transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
-      className="absolute inset-0.5 -z-10 rounded-xl bg-primary/5"
-    />
-  ) : null;
-  const sharedStyle = { width: size, height: size };
-  const sharedClass = cn(
-    "relative flex shrink-0 items-center justify-center rounded-full text-foreground",
-    className,
-  );
-
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label={rest["aria-label"]}
-        aria-pressed={active}
-        style={sharedStyle}
-        className={cn(
-          sharedClass,
-          "cursor-pointer border-0 bg-transparent p-0 outline-none",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        )}
-      >
-        {pill}
-        {children}
-      </button>
-    );
-  }
-
-  // Children carry their own link or button (and its accessible name).
-  return (
-    <div style={sharedStyle} className={sharedClass}>
-      {pill}
-      {children}
-    </div>
-  );
-}
-
-export function DockSeparator({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn("mx-1 h-6 w-px self-center bg-border", className)}
-    />
-  );
-}
-```
-
----
-
-## 4. `app/globals.css` — add the missing `--card` token
-
-The Dock uses `bg-card/80` but your `globals.css` doesn't define `--card`. Add it:
-
-```css
-/* app/globals.css */
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --border: #e5e7eb;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --ring: #3b82f6;
-  --primary: #3b82f6;
-  --card: #ffffff;        /* ← add this */
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --border: #27272a;
-    --muted: #18181b;
-    --muted-foreground: #71717a;
-    --ring: #60a5fa;
-    --primary: #60a5fa;
-    --card: #111111;       /* ← add this */
-  }
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-border: var(--border);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-ring: var(--ring);
-  --color-primary: var(--primary);
-  --color-card: var(--card);            /* ← add this */
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
-}
-```
-
----
-
-## 5. `app/page.tsx` — add the Dock to your homepage
-
-```tsx
+<file path="app/page.tsx">
 // app/page.tsx
 "use client";
 
-import { Calendar, Home, Mail, Music, Settings, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { GithubIcon } from "@/components/app/icons";
-import { Dock, DockItem, DockSeparator } from "@/components/motion/dock";
 
 const ITEMS = [
-  { id: "home", icon: Home, label: "Home" },
-  { id: "mail", icon: Mail, label: "Mail" },
-  { id: "calendar", icon: Calendar, label: "Calendar" },
-  { id: "music", icon: Music, label: "Music" },
-  { id: "discover", icon: Sparkles, label: "Discover" },
+  { id: "home", label: "Home" },
+  { id: "mail", label: "Mail" },
+  { id: "calendar", label: "Calendar" },
+  { id: "music", label: "Music" },
+  { id: "discover", label: "Discover" },
 ];
 
 export default function HomePage() {
-  const [active, setActive] = useState("home");
-
   return (
     <div className="flex flex-col flex-1 items-center justify-center min-h-screen bg-zinc-50 font-sans dark:bg-black">
-      <div className="flex w-full justify-center">
-        <Dock>
-          {ITEMS.map(({ id, icon: Icon, label }) => (
-            <DockItem
-              key={id}
-              aria-label={label}
-              active={active === id}
-              onClick={() => setActive(id)}
-            >
-              <Icon className="h-5 w-5" />
-            </DockItem>
-          ))}
-          <DockSeparator />
-          <DockItem
-            aria-label="Settings"
-            active={active === "settings"}
-            onClick={() => setActive("settings")}
-          >
-            <Settings className="h-5 w-5" />
-          </DockItem>
-          <DockItem aria-label="GitHub">
-            <GithubIcon className="h-5 w-5" />
-          </DockItem>
-        </Dock>
-      </div>
+      <h1 className="text-2xl font-semibold text-foreground">Home Page</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        The dock is now fixed at the bottom on every page.
+      </p>
     </div>
   );
 }
-```
-
----
-
-## 6. Install the dependency (if not already)
-
-```bash
-npm i motion lucide-react clsx tailwind-merge
-```
-
-(`clsx`, `tailwind-merge`, and `lucide-react` may already be installed per your `AGENTS.md`; `motion` is the key one for the dock animations.)
-
----
-
-**Summary of new/changed files:**
-- **New:** `components/app/icons.tsx`
-- **New:** `components/motion/dock.tsx`
-- **Updated:** `app/globals.css` (add `--card` token)
-- **Updated:** `app/page.tsx` (add the Dock)
-- `lib/ease.ts` and `lib/utils.ts` are already correct in your repo — no changes needed.
 </file>
 
 <file path="CLAUDE.md">
@@ -3895,6 +4147,844 @@ export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
     "typescript": "^5"
   }
 }
+</file>
+
+<file path="app/dashboard/page.tsx">
+"use client";
+
+import {
+  BadgeCheck,
+  Bell,
+  Building2,
+  ChevronRight,
+  ChevronsUpDown,
+  CircleUserRound,
+  Command,
+  History,
+  Inbox,
+  LayoutGrid,
+  LogOut,
+  NotebookTabs,
+  PanelLeft,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  User,
+  Workflow,
+  X,
+} from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  AnimatedSidebar,
+  AnimatedSidebarClose,
+  AnimatedSidebarContent,
+  AnimatedSidebarFooter,
+  AnimatedSidebarGroup,
+  AnimatedSidebarGroupContent,
+  AnimatedSidebarGroupLabel,
+  AnimatedSidebarHeader,
+  AnimatedSidebarInset,
+  AnimatedSidebarMenu,
+  AnimatedSidebarMenuButton,
+  AnimatedSidebarMenuItem,
+  AnimatedSidebarMenuSub,
+  AnimatedSidebarMenuSubButton,
+  AnimatedSidebarMenuSubItem,
+  AnimatedSidebarProvider,
+  AnimatedSidebarRail,
+  AnimatedSidebarTrigger,
+} from "@/components/motion/animated-sidebar";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@/components/motion/context-menu";
+
+const destinations = [
+  { label: "Dashboard", icon: LayoutGrid },
+  { label: "Markets", icon: Target },
+  {
+    label: "Investment",
+    icon: Sparkles,
+    children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining", "OTC Trading"],
+  },
+  {
+    label: "Trading",
+    icon: Workflow,
+    children: ["Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
+  },
+  {
+    label: "Wallet",
+    icon: Building2,
+    children: ["Main Wallet", "Investment Wallet", "Trading Wallet", "Mining Wallet", "Referral Wallet", "Wallet History"],
+  },
+  {
+    label: "Fund",
+    icon: Inbox,
+    children: ["Deposit", "Withdraw", "Transfer", "Fund History"],
+  },
+  {
+    label: "Referral",
+    icon: CircleUserRound,
+    children: ["Referral Dashboard", "My Referrals", "Referral Earnings", "Referral History"],
+  },
+  {
+    label: "Support",
+    icon: NotebookTabs,
+    children: ["Help Center", "My Tickets", "Create Ticket"],
+  },
+] satisfies {
+  label: string;
+  icon: typeof CircleUserRound;
+  children?: string[];
+}[];
+
+export default function DashboardPage() {
+  const [active, setActive] = useState("Dashboard");
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleProfileClick = () => {
+    const btn = profileButtonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const syntheticEvent = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top,
+    });
+    btn.dispatchEvent(syntheticEvent);
+  };
+
+  return (
+    <AnimatedSidebarProvider className="min-h-svh">
+      <AnimatedSidebar
+        ariaLabel="User Panel"
+        collapsible="icon"
+        panelClassName="border-foreground/[0.08]"
+      >
+        <AnimatedSidebarHeader className="p-3 pb-2">
+          <div className="flex min-h-11 items-center gap-3 overflow-hidden px-2">
+            <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-foreground text-background">
+              <Command aria-hidden="true" className="size-4" />
+            </div>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[state=collapsed]/sidebar:hidden"
+            >
+              <span className="truncate text-sm font-semibold text-foreground">
+                Acme Inc
+              </span>
+              <ChevronsUpDown
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
+            </button>
+            <AnimatedSidebarClose className="ml-auto text-muted-foreground hover:bg-muted md:hidden">
+              <X aria-hidden="true" className="size-4" />
+            </AnimatedSidebarClose>
+          </div>
+        </AnimatedSidebarHeader>
+
+        <AnimatedSidebarContent className="px-2 pt-1">
+          <AnimatedSidebarGroup className="pt-1">
+            <AnimatedSidebarGroupLabel>User Panel</AnimatedSidebarGroupLabel>
+            <AnimatedSidebarGroupContent>
+              <AnimatedSidebarMenu>
+                {destinations.map(({ label, icon: Icon, children }) => (
+                  <AnimatedSidebarMenuItem key={label}>
+                    <AnimatedSidebarMenuButton
+                      isActive={
+                        active === label ||
+                        children?.includes(active) === true
+                      }
+                      ariaExpanded={
+                        children ? openSection === label : undefined
+                      }
+                      icon={<Icon className="size-4" />}
+                      onSelect={() => {
+                        setOpenSection((current) => {
+                          if (!children) {
+                            setActive(label);
+                            return null;
+                          }
+                          return current === label ? null : label;
+                        });
+                      }}
+                    >
+                      {label}
+                    </AnimatedSidebarMenuButton>
+                    {children ? (
+                      <AnimatedSidebarMenuSub open={openSection === label}>
+                        {children.map((child) => (
+                          <AnimatedSidebarMenuSubItem key={child}>
+                            <AnimatedSidebarMenuSubButton
+                              isActive={active === child}
+                              onSelect={() => setActive(child)}
+                            >
+                              {child}
+                            </AnimatedSidebarMenuSubButton>
+                          </AnimatedSidebarMenuSubItem>
+                        ))}
+                      </AnimatedSidebarMenuSub>
+                    ) : null}
+                  </AnimatedSidebarMenuItem>
+                ))}
+              </AnimatedSidebarMenu>
+            </AnimatedSidebarGroupContent>
+          </AnimatedSidebarGroup>
+        </AnimatedSidebarContent>
+
+        <AnimatedSidebarFooter className="gap-3 border-none p-3">
+          <ContextMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
+            <ContextMenuTrigger>
+              <button
+                ref={profileButtonRef}
+                type="button"
+                onClick={handleProfileClick}
+                className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#d5ff66] text-xs font-semibold text-[#172000]">
+                  AS
+                </span>
+                <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    Ava Stone
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    ava@solace.app
+                  </span>
+                </span>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground group-data-[state=collapsed]/sidebar:hidden"
+                />
+              </button>
+            </ContextMenuTrigger>
+
+            <ContextMenuContent ariaLabel="Profile actions" className="w-60">
+              <ContextMenuLabel>Profile</ContextMenuLabel>
+              <ContextMenuItem
+                textValue="Personal Information"
+                onSelect={() => setActive("Personal Information")}
+              >
+                <User aria-hidden="true" className="h-4 w-4" />
+                Personal Information
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Security"
+                onSelect={() => setActive("Security")}
+              >
+                <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                Security
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="KYC Verification"
+                onSelect={() => setActive("KYC Verification")}
+              >
+                <BadgeCheck aria-hidden="true" className="h-4 w-4" />
+                KYC Verification
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Login History"
+                onSelect={() => setActive("Login History")}
+              >
+                <History aria-hidden="true" className="h-4 w-4" />
+                Login History
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Notification Settings"
+                onSelect={() => setActive("Notification Settings")}
+              >
+                <Bell aria-hidden="true" className="h-4 w-4" />
+                Notification Settings
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Account Settings"
+                onSelect={() => setActive("Account Settings")}
+              >
+                <Settings aria-hidden="true" className="h-4 w-4" />
+                Account Settings
+              </ContextMenuItem>
+
+              <ContextMenuSeparator />
+
+              <ContextMenuItem
+                tone="destructive"
+                textValue="Log out"
+                onSelect={() => console.log("logout")}
+              >
+                <LogOut aria-hidden="true" className="h-4 w-4" />
+                Log out
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </AnimatedSidebarFooter>
+
+        <AnimatedSidebarRail />
+      </AnimatedSidebar>
+
+      <AnimatedSidebarInset className="bg-background">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-border border-b px-4">
+          <AnimatedSidebarTrigger className="text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <PanelLeft aria-hidden="true" className="size-4" />
+          </AnimatedSidebarTrigger>
+          <div className="h-5 w-px bg-border" />
+          <p className="text-sm font-medium text-foreground">{active}</p>
+        </header>
+
+        <div className="flex min-h-0 flex-1 flex-col justify-between overflow-hidden p-5 sm:p-7">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">
+              Wednesday, July 29
+            </p>
+            <h3 className="mt-2 max-w-md text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Good morning, Ava.
+            </h3>
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+              Your workspace stays in place while the navigation folds down
+              to a focused icon rail.
+            </p>
+          </div>
+
+          <div className="flex items-end justify-between border-border border-t pt-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                Active view
+              </p>
+              <p className="mt-1 text-sm font-medium text-foreground">
+                {active}
+              </p>
+            </div>
+            <p className="hidden text-xs text-muted-foreground sm:block">
+              Press ⌘B to toggle
+            </p>
+          </div>
+        </div>
+      </AnimatedSidebarInset>
+    </AnimatedSidebarProvider>
+  );
+}
+</file>
+
+<file path="app/globals.css">
+@import "tailwindcss";
+
+:root {
+  --background: #151515;
+  --foreground: #ededed;
+  --border: #2a2a2a;
+  --muted: #1f1f1f;
+  --muted-foreground: #71717a;
+  --ring: #60a5fa;
+  --primary: #60a5fa;
+  --card: #1c1c1c;
+  --destructive: #ef4444;
+  --success: #4ade80;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #151515;
+    --foreground: #ededed;
+    --border: #2a2a2a;
+    --muted: #1f1f1f;
+    --muted-foreground: #71717a;
+    --ring: #60a5fa;
+    --primary: #60a5fa;
+    --card: #1c1c1c;
+    --destructive: #ef4444;
+    --success: #4ade80;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-card: var(--card);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+}
+</file>
+
+<file path="app/layout.tsx">
+// app/layout.tsx
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import { GlobalDock } from "@/components/app/global-dock";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="h-full antialiased">
+        {children}
+        <GlobalDock />
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="AGENTS.md">
+Now I have everything I need. Let me give you the updated code clearly.
+
+---
+
+## Changes needed: 2 files only
+
+### 1. `app/globals.css` — set background to `#151515` (always dark)
+
+Replace your entire `globals.css` with this:
+
+```css
+@import "tailwindcss";
+
+:root {
+  --background: #151515;
+  --foreground: #ededed;
+  --border: #2a2a2a;
+  --muted: #1f1f1f;
+  --muted-foreground: #71717a;
+  --ring: #60a5fa;
+  --primary: #60a5fa;
+  --card: #1c1c1c;
+  --destructive: #ef4444;
+  --success: #4ade80;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #151515;
+    --foreground: #ededed;
+    --border: #2a2a2a;
+    --muted: #1f1f1f;
+    --muted-foreground: #71717a;
+    --ring: #60a5fa;
+    --primary: #60a5fa;
+    --card: #1c1c1c;
+    --destructive: #ef4444;
+    --success: #4ade80;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-card: var(--card);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+}
+```
+
+**Why:** Both `:root` blocks now set `#151515` so the color is always dark regardless of OS theme. I also added `--destructive` and `--success` which the context menu component uses.
+
+---
+
+### 2. `app/dashboard/page.tsx` — wire the Profile button to the context menu
+
+You need to:
+- Add the context menu component file (see below)
+- Update the dashboard page to import and use it on the Profile button
+
+First, **create this new file** `components/motion/context-menu.tsx` — just paste the full source from the `components/motion/context-menu.tsx` code you already shared in your message above. It's the exact same file, no changes needed to it.
+
+Then also **create `lib/touch.ts`** — paste the full `lib/touch.ts` source from your message above. No changes needed there either.
+
+Now **update `app/dashboard/page.tsx`**. Here's the full updated file:
+
+```tsx
+"use client";
+
+import {
+  Building2,
+  ChevronRight,
+  ChevronsUpDown,
+  CircleUserRound,
+  Command,
+  Copy,
+  CreditCard,
+  LayoutGrid,
+  LogOut,
+  NotebookTabs,
+  PanelLeft,
+  Settings,
+  Sparkles,
+  Target,
+  User,
+  Workflow,
+  X,
+  Inbox,
+} from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  AnimatedSidebar,
+  AnimatedSidebarClose,
+  AnimatedSidebarContent,
+  AnimatedSidebarFooter,
+  AnimatedSidebarGroup,
+  AnimatedSidebarGroupContent,
+  AnimatedSidebarGroupLabel,
+  AnimatedSidebarHeader,
+  AnimatedSidebarInset,
+  AnimatedSidebarMenu,
+  AnimatedSidebarMenuButton,
+  AnimatedSidebarMenuItem,
+  AnimatedSidebarMenuSub,
+  AnimatedSidebarMenuSubButton,
+  AnimatedSidebarMenuSubItem,
+  AnimatedSidebarProvider,
+  AnimatedSidebarRail,
+  AnimatedSidebarTrigger,
+} from "@/components/motion/animated-sidebar";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuCheckboxItem,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@/components/motion/context-menu";
+
+const destinations = [
+  { label: "Dashboard", icon: LayoutGrid },
+  { label: "Markets", icon: Target },
+  {
+    label: "Investment",
+    icon: Sparkles,
+    children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining", "OTC Trading"],
+  },
+  {
+    label: "Trading",
+    icon: Workflow,
+    children: ["Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
+  },
+  {
+    label: "Wallet",
+    icon: Building2,
+    children: ["Main Wallet", "Investment Wallet", "Trading Wallet", "Mining Wallet", "Referral Wallet", "Wallet History"],
+  },
+  {
+    label: "Fund",
+    icon: Inbox,
+    children: ["Deposit", "Withdraw", "Transfer", "Fund History"],
+  },
+  {
+    label: "Referral",
+    icon: CircleUserRound,
+    children: ["Referral Dashboard", "My Referrals", "Referral Earnings", "Referral History"],
+  },
+  {
+    label: "Support",
+    icon: NotebookTabs,
+    children: ["Help Center", "My Tickets", "Create Ticket"],
+  },
+] satisfies {
+  label: string;
+  icon: typeof CircleUserRound;
+  children?: string[];
+}[];
+
+export default function DashboardPage() {
+  const [active, setActive] = useState("Dashboard");
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState(true);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Opens the context menu positioned above the profile button, centered on it
+  const handleProfileClick = () => {
+    const btn = profileButtonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    // We dispatch a synthetic contextmenu event at the top-center of the button
+    // so the context menu's built-in positioning logic places it above the button.
+    const syntheticEvent = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top,
+    });
+    btn.dispatchEvent(syntheticEvent);
+  };
+
+  return (
+    <AnimatedSidebarProvider className="min-h-svh">
+      <AnimatedSidebar
+        ariaLabel="User Panel"
+        collapsible="icon"
+        panelClassName="border-foreground/[0.08]"
+      >
+        <AnimatedSidebarHeader className="p-3 pb-2">
+          <div className="flex min-h-11 items-center gap-3 overflow-hidden px-2">
+            <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-foreground text-background">
+              <Command aria-hidden="true" className="size-4" />
+            </div>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[state=collapsed]/sidebar:hidden"
+            >
+              <span className="truncate text-sm font-semibold text-foreground">
+                Acme Inc
+              </span>
+              <ChevronsUpDown
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
+            </button>
+            <AnimatedSidebarClose className="ml-auto text-muted-foreground hover:bg-muted md:hidden">
+              <X aria-hidden="true" className="size-4" />
+            </AnimatedSidebarClose>
+          </div>
+        </AnimatedSidebarHeader>
+
+        <AnimatedSidebarContent className="px-2 pt-1">
+          <AnimatedSidebarGroup className="pt-1">
+            <AnimatedSidebarGroupLabel>User Panel</AnimatedSidebarGroupLabel>
+            <AnimatedSidebarGroupContent>
+              <AnimatedSidebarMenu>
+                {destinations.map(({ label, icon: Icon, children }) => (
+                  <AnimatedSidebarMenuItem key={label}>
+                    <AnimatedSidebarMenuButton
+                      isActive={
+                        active === label ||
+                        children?.includes(active) === true
+                      }
+                      ariaExpanded={
+                        children ? openSection === label : undefined
+                      }
+                      icon={<Icon className="size-4" />}
+                      onSelect={() => {
+                        setOpenSection((current) => {
+                          if (!children) {
+                            setActive(label);
+                            return null;
+                          }
+                          return current === label ? null : label;
+                        });
+                      }}
+                    >
+                      {label}
+                    </AnimatedSidebarMenuButton>
+                    {children ? (
+                      <AnimatedSidebarMenuSub open={openSection === label}>
+                        {children.map((child) => (
+                          <AnimatedSidebarMenuSubItem key={child}>
+                            <AnimatedSidebarMenuSubButton
+                              isActive={active === child}
+                              onSelect={() => setActive(child)}
+                            >
+                              {child}
+                            </AnimatedSidebarMenuSubButton>
+                          </AnimatedSidebarMenuSubItem>
+                        ))}
+                      </AnimatedSidebarMenuSub>
+                    ) : null}
+                  </AnimatedSidebarMenuItem>
+                ))}
+              </AnimatedSidebarMenu>
+            </AnimatedSidebarGroupContent>
+          </AnimatedSidebarGroup>
+        </AnimatedSidebarContent>
+
+        {/* Profile button with context menu */}
+        <AnimatedSidebarFooter className="gap-3 border-none p-3">
+          <ContextMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
+            <ContextMenuTrigger>
+              <button
+                ref={profileButtonRef}
+                type="button"
+                onClick={handleProfileClick}
+                className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#d5ff66] text-xs font-semibold text-[#172000]">
+                  AS
+                </span>
+                <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    Ava Stone
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    ava@solace.app
+                  </span>
+                </span>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground group-data-[state=collapsed]/sidebar:hidden"
+                />
+              </button>
+            </ContextMenuTrigger>
+
+            <ContextMenuContent ariaLabel="Profile actions" className="w-60">
+              <ContextMenuLabel>Ava Stone</ContextMenuLabel>
+              <ContextMenuItem
+                textValue="Profile"
+                onSelect={() => setActive("Profile")}
+              >
+                <User aria-hidden="true" className="h-4 w-4" />
+                Profile
+                <ContextMenuShortcut>⌘P</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Billing"
+                onSelect={() => setActive("Billing")}
+              >
+                <CreditCard aria-hidden="true" className="h-4 w-4" />
+                Billing
+                <ContextMenuShortcut>⌘B</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Settings"
+                onSelect={() => setActive("Settings")}
+              >
+                <Settings aria-hidden="true" className="h-4 w-4" />
+                Settings
+                <ContextMenuShortcut>⌘S</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Copy email"
+                onSelect={() => navigator.clipboard.writeText("ava@solace.app")}
+              >
+                <Copy aria-hidden="true" className="h-4 w-4" />
+                Copy email
+              </ContextMenuItem>
+
+              <ContextMenuSeparator />
+
+              <ContextMenuCheckboxItem
+                textValue="Notifications"
+                checked={notifications}
+                closeOnSelect={false}
+                onCheckedChange={setNotifications}
+              >
+                Notifications
+              </ContextMenuCheckboxItem>
+
+              <ContextMenuSeparator />
+
+              <ContextMenuItem
+                tone="destructive"
+                textValue="Log out"
+                onSelect={() => console.log("logout")}
+              >
+                <LogOut aria-hidden="true" className="h-4 w-4" />
+                Log out
+                <ContextMenuShortcut>⌘Q</ContextMenuShortcut>
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </AnimatedSidebarFooter>
+
+        <AnimatedSidebarRail />
+      </AnimatedSidebar>
+
+      <AnimatedSidebarInset className="bg-background">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-border border-b px-4">
+          <AnimatedSidebarTrigger className="text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <PanelLeft aria-hidden="true" className="size-4" />
+          </AnimatedSidebarTrigger>
+          <div className="h-5 w-px bg-border" />
+          <p className="text-sm font-medium text-foreground">{active}</p>
+        </header>
+
+        <div className="flex min-h-0 flex-1 flex-col justify-between overflow-hidden p-5 sm:p-7">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">
+              Wednesday, July 29
+            </p>
+            <h3 className="mt-2 max-w-md text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Good morning, Ava.
+            </h3>
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+              Your workspace stays in place while the navigation folds down
+              to a focused icon rail.
+            </p>
+          </div>
+
+          <div className="flex items-end justify-between border-border border-t pt-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                Active view
+              </p>
+              <p className="mt-1 text-sm font-medium text-foreground">
+                {active}
+              </p>
+            </div>
+            <p className="hidden text-xs text-muted-foreground sm:block">
+              Press ⌘B to toggle
+            </p>
+          </div>
+        </div>
+      </AnimatedSidebarInset>
+    </AnimatedSidebarProvider>
+  );
+}
+```
+
+---
+
+## Quick guide (3 steps)
+
+**Step 1** — Replace `app/globals.css` with the CSS above. This locks the whole site to `#151515` dark background.
+
+**Step 2** — Create `components/motion/context-menu.tsx` and `lib/touch.ts` by pasting the exact source code you already have in the snippets at the top of your message. No edits needed to those files.
+
+**Step 3** — Replace `app/dashboard/page.tsx` with the updated version above.
+
+**How the positioning works:** The Profile button dispatches a `contextmenu` event at `clientX = button center X`, `clientY = button top Y` when clicked. The context menu's own viewport-clamping logic in `ContextMenuContent` then positions it above the button, centered on it — no manual positioning math needed from our side, the component handles it cleanly.
 </file>
 
 </files>
