@@ -6,16 +6,14 @@ import {
   ChevronsUpDown,
   CircleUserRound,
   Command,
-  Inbox,
   LayoutGrid,
-  ListTodo,
   NotebookTabs,
   PanelLeft,
-  Search,
   Sparkles,
   Target,
   Workflow,
   X,
+  Inbox,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -41,35 +39,42 @@ import {
 
 const destinations = [
   {
-    label: "People",
-    icon: CircleUserRound,
-    children: ["All people", "Recent activity", "Segments"],
-  },
-  {
-    label: "Companies",
-    icon: Building2,
-  },
-  {
-    label: "Opportunities",
-    icon: Target,
-    children: ["Pipeline", "Forecast", "Closed deals"],
-  },
-  {
-    label: "Tasks",
-    icon: ListTodo,
-  },
-  {
-    label: "Notes",
-    icon: NotebookTabs,
-  },
-  {
-    label: "Workflows",
-    icon: Workflow,
-    children: ["Automations", "Runs", "Templates"],
-  },
-  {
     label: "Dashboard",
     icon: LayoutGrid,
+  },
+  {
+    label: "Markets",
+    icon: Target,
+  },
+  {
+    label: "Investment",
+    icon: Sparkles,
+    children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining", "OTC Trading"],
+  },
+  {
+    label: "Trading",
+    icon: Workflow,
+    children: ["Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
+  },
+  {
+    label: "Wallet",
+    icon: Building2,
+    children: ["Main Wallet", "Investment Wallet", "Trading Wallet", "Mining Wallet", "Referral Wallet", "Wallet History"],
+  },
+  {
+    label: "Fund",
+    icon: Inbox,
+    children: ["Deposit", "Withdraw", "Transfer", "Fund History"],
+  },
+  {
+    label: "Referral",
+    icon: CircleUserRound,
+    children: ["Referral Dashboard", "My Referrals", "Referral Earnings", "Referral History"],
+  },
+  {
+    label: "Support",
+    icon: NotebookTabs,
+    children: ["Help Center", "My Tickets", "Create Ticket"],
   },
 ] satisfies {
   label: string;
@@ -78,13 +83,13 @@ const destinations = [
 }[];
 
 export default function DashboardPage() {
-  const [active, setActive] = useState("People");
+  const [active, setActive] = useState("Dashboard");
   const [openSection, setOpenSection] = useState<string | null>(null);
 
   return (
     <AnimatedSidebarProvider className="min-h-svh">
       <AnimatedSidebar
-        ariaLabel="Solace workspace"
+        ariaLabel="User Panel"
         collapsible="icon"
         panelClassName="border-foreground/[0.08]"
       >
@@ -112,41 +117,9 @@ export default function DashboardPage() {
         </AnimatedSidebarHeader>
 
         <AnimatedSidebarContent className="px-2 pt-1">
-          <AnimatedSidebarGroup className="pb-2">
-            <AnimatedSidebarGroupContent>
-              <AnimatedSidebarMenu>
-                <AnimatedSidebarMenuItem>
-                  <AnimatedSidebarMenuButton
-                    icon={<Search className="size-4" />}
-                    onSelect={() => setActive("Search")}
-                  >
-                    Search
-                  </AnimatedSidebarMenuButton>
-                </AnimatedSidebarMenuItem>
-                <AnimatedSidebarMenuItem>
-                  <AnimatedSidebarMenuButton
-                    icon={<Sparkles className="size-4" />}
-                    onSelect={() => setActive("AI Assistant")}
-                  >
-                    AI Assistant
-                  </AnimatedSidebarMenuButton>
-                </AnimatedSidebarMenuItem>
-                <AnimatedSidebarMenuItem>
-                  <AnimatedSidebarMenuButton
-                    icon={<Inbox className="size-4" />}
-                    badge="4"
-                    onSelect={() => setActive("Inbox")}
-                  >
-                    Inbox
-                  </AnimatedSidebarMenuButton>
-                </AnimatedSidebarMenuItem>
-              </AnimatedSidebarMenu>
-            </AnimatedSidebarGroupContent>
-          </AnimatedSidebarGroup>
-
           <AnimatedSidebarGroup className="pt-1">
             <AnimatedSidebarGroupLabel>
-              Workspaces
+              User Panel
             </AnimatedSidebarGroupLabel>
             <AnimatedSidebarGroupContent>
               <AnimatedSidebarMenu>
