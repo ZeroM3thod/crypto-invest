@@ -1,21 +1,28 @@
 "use client";
 
 import {
+  BadgeCheck,
+  Bell,
   Building2,
   ChevronRight,
   ChevronsUpDown,
   CircleUserRound,
   Command,
+  History,
+  Inbox,
   LayoutGrid,
+  LogOut,
   NotebookTabs,
   PanelLeft,
+  Settings,
+  ShieldCheck,
   Sparkles,
   Target,
+  User,
   Workflow,
   X,
-  Inbox,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AnimatedSidebar,
   AnimatedSidebarClose,
@@ -36,16 +43,19 @@ import {
   AnimatedSidebarRail,
   AnimatedSidebarTrigger,
 } from "@/components/motion/animated-sidebar";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "@/components/motion/context-menu";
 
 const destinations = [
-  {
-    label: "Dashboard",
-    icon: LayoutGrid,
-  },
-  {
-    label: "Markets",
-    icon: Target,
-  },
+  { label: "Dashboard", icon: LayoutGrid },
+  { label: "Markets", icon: Target },
   {
     label: "Investment",
     icon: Sparkles,
@@ -85,6 +95,21 @@ const destinations = [
 export default function DashboardPage() {
   const [active, setActive] = useState("Dashboard");
   const [openSection, setOpenSection] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleProfileClick = () => {
+    const btn = profileButtonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const syntheticEvent = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top,
+    });
+    btn.dispatchEvent(syntheticEvent);
+  };
 
   return (
     <AnimatedSidebarProvider className="min-h-svh">
@@ -118,9 +143,7 @@ export default function DashboardPage() {
 
         <AnimatedSidebarContent className="px-2 pt-1">
           <AnimatedSidebarGroup className="pt-1">
-            <AnimatedSidebarGroupLabel>
-              User Panel
-            </AnimatedSidebarGroupLabel>
+            <AnimatedSidebarGroupLabel>User Panel</AnimatedSidebarGroupLabel>
             <AnimatedSidebarGroupContent>
               <AnimatedSidebarMenu>
                 {destinations.map(({ label, icon: Icon, children }) => (
@@ -147,9 +170,7 @@ export default function DashboardPage() {
                       {label}
                     </AnimatedSidebarMenuButton>
                     {children ? (
-                      <AnimatedSidebarMenuSub
-                        open={openSection === label}
-                      >
+                      <AnimatedSidebarMenuSub open={openSection === label}>
                         {children.map((child) => (
                           <AnimatedSidebarMenuSubItem key={child}>
                             <AnimatedSidebarMenuSubButton
@@ -170,26 +191,89 @@ export default function DashboardPage() {
         </AnimatedSidebarContent>
 
         <AnimatedSidebarFooter className="gap-3 border-none p-3">
-          <button
-            type="button"
-            className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#d5ff66] text-xs font-semibold text-[#172000]">
-              AS
-            </span>
-            <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
-              <span className="block truncate text-sm font-medium text-foreground">
-                Ava Stone
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                ava@solace.app
-              </span>
-            </span>
-            <ChevronRight
-              aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground group-data-[state=collapsed]/sidebar:hidden"
-            />
-          </button>
+          <ContextMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
+            <ContextMenuTrigger>
+              <button
+                ref={profileButtonRef}
+                type="button"
+                onClick={handleProfileClick}
+                className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#d5ff66] text-xs font-semibold text-[#172000]">
+                  AS
+                </span>
+                <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    Ava Stone
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    ava@solace.app
+                  </span>
+                </span>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground group-data-[state=collapsed]/sidebar:hidden"
+                />
+              </button>
+            </ContextMenuTrigger>
+
+            <ContextMenuContent ariaLabel="Profile actions" className="w-60">
+              <ContextMenuLabel>Profile</ContextMenuLabel>
+              <ContextMenuItem
+                textValue="Personal Information"
+                onSelect={() => setActive("Personal Information")}
+              >
+                <User aria-hidden="true" className="h-4 w-4" />
+                Personal Information
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Security"
+                onSelect={() => setActive("Security")}
+              >
+                <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                Security
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="KYC Verification"
+                onSelect={() => setActive("KYC Verification")}
+              >
+                <BadgeCheck aria-hidden="true" className="h-4 w-4" />
+                KYC Verification
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Login History"
+                onSelect={() => setActive("Login History")}
+              >
+                <History aria-hidden="true" className="h-4 w-4" />
+                Login History
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Notification Settings"
+                onSelect={() => setActive("Notification Settings")}
+              >
+                <Bell aria-hidden="true" className="h-4 w-4" />
+                Notification Settings
+              </ContextMenuItem>
+              <ContextMenuItem
+                textValue="Account Settings"
+                onSelect={() => setActive("Account Settings")}
+              >
+                <Settings aria-hidden="true" className="h-4 w-4" />
+                Account Settings
+              </ContextMenuItem>
+
+              <ContextMenuSeparator />
+
+              <ContextMenuItem
+                tone="destructive"
+                textValue="Log out"
+                onSelect={() => console.log("logout")}
+              >
+                <LogOut aria-hidden="true" className="h-4 w-4" />
+                Log out
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         </AnimatedSidebarFooter>
 
         <AnimatedSidebarRail />

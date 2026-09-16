@@ -1,6 +1,8 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { GlobalDock } from "@/components/app/global-dock";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,7 +25,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="h-full antialiased">{children}</body>
+      <body className="h-full antialiased">
+        {children}
+        <GlobalDock />
+      </body>
     </html>
   );
 }
