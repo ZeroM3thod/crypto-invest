@@ -6,10 +6,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Bot,
-  CircleDollarSign,
   CloudLightning,
-  Cpu,
-  Landmark,
   LayoutGrid,
   RefreshCw,
   TrendingUp,
@@ -18,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useState } from "react";
+import { WalletCard } from "@/components/motion/wallet-card";
 
 // ─── Tiny reusable primitives (no new design — pure Tailwind tokens from globals.css) ───
 
@@ -119,6 +117,19 @@ function StatusDot({ status }: { status: "active" | "inactive" | "pending" | "pa
   return <span className={`inline-block size-1.5 rounded-full ${colors[status]}`} />;
 }
 
+// ─── WalletCard data (mirrors wallet-card.preview.tsx exactly) ────────────────
+
+const WALLET_ACCOUNTS = [
+ 
+  { id: "main",    name: "Main Wallet",  address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
+  { id: "investment",    name: "Investment Wallet",  address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
+  { id: "mining",    name: "Mining Wallet",  address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
+  { id: "trading", name: "Trading Wallet",      address: "0x1a2B3c4D5e6F7a8B9c0D1e2F3a4B5c6D7e8F9a0B" },
+  { id: "refer",    name: "Referral Wallet", address: "0x9F8e7D6c5B4a3E2d1C0b9A8f7E6d5C4b3A2e1F0d" },
+];
+
+const RECENT_SEARCHES = ["vitalik.eth", "0xA0b8…6EB4", "Uniswap", "Send to Trading"];
+
 // ─── Static mock data (replace with real API calls) ───────────────────────────
 
 const QUICK_ACTIONS = [
@@ -156,6 +167,8 @@ const NOTIFICATIONS = [
 
 export default function DashboardPage() {
   const [chartRange, setChartRange] = useState<"1D" | "7D" | "1M" | "3M" | "6M" | "1Y">("1M");
+  // WalletCard balance state — matches the preview's simulate button behaviour
+  const [walletBalance, setWalletBalance] = useState(12480.32);
   const loading = false; // flip to true to preview skeleton states
 
   const chartRanges = ["1D", "7D", "1M", "3M", "6M", "1Y"] as const;
@@ -174,22 +187,24 @@ export default function DashboardPage() {
           </h1>
         </div>
 
-        {/* ── Account Summary ───────────────────────────── */}
-        <section aria-label="Account Summary">
-          <SectionHeader title="Account Summary" />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {[
-              { label: "Total Assets",      value: "$12,480.55", delta: { value: "+2.4% today", positive: true } },
-              { label: "Available Balance", value: "$3,210.00" },
-              { label: "Invested",          value: "$5,500.00" },
-              { label: "Trading Balance",   value: "$1,820.30" },
-              { label: "Mining Balance",    value: "$980.25" },
-              { label: "Referral Balance",  value: "$970.00" },
-            ].map((s) => (
-              <Card key={s.label}>
-                <Stat label={s.label} value={s.value} delta={s.delta} loading={loading} />
-              </Card>
-            ))}
+        {/* ── Wallet Card ────────────────────────────────
+              Layout mirrors wallet-card.preview.tsx exactly:
+              a centred flex column with the card + a ghost button below. */}
+        <section aria-label="Wallet">
+          <div className="flex w-full flex-col items-start gap-4 p-2">
+            <WalletCard
+              accounts={WALLET_ACCOUNTS}
+              balance={walletBalance}
+              defaultChange={124.5}
+              searchRecent={RECENT_SEARCHES}
+              hasNotifications
+              onSend={() => {}}
+              onDeposit={() => {}}
+              onSwap={() => {}}
+              onBuy={() => {}}
+            />
+            
+            
           </div>
         </section>
 

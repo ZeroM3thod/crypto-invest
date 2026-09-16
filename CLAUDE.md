@@ -1,1183 +1,1511 @@
-components/motion/animated-sidebar.tsx -
+
+components/previews/blocks/wallet-card.preview.tsx
 
 "use client";
-// beui.dev/components/motion/animated-sidebar
 
-import { ChevronRight } from "lucide-react";
-import {
-  AnimatePresence,
-  type HTMLMotionProps,
-  motion,
-  useReducedMotion,
-  type Variants,
-} from "motion/react";
-import {
-  type ButtonHTMLAttributes,
-  type CSSProperties,
-  createContext,
-  forwardRef,
-  type HTMLAttributes,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
-import { createPortal } from "react-dom";
-import { SharedLayoutBg } from "@/components/motion/shared-layout-bg";
-import {
-  EASE_DRAWER,
-  EASE_OUT,
-  SPRING_LAYOUT,
-  SPRING_PRESS,
-} from "@/lib/ease";
-import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { WalletCard } from "@/components/motion/wallet-card";
+import { Button } from "@/components/motion/button";
 
-type SidebarState = "expanded" | "collapsed";
-type SidebarSide = "left" | "right";
-type SidebarVariant = "sidebar" | "floating" | "inset";
-type SidebarCollapsible = "offcanvas" | "icon" | "none";
+const ACCOUNTS = [
+  { id: "main", name: "Main Wallet", address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
+  { id: "trading", name: "Trading", address: "0x1a2B3c4D5e6F7a8B9c0D1e2F3a4B5c6D7e8F9a0B" },
+  { id: "cold", name: "Cold Storage", address: "0x9F8e7D6c5B4a3E2d1C0b9A8f7E6d5C4b3A2e1F0d" },
+];
 
-const MOBILE_QUERY = "(max-width: 767px)";
-const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+const RECENT_SEARCHES = ["vitalik.eth", "0xA0b8…6EB4", "Uniswap", "Send to Trading"];
 
-const PANEL_TRANSITION = {
-  duration: 0.36,
-  ease: EASE_DRAWER,
-} as const;
+export function WalletCardPreview() {
+  const [balance, setBalance] = useState(12480.32);
 
-// The desktop rail settles at a hard zero-width boundary. Keep the spring
-// critically damped so it cannot overshoot, pause against that boundary, and
-// then snap back during the final frame.
-const SIDEBAR_MORPH_TRANSITION = {
-  type: "spring",
-  stiffness: 380,
-  damping: 35,
-  mass: 0.75,
-} as const;
-
-const LABEL_ENTER_TRANSITION = {
-  duration: 0.2,
-  delay: 0.08,
-  ease: EASE_OUT,
-} as const;
-
-const LABEL_EXIT_TRANSITION = {
-  duration: 0.12,
-  ease: EASE_OUT,
-} as const;
-
-const SUBMENU_TRANSITION = {
-  duration: 0.18,
-  ease: EASE_OUT,
-} as const;
-
-const SUBMENU_VARIANTS: Variants = {
-  closed: {
-    opacity: 0,
-    clipPath: "inset(0 0 100% 0 round 8px)",
-    transition: {
-      duration: 0.14,
-      ease: EASE_OUT,
-      staggerChildren: 0.025,
-      staggerDirection: -1,
-    },
-  },
-  open: {
-    opacity: 1,
-    clipPath: "inset(0 0 0% 0 round 8px)",
-    transition: {
-      duration: 0.2,
-      delayChildren: 0.035,
-      ease: EASE_OUT,
-      staggerChildren: 0.045,
-    },
-  },
-};
-
-const SUBMENU_ITEM_VARIANTS: Variants = {
-  closed: {
-    opacity: 0,
-    y: -6,
-    filter: "blur(3px)",
-  },
-  open: {
-    opacity: 1,
-    y: 0,
-    filter: "blur(0px)",
-    transition: SUBMENU_TRANSITION,
-  },
-};
-
-const REDUCED_TRANSITION = {
-  duration: 0.16,
-  ease: EASE_OUT,
-} as const;
-
-const FOCUSABLE_SELECTOR = [
-  "a[href]",
-  "button:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "textarea:not([disabled])",
-  "[tabindex]:not([tabindex='-1'])",
-].join(",");
-
-function subscribeToMobileQuery(callback: () => void) {
-  const query = window.matchMedia(MOBILE_QUERY);
-  query.addEventListener("change", callback);
-  return () => query.removeEventListener("change", callback);
+  return (
+    <div className="flex w-full flex-col items-center gap-4 p-6">
+      <WalletCard
+        accounts={ACCOUNTS}
+        balance={balance}
+        defaultChange={124.5}
+        searchRecent={RECENT_SEARCHES}
+        hasNotifications
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setBalance((b) => b + (Math.random() > 0.5 ? 1 : -1) * (50 + Math.random() * 400))}
+      >
+        Simulate balance change
+      </Button>
+    </div>
+  );
 }
 
-function getMobileSnapshot() {
-  return window.matchMedia(MOBILE_QUERY).matches;
+Install
+
+Add it with the shadcn CLI, or copy the source manually.
+CLI
+Manual
+Needs the theme tokens once. Already ran shadcn init? You are set. Theme setup
+Install dependencies
+
+npm i clsx lucide-react motion tailwind-merge
+
+Add util files
+TSX
+lib/utils.ts
+
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
 }
 
-function getServerMobileSnapshot() {
+TSX
+lib/hooks/use-dismiss.ts
+
+"use client";
+
+import { type RefObject, useEffect } from "react";
+
+/**
+ * What the dismissing gesture does to the control it landed on.
+ *
+ * `"pass-through"` is the platform norm (native popover light-dismiss): the
+ * tap closes the overlay *and* activates whatever was under it. Use
+ * `"consume"` where the open overlay sits over or beside controls that would
+ * be costly to trigger by accident — the dismissal then swallows the
+ * activation too, so the gesture only closes.
+ */
+export type DismissBehavior = "pass-through" | "consume";
+
+export interface DismissOptions {
+  /** Default `"pass-through"`. */
+  behavior?: DismissBehavior;
+  /** Dismiss on Escape as well. Default true. */
+  escape?: boolean;
+  /** Return true for an outside target that should *not* dismiss. Must be stable. */
+  ignore?: (target: Element) => boolean;
+}
+
+/**
+ * What every currently open dismiss scope counts as inside itself. A consumed
+ * dismissal reads this to tell a stray gesture from one that belongs to an
+ * overlay in front of it: overlays have no shared z-order to consult, but the
+ * one the gesture landed in has said as much by registering it.
+ */
+const openScopes = new Set<(target: Element) => boolean>();
+
+function claimedByAnotherScope(
+  self: (target: Element) => boolean,
+  target: Element,
+) {
+  for (const scope of openScopes) {
+    if (scope !== self && scope(target)) return true;
+  }
   return false;
 }
 
-function useIsMobile() {
-  return useSyncExternalStore(
-    subscribeToMobileQuery,
-    getMobileSnapshot,
-    getServerMobileSnapshot,
-  );
+// preventDefault on pointerdown does not suppress the click that follows, so
+// consuming a gesture means swallowing that click itself. The swallower
+// deliberately outlives the effect that installed it — the dismissal it
+// belongs to has already unmounted or re-rendered by the time the click lands.
+// It releases on that click, or on the next gesture if the pointer is dragged
+// away and no click ever arrives, so it can never eat a later one. A keydown
+// releases it too: a gesture that ends with neither a click nor a cancel would
+// otherwise leave it armed, and the click Enter synthesizes on some focused
+// control is not the one this dismissal was owed.
+function consumeActivation(source: Event) {
+  const swallow = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    release();
+  };
+  const restart = (event: Event) => {
+    if (event !== source) release();
+  };
+  const release = () => {
+    window.removeEventListener("click", swallow, true);
+    window.removeEventListener("pointerdown", restart, true);
+    window.removeEventListener("pointercancel", restart, true);
+    window.removeEventListener("keydown", release, true);
+  };
+  window.addEventListener("click", swallow, true);
+  window.addEventListener("pointerdown", restart, true);
+  window.addEventListener("pointercancel", restart, true);
+  window.addEventListener("keydown", release, true);
 }
 
-interface AnimatedSidebarContextValue {
-  isMobile: boolean;
-  layoutId: string;
-  open: boolean;
-  openMobile: boolean;
-  reduce: boolean;
-  setOpen: (open: boolean) => void;
-  setOpenMobile: (open: boolean) => void;
-  state: SidebarState;
-  toggleSidebar: () => void;
-  triggerRef: React.RefObject<HTMLButtonElement | null>;
-}
-
-const AnimatedSidebarContext =
-  createContext<AnimatedSidebarContextValue | null>(null);
-
-interface AnimatedSidebarPanelContextValue {
-  collapsed: boolean;
-  collapsible: SidebarCollapsible;
-  side: SidebarSide;
-}
-
-const AnimatedSidebarPanelContext =
-  createContext<AnimatedSidebarPanelContextValue | null>(null);
-
-export function useAnimatedSidebar() {
-  const context = useContext(AnimatedSidebarContext);
-  if (!context) {
-    throw new Error(
-      "useAnimatedSidebar must be used inside AnimatedSidebarProvider.",
-    );
-  }
-  return context;
-}
-
-function useAnimatedSidebarPanel() {
-  const context = useContext(AnimatedSidebarPanelContext);
-  if (!context) {
-    throw new Error(
-      "Animated Sidebar parts must be used inside AnimatedSidebar.",
-    );
-  }
-  return context;
-}
-
-type SidebarProviderStyle = CSSProperties & {
-  "--sidebar-width"?: string;
-  "--sidebar-width-icon"?: string;
-  "--sidebar-width-mobile"?: string;
-};
-
-export interface AnimatedSidebarProviderProps
-  extends HTMLAttributes<HTMLDivElement> {
-  open?: boolean;
-  defaultOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  openMobile?: boolean;
-  defaultOpenMobile?: boolean;
-  onOpenMobileChange?: (open: boolean) => void;
-  style?: SidebarProviderStyle;
-}
-
-export function AnimatedSidebarProvider({
-  children,
-  open,
-  defaultOpen = true,
-  onOpenChange,
-  openMobile,
-  defaultOpenMobile = false,
-  onOpenMobileChange,
-  className,
-  style,
-  ...props
-}: AnimatedSidebarProviderProps) {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const [internalOpenMobile, setInternalOpenMobile] =
-    useState(defaultOpenMobile);
-  const isMobile = useIsMobile();
-  const reduce = useReducedMotion() ?? false;
-  const generatedId = useId();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const desktopOpen = open ?? internalOpen;
-  const mobileOpen = openMobile ?? internalOpenMobile;
-
-  const setOpen = useCallback(
-    (nextOpen: boolean) => {
-      if (open === undefined) setInternalOpen(nextOpen);
-      onOpenChange?.(nextOpen);
-    },
-    [onOpenChange, open],
-  );
-
-  const setOpenMobile = useCallback(
-    (nextOpen: boolean) => {
-      if (openMobile === undefined) setInternalOpenMobile(nextOpen);
-      onOpenMobileChange?.(nextOpen);
-    },
-    [onOpenMobileChange, openMobile],
-  );
-
-  const toggleSidebar = useCallback(() => {
-    if (isMobile) setOpenMobile(!mobileOpen);
-    else setOpen(!desktopOpen);
-  }, [desktopOpen, isMobile, mobileOpen, setOpen, setOpenMobile]);
-
+/**
+ * Close an open overlay on Escape or a pointerdown outside `ref`. Pass `null`
+ * for `ref` when what counts as inside isn't one element, and say so with
+ * `ignore` instead.
+ *
+ * The pointerdown listener is capture-phase: a bubble-phase one is blinded by
+ * any handler in between that stops propagation, and an overlay cannot know
+ * what it is layered over. `onDismiss` and `ignore` must be stable (wrap in
+ * useCallback) so the listeners aren't re-bound every render while open.
+ */
+export function useDismiss(
+  open: boolean,
+  onDismiss: () => void,
+  ref: RefObject<HTMLElement | SVGElement | null> | null,
+  {
+    behavior = "pass-through",
+    escape: dismissOnEscape = true,
+    ignore,
+  }: DismissOptions = {},
+) {
   useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      if (
-        event.key.toLowerCase() === SIDEBAR_KEYBOARD_SHORTCUT &&
-        (event.metaKey || event.ctrlKey)
-      ) {
-        event.preventDefault();
-        toggleSidebar();
+    if (!open) return;
+    const inside = (target: Element) =>
+      Boolean(ref?.current?.contains(target)) || Boolean(ignore?.(target));
+    const onKey = (event: KeyboardEvent) => {
+      if (dismissOnEscape && event.key === "Escape") onDismiss();
+    };
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target || inside(target)) return;
+      // Outside this overlay, but inside one that is also open: the gesture is
+      // that overlay's to answer, and swallowing its click from behind would
+      // cost the user the control they actually aimed at.
+      if (behavior === "consume" && !claimedByAnotherScope(inside, target)) {
+        consumeActivation(event);
       }
+      onDismiss();
     };
-
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, [toggleSidebar]);
-
-  return (
-    <AnimatedSidebarContext.Provider
-      value={{
-        isMobile,
-        layoutId: `${generatedId}-active`,
-        open: desktopOpen,
-        openMobile: mobileOpen,
-        reduce,
-        setOpen,
-        setOpenMobile,
-        state: desktopOpen ? "expanded" : "collapsed",
-        toggleSidebar,
-        triggerRef,
-      }}
-    >
-      <div
-        {...props}
-        data-slot="sidebar-wrapper"
-        data-state={desktopOpen ? "expanded" : "collapsed"}
-        style={{
-          "--sidebar-width": "16rem",
-          "--sidebar-width-icon": "4.25rem",
-          "--sidebar-width-mobile": "18rem",
-          ...style,
-        }}
-        className={cn(
-          "group/sidebar-wrapper flex min-h-svh w-full min-w-0",
-          className,
-        )}
-      >
-        {children}
-      </div>
-    </AnimatedSidebarContext.Provider>
-  );
-}
-
-function MobileSidebar({
-  ariaLabel,
-  children,
-  className,
-  side,
-}: {
-  ariaLabel: string;
-  children: ReactNode;
-  className?: string;
-  side: SidebarSide;
-}) {
-  const context = useAnimatedSidebar();
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  // The sheet is mounted for as long as the viewport is mobile, so it hides
-  // itself while closed rather than sitting there transparent and interactive.
-  // Opening shows it in the same commit that starts the slide — a delayed show
-  // would run the focus effect below against a still-hidden panel, and focus()
-  // on a hidden element is ignored. Closing waits for the slide to finish, and
-  // the panel's own exit tells us when that is: no duration to keep in sync.
-  const [hidden, setHidden] = useState(!context.openMobile);
-  // The completion callback fires for the open slide too, and it reads state
-  // from whenever motion settles: a ref keeps it on the current one.
-  const openMobileRef = useRef(context.openMobile);
-
-  useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    openMobileRef.current = context.openMobile;
-    if (context.openMobile) setHidden(false);
-  }, [context.openMobile]);
-
-  useEffect(() => {
-    if (!context.openMobile) return;
-
-    const body = document.body;
-    const scrollY = window.scrollY;
-    const previousBodyStyles = {
-      left: body.style.left,
-      overflow: body.style.overflow,
-      position: body.style.position,
-      right: body.style.right,
-      top: body.style.top,
-    };
-
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.overflow = "hidden";
-
-    const focusFrame = requestAnimationFrame(() => {
-      const firstFocusable =
-        panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-      (firstFocusable ?? panelRef.current)?.focus({ preventScroll: true });
-    });
-
+    openScopes.add(inside);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onPointer, true);
     return () => {
-      cancelAnimationFrame(focusFrame);
-      body.style.position = previousBodyStyles.position;
-      body.style.top = previousBodyStyles.top;
-      body.style.left = previousBodyStyles.left;
-      body.style.right = previousBodyStyles.right;
-      body.style.overflow = previousBodyStyles.overflow;
-      window.scrollTo(0, scrollY);
-      context.triggerRef.current?.focus({ preventScroll: true });
+      openScopes.delete(inside);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onPointer, true);
     };
-  }, [context.openMobile, context.triggerRef]);
+  }, [open, onDismiss, ref, behavior, dismissOnEscape, ignore]);
+}
 
-  if (!mounted) return null;
+Expand Code
+TSX
+lib/ease.ts
 
-  // This container groups the sheet for hiding and the z-index and carries no
-  // box: both children are `fixed` and resolve against the viewport themselves.
-  // The scrim spans the viewport edges but paints a colour, and the panel is
-  // inset off one side and paints its own surface, so no layer here is a
-  // transparent edge-spanning one. See tests/fixed-overlay-edge-sampling.test.tsx.
-  return createPortal(
+// Shared motion tokens. Easing curves mirror the CSS custom properties in
+// globals.css; springs are the canonical physics used across components.
+// Strong custom variants — defaults like `ease-in`/`ease-out` feel weak.
+
+export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+export const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
+export const EASE_DRAWER = [0.32, 0.72, 0, 1] as const;
+
+/** CSS string form of EASE_OUT for inline style transitions. */
+export const EASE_OUT_CSS = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+/** Press feedback on buttons and other tappable surfaces. */
+export const SPRING_PRESS = {
+  type: "spring",
+  stiffness: 500,
+  damping: 30,
+  mass: 0.6,
+} as const;
+
+/** Content swaps — label/icon slots trading places inside a control. */
+export const SPRING_SWAP = {
+  type: "spring",
+  stiffness: 460,
+  damping: 30,
+  mass: 0.55,
+} as const;
+
+/** Overlay panel entrances — modals and sheets summoned by pointer. */
+export const SPRING_PANEL = {
+  type: "spring",
+  stiffness: 420,
+  damping: 40,
+  mass: 0.5,
+} as const;
+
+/** Shared-layout glides — pills, indicators and panels morphing between positions. */
+export const SPRING_LAYOUT = {
+  type: "spring",
+  stiffness: 360,
+  damping: 32,
+  mass: 0.6,
+} as const;
+
+/** Cursor-follow physics for decorative mouse tracking (magnetic, tilt, dock). */
+export const SPRING_MOUSE = {
+  stiffness: 200,
+  damping: 15,
+  mass: 0.3,
+} as const;
+
+/** Dragged handles and fills (sliders) — critically damped `useSpring` config,
+ * so the value follows the pointer butterily and never rebounds off an end. */
+export const SPRING_GLIDE = {
+  stiffness: 700,
+  damping: 50,
+  mass: 0.5,
+} as const;
+
+Expand Code
+TSX
+lib/hooks/use-hover-capable.ts
+
+"use client";
+
+import { useEffect, useState } from "react";
+
+/**
+ * Returns true only on devices that have a true hover (mouse / trackpad).
+ * Touch devices fire phantom `:hover` on tap that sticks until tap-elsewhere
+ * — gate hover-only effects (scale lifts, magnetic pulls) behind this.
+ */
+export function useHoverCapable() {
+  const [canHover, setCanHover] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const update = () => setCanHover(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
+
+  return canHover;
+}
+
+Expand Code
+Copy the source code
+TSX
+components/motion/wallet-card/index.tsx
+
+"use client";
+// beui.dev/components/blocks/wallet-card
+
+import { Bell, Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { ActionSwapText } from "@/components/motion/action-swap";
+import { Button } from "@/components/motion/button";
+import { cn } from "@/lib/utils";
+import { AccountSwitcher } from "./account-switcher";
+import { WalletActions } from "./actions";
+import { BalanceDelta } from "./balance-delta";
+import { SearchBar } from "./search-bar";
+import type { WalletCardProps } from "./types";
+
+export type { WalletAccount, WalletCardProps } from "./types";
+
+/**
+ * Composed wallet overview card: an account switcher whose trigger morphs open
+ * into a full-width panel, a search icon that morphs into a search bar, a
+ * rolling balance with a transient change indicator, and Send / Deposit
+ * actions. Actions and search are plain callbacks — the resulting flow is left
+ * to the consumer.
+ */
+export function WalletCard({
+  accounts,
+  accountId,
+  defaultAccountId,
+  onAccountChange,
+  balance,
+  balancePrefix = "$",
+  defaultChange,
+  defaultBalanceHidden = false,
+  onSend,
+  onDeposit,
+  onSwap,
+  onBuy,
+  searchPlaceholder,
+  searchRecent,
+  onSearchChange,
+  onSearchSubmit,
+  hasNotifications = false,
+  onNotifications,
+  className,
+}: WalletCardProps) {
+  const accountControlled = accountId !== undefined;
+  const [internalAccountId, setInternalAccountId] = useState(
+    defaultAccountId ?? accounts[0]?.id,
+  );
+  const [balanceHidden, setBalanceHidden] = useState(defaultBalanceHidden);
+
+  const shownBalance = `${balancePrefix}${balance.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+  const maskedBalance = "*".repeat(7);
+  const activeAccountId = accountControlled ? accountId : internalAccountId;
+  const activeAccount =
+    accounts.find((a) => a.id === activeAccountId) ?? accounts[0];
+
+  const handleAccountChange = (id: string) => {
+    if (!accountControlled) setInternalAccountId(id);
+    onAccountChange?.(id);
+  };
+
+  return (
     <div
       className={cn(
-        "pointer-events-none fixed left-0 top-0 z-50 size-0 md:hidden",
-        hidden && !context.openMobile ? "invisible" : "visible",
+        "relative w-full max-w-xs overflow-hidden rounded-4xl border border-border p-6",
+        className,
       )}
     >
-      <motion.button
-        type="button"
-        aria-label="Close sidebar"
-        tabIndex={context.openMobile ? 0 : -1}
-        initial={false}
-        animate={{ opacity: context.openMobile ? 1 : 0 }}
-        transition={
-          context.reduce ? REDUCED_TRANSITION : PANEL_TRANSITION
-        }
-        onClick={() => context.setOpenMobile(false)}
-        className={cn(
-          "fixed inset-0 bg-black/40",
-          context.openMobile
-            ? "pointer-events-auto"
-            : "pointer-events-none",
-        )}
-      />
+      {/* relative anchor so the switcher + search panels span the whole row */}
+      <div className="relative flex items-center justify-between gap-2">
+        <AccountSwitcher
+          accounts={accounts}
+          activeAccount={activeAccount}
+          onSelect={handleAccountChange}
+        />
 
-      <motion.div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={ariaLabel}
-        aria-hidden={!context.openMobile}
-        inert={!context.openMobile}
-        tabIndex={-1}
-        data-mobile="true"
-        data-state={context.openMobile ? "expanded" : "collapsed"}
-        data-side={side}
-        initial={false}
-        animate={{
-          opacity: context.reduce
-            ? context.openMobile
-              ? 1
-              : 0
-            : 1,
-          x: context.reduce
-            ? 0
-            : context.openMobile
-              ? "0%"
-              : side === "left"
-                ? "-100%"
-                : "100%",
-        }}
-        transition={
-          context.reduce ? REDUCED_TRANSITION : PANEL_TRANSITION
-        }
-        onAnimationComplete={() => {
-          if (!openMobileRef.current) setHidden(true);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            context.setOpenMobile(false);
-            return;
-          }
-
-          if (event.key !== "Tab") return;
-          const focusable = panelRef.current
-            ? Array.from(
-                panelRef.current.querySelectorAll<HTMLElement>(
-                  FOCUSABLE_SELECTOR,
-                ),
-              )
-            : [];
-
-          if (focusable.length === 0) {
-            event.preventDefault();
-            panelRef.current?.focus();
-            return;
-          }
-
-          const first = focusable[0];
-          const last = focusable[focusable.length - 1];
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-          }
-        }}
-        className={cn(
-          "pointer-events-auto fixed inset-y-0 flex h-dvh w-(--sidebar-width-mobile) max-w-[88vw] flex-col overflow-hidden",
-          "border-border bg-background shadow-2xl will-change-transform",
-          side === "left" ? "left-0 border-r" : "right-0 border-l",
-          !context.openMobile && "pointer-events-none",
-          className,
-        )}
-      >
-        <AnimatedSidebarPanelContext.Provider
-          value={{ collapsed: false, collapsible: "none", side }}
-        >
-          {children}
-        </AnimatedSidebarPanelContext.Provider>
-      </motion.div>
-    </div>,
-    document.body,
-  );
-}
-
-export interface AnimatedSidebarProps
-  extends Omit<HTMLMotionProps<"aside">, "children"> {
-  children?: ReactNode;
-  side?: SidebarSide;
-  variant?: SidebarVariant;
-  collapsible?: SidebarCollapsible;
-  ariaLabel?: string;
-  panelClassName?: string;
-}
-
-export const AnimatedSidebar = forwardRef<HTMLElement, AnimatedSidebarProps>(
-  function AnimatedSidebar(
-    {
-      side = "left",
-      variant = "sidebar",
-      collapsible = "icon",
-      ariaLabel = "Sidebar",
-      children,
-      className,
-      panelClassName,
-      style,
-      ...props
-    },
-    forwardedRef,
-  ) {
-    const context = useAnimatedSidebar();
-    const collapsed = collapsible !== "none" && !context.open;
-    const offcanvas = collapsed && collapsible === "offcanvas";
-    const width = offcanvas
-      ? "0px"
-      : collapsed
-        ? "var(--sidebar-width-icon)"
-        : "var(--sidebar-width)";
-
-    if (context.isMobile) {
-      return (
-        <MobileSidebar
-          ariaLabel={ariaLabel}
-          className={className}
-          side={side}
-        >
-          {children}
-        </MobileSidebar>
-      );
-    }
-
-    return (
-      <motion.aside
-        {...props}
-        ref={forwardedRef}
-        initial={false}
-        aria-label={ariaLabel}
-        data-slot="sidebar"
-        data-state={collapsed ? "collapsed" : "expanded"}
-        data-collapsible={collapsible}
-        data-variant={variant}
-        data-side={side}
-        animate={{ width }}
-        transition={
-          context.reduce ? { duration: 0 } : SIDEBAR_MORPH_TRANSITION
-        }
-        style={style}
-        className={cn(
-          "group/sidebar relative hidden h-auto shrink-0 md:block will-change-[width]",
-          "peer",
-          side === "right" && "order-last",
-          className,
-        )}
-      >
-        <motion.div
-          initial={false}
-          animate={{
-            opacity: offcanvas ? 0 : 1,
-            x: offcanvas ? (side === "left" ? "-100%" : "100%") : "0%",
-          }}
-          transition={
-            context.reduce ? REDUCED_TRANSITION : PANEL_TRANSITION
-          }
-          className={cn(
-            "sticky top-0 flex h-svh w-full flex-col overflow-hidden bg-background",
-            collapsible === "offcanvas" && "w-[var(--sidebar-width)]",
-            variant === "sidebar" &&
-              (side === "left" ? "border-border border-r" : "border-border border-l"),
-            variant === "floating" &&
-              "m-2 h-[calc(100svh-1rem)] rounded-2xl border border-border shadow-sm",
-            variant === "inset" && "m-2 h-[calc(100svh-1rem)] rounded-2xl",
-            panelClassName,
-          )}
-        >
-          <AnimatedSidebarPanelContext.Provider
-            value={{ collapsed, collapsible, side }}
+        <div className="flex shrink-0 items-center gap-1">
+          <SearchBar
+            placeholder={searchPlaceholder}
+            recent={searchRecent}
+            onChange={onSearchChange}
+            onSubmit={onSearchSubmit}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onNotifications}
+            aria-label="Notifications"
+            className="relative"
           >
-            {children}
-          </AnimatedSidebarPanelContext.Provider>
-        </motion.div>
-      </motion.aside>
-    );
-  },
-);
+            <Bell className="h-4 w-4" />
+            {hasNotifications ? (
+              <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              </span>
+            ) : null}
+          </Button>
+        </div>
+      </div>
 
-export interface AnimatedSidebarTriggerProps
-  extends ButtonHTMLAttributes<HTMLButtonElement> {}
+      <div className="mt-8 flex flex-col items-center text-center">
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs text-muted-foreground">Balance</p>
+          <button
+            type="button"
+            onClick={() => setBalanceHidden((h) => !h)}
+            aria-label={balanceHidden ? "Show balance" : "Hide balance"}
+            aria-pressed={balanceHidden}
+            className="text-muted-foreground outline-none transition-colors hover:text-foreground"
+          >
+            {balanceHidden ? (
+              <EyeOff className="h-3.5 w-3.5" />
+            ) : (
+              <Eye className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
+        {/* One ActionSwapText swaps the number and the asterisk mask with a
+            per-letter cascade — same baseline, no overlap or layout shift. */}
+        <ActionSwapText
+          value={balanceHidden ? "hidden" : shownBalance}
+          animation="cascade"
+          className="text-3xl font-semibold text-foreground"
+        >
+          {balanceHidden ? maskedBalance : shownBalance}
+        </ActionSwapText>
+        {balanceHidden ? (
+          <div className="mt-2 flex h-7 items-center justify-center">
+            <span className="translate-y-[3px] text-sm font-semibold text-muted-foreground leading-none tracking-[0.3em]">
+              *****
+            </span>
+          </div>
+        ) : (
+          <BalanceDelta balance={balance} initialChange={defaultChange} />
+        )}
+      </div>
 
-export const AnimatedSidebarTrigger = forwardRef<
-  HTMLButtonElement,
-  AnimatedSidebarTriggerProps
->(function AnimatedSidebarTrigger(
-  { className, onClick, type = "button", ...props },
-  forwardedRef,
-) {
-  const context = useAnimatedSidebar();
-  const expanded = context.isMobile ? context.openMobile : context.open;
-
-  return (
-    <button
-      {...props}
-      ref={(node) => {
-        context.triggerRef.current = node;
-        if (typeof forwardedRef === "function") forwardedRef(node);
-        else if (forwardedRef) forwardedRef.current = node;
-      }}
-      type={type}
-      aria-label={props["aria-label"] ?? "Toggle sidebar"}
-      aria-expanded={expanded}
-      data-slot="sidebar-trigger"
-      data-state={expanded ? "expanded" : "collapsed"}
-      onClick={(event) => {
-        onClick?.(event);
-        if (!event.defaultPrevented) context.toggleSidebar();
-      }}
-      className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded-xl outline-none",
-        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        className,
-      )}
-    />
-  );
-});
-
-export interface AnimatedSidebarCloseProps
-  extends ButtonHTMLAttributes<HTMLButtonElement> {}
-
-export const AnimatedSidebarClose = forwardRef<
-  HTMLButtonElement,
-  AnimatedSidebarCloseProps
->(function AnimatedSidebarClose(
-  { className, onClick, type = "button", ...props },
-  forwardedRef,
-) {
-  const context = useAnimatedSidebar();
-
-  return (
-    <button
-      {...props}
-      ref={forwardedRef}
-      type={type}
-      aria-label={props["aria-label"] ?? "Close sidebar"}
-      onClick={(event) => {
-        onClick?.(event);
-        if (event.defaultPrevented) return;
-        if (context.isMobile) context.setOpenMobile(false);
-        else context.setOpen(false);
-      }}
-      className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded-xl outline-none",
-        "focus-visible:ring-2 focus-visible:ring-ring",
-        className,
-      )}
-    />
-  );
-});
-
-export interface AnimatedSidebarRailProps
-  extends ButtonHTMLAttributes<HTMLButtonElement> {}
-
-export const AnimatedSidebarRail = forwardRef<
-  HTMLButtonElement,
-  AnimatedSidebarRailProps
->(function AnimatedSidebarRail(
-  { className, onClick, type = "button", ...props },
-  forwardedRef,
-) {
-  const context = useAnimatedSidebar();
-  const panel = useAnimatedSidebarPanel();
-
-  return (
-    <button
-      {...props}
-      ref={forwardedRef}
-      type={type}
-      data-side={panel.side}
-      aria-label={props["aria-label"] ?? "Toggle sidebar"}
-      title="Toggle sidebar"
-      tabIndex={-1}
-      onClick={(event) => {
-        onClick?.(event);
-        if (!event.defaultPrevented) context.toggleSidebar();
-      }}
-      className={cn(
-        "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 outline-none md:block",
-        "after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-transparent after:transition-colors hover:after:bg-border",
-        "data-[side=right]:right-0 data-[side=right]:translate-x-1/2 data-[side=left]:left-full",
-        className,
-      )}
-    />
-  );
-});
-
-export interface AnimatedSidebarInsetProps
-  extends HTMLMotionProps<"main"> {}
-
-export const AnimatedSidebarInset = forwardRef<
-  HTMLElement,
-  AnimatedSidebarInsetProps
->(function AnimatedSidebarInset({ className, ...props }, forwardedRef) {
-  return (
-    <motion.main
-      {...props}
-      ref={forwardedRef}
-      data-slot="sidebar-inset"
-      className={cn(
-        "relative flex min-h-svh min-w-0 flex-1 flex-col bg-background",
-        "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-2xl md:peer-data-[variant=inset]:shadow-sm",
-        className,
-      )}
-    />
-  );
-});
-
-export const AnimatedSidebarHeader = forwardRef<
-  HTMLDivElement,
-  HTMLAttributes<HTMLDivElement>
->(function AnimatedSidebarHeader({ className, ...props }, forwardedRef) {
-  return (
-    <div
-      {...props}
-      ref={forwardedRef}
-      data-slot="sidebar-header"
-      className={cn("flex shrink-0 flex-col gap-2 p-3", className)}
-    />
-  );
-});
-
-export const AnimatedSidebarContent = forwardRef<
-  HTMLDivElement,
-  HTMLAttributes<HTMLDivElement>
->(function AnimatedSidebarContent({ className, ...props }, forwardedRef) {
-  return (
-    <div
-      {...props}
-      ref={forwardedRef}
-      data-slot="sidebar-content"
-      className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2",
-        className,
-      )}
-    />
-  );
-});
-
-export const AnimatedSidebarFooter = forwardRef<
-  HTMLDivElement,
-  HTMLAttributes<HTMLDivElement>
->(function AnimatedSidebarFooter({ className, ...props }, forwardedRef) {
-  return (
-    <div
-      {...props}
-      ref={forwardedRef}
-      data-slot="sidebar-footer"
-      className={cn(
-        "flex shrink-0 flex-col gap-2 border-border border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
-        className,
-      )}
-    />
-  );
-});
-
-export const AnimatedSidebarGroup = forwardRef<
-  HTMLDivElement,
-  HTMLAttributes<HTMLDivElement>
->(function AnimatedSidebarGroup({ className, ...props }, forwardedRef) {
-  return (
-    <div
-      {...props}
-      ref={forwardedRef}
-      data-slot="sidebar-group"
-      className={cn("flex w-full min-w-0 flex-col px-1 py-1.5", className)}
-    />
-  );
-});
-
-export const AnimatedSidebarGroupLabel = forwardRef<
-  HTMLDivElement,
-  HTMLAttributes<HTMLDivElement>
->(function AnimatedSidebarGroupLabel(
-  { children, className, ...props },
-  forwardedRef,
-) {
-  const { collapsed } = useAnimatedSidebarPanel();
-
-  return (
-    <div
-      {...props}
-      ref={forwardedRef}
-      aria-hidden={collapsed}
-      data-slot="sidebar-group-label"
-      className={cn(
-        "mb-1 h-7 overflow-hidden px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground transition-opacity",
-        collapsed ? "opacity-0" : "opacity-100",
-        className,
-      )}
-    >
-      {children}
+      <div className="mt-8">
+        <WalletActions
+          onSend={onSend}
+          onDeposit={onDeposit}
+          onSwap={onSwap}
+          onBuy={onBuy}
+        />
+      </div>
     </div>
   );
-});
-
-export const AnimatedSidebarGroupContent = forwardRef<
-  HTMLDivElement,
-  HTMLAttributes<HTMLDivElement>
->(function AnimatedSidebarGroupContent(
-  { className, ...props },
-  forwardedRef,
-) {
-  return (
-    <div
-      {...props}
-      ref={forwardedRef}
-      data-slot="sidebar-group-content"
-      className={cn("w-full min-w-0", className)}
-    />
-  );
-});
-
-export const AnimatedSidebarMenu = forwardRef<
-  HTMLUListElement,
-  HTMLAttributes<HTMLUListElement>
->(function AnimatedSidebarMenu(
-  { children, className, ...props },
-  forwardedRef,
-) {
-  return (
-    <SharedLayoutBg
-      {...props}
-      ref={forwardedRef as React.Ref<HTMLElement>}
-      as="ul"
-      inset={0}
-      pillClassName="rounded-xl bg-muted/70"
-      pillContainerClassName="inset-y-auto top-0 h-9"
-      data-slot="sidebar-menu"
-      className={cn("flex w-full min-w-0 list-none flex-col gap-0.5", className)}
-    >
-      {children}
-    </SharedLayoutBg>
-  );
-});
-
-export const AnimatedSidebarMenuItem = forwardRef<
-  HTMLLIElement,
-  HTMLMotionProps<"li">
->(function AnimatedSidebarMenuItem({ className, ...props }, forwardedRef) {
-  return (
-    <motion.li
-      {...props}
-      ref={forwardedRef}
-      layout="position"
-      transition={SPRING_LAYOUT}
-      data-slot="sidebar-menu-item"
-      className={cn("relative", className)}
-    />
-  );
-});
-
-export interface AnimatedSidebarMenuSubProps
-  extends Omit<HTMLMotionProps<"ul">, "children"> {
-  open: boolean;
-  children?: ReactNode;
 }
 
-export const AnimatedSidebarMenuSub = forwardRef<
-  HTMLUListElement,
-  AnimatedSidebarMenuSubProps
->(function AnimatedSidebarMenuSub(
-  { open, children, className, ...props },
-  forwardedRef,
-) {
-  const context = useAnimatedSidebar();
-  const panel = useAnimatedSidebarPanel();
+Expand Code
+TSX
+components/motion/wallet-card/account-switcher.tsx
+
+"use client";
+
+import { Check, ChevronDown } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useDismiss } from "@/lib/hooks/use-dismiss";
+import { cn } from "@/lib/utils";
+import { AccountAvatar } from "./account-avatar";
+import { HEAD, ITEM, LIST, MORPH } from "./constants";
+import { CopyButton } from "./copy-button";
+import type { WalletAccount } from "./types";
+import { truncateAddress } from "./utils";
+
+/**
+ * Account switcher whose trigger morphs into a panel that grows rightward to
+ * full width (covering the header icons) and downward at the same time, via a
+ * shared layoutId. Self-contained — not the generic MorphSelect.
+ */
+export function AccountSwitcher({
+  accounts,
+  activeAccount,
+  onSelect,
+}: {
+  accounts: WalletAccount[];
+  activeAccount: WalletAccount | undefined;
+  onSelect: (id: string) => void;
+}) {
+  const reduce = useReducedMotion() ?? false;
+  const layoutId = `${useId()}-account`;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  // Hover only arms after the morph settles — otherwise the panel expands under
+  // the cursor and flashes a phantom hover bg on whatever item it lands on.
+  const [armed, setArmed] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+
+  useDismiss(open, close, rootRef);
+
+  useEffect(() => {
+    if (!open) {
+      setArmed(false);
+      return;
+    }
+    const t = window.setTimeout(() => setArmed(true), reduce ? 0 : 280);
+    return () => window.clearTimeout(t);
+  }, [open, reduce]);
+
+  const morph = reduce ? { duration: 0 } : MORPH;
 
   return (
-    <AnimatePresence initial={false} mode="popLayout">
-      {open && !panel.collapsed ? (
-        <motion.ul
-          {...props}
-          ref={forwardedRef}
-          key="sidebar-submenu"
-          variants={context.reduce ? undefined : SUBMENU_VARIANTS}
-          initial={context.reduce ? false : "closed"}
-          animate={context.reduce ? { opacity: 1 } : "open"}
-          exit={context.reduce ? { opacity: 0 } : "closed"}
-          transition={context.reduce ? { duration: 0.12 } : undefined}
-          data-slot="sidebar-menu-sub"
-          className={cn(
-            "relative mt-1 ml-5 flex min-w-0 flex-col gap-0.5 border-border border-l pl-3",
-            className,
-          )}
+    // static (not relative) so the absolute trigger + panel anchor to the
+    // header row and can span its full width, covering the icons.
+    <div ref={rootRef} className="min-w-0">
+      {/* in-flow sizer: reserves the widest possible trigger footprint (every
+          account name stacked in one grid cell) so the header row width never
+          changes — neither when the trigger leaves the flow nor when a shorter
+          account name is selected. */}
+      <div aria-hidden className={cn(HEAD, "pointer-events-none opacity-0")}>
+        <AccountAvatar account={activeAccount ?? accounts[0]} />
+        <span className="grid">
+          {accounts.map((account) => (
+            <span
+              key={account.id}
+              className="col-start-1 row-start-1 whitespace-nowrap text-sm font-medium"
+            >
+              {account.name}
+            </span>
+          ))}
+        </span>
+        <ChevronDown className="h-4 w-4" />
+      </div>
+
+      <AnimatePresence initial={false} mode="popLayout">
+        {open ? null : (
+          <motion.button
+            key="trigger"
+            layoutId={layoutId}
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={false}
+            onClick={() => setOpen(true)}
+            transition={morph}
+            style={{ borderRadius: 16 }}
+            className={cn(
+              HEAD,
+              // shifted left by the padding so the avatar sits flush with the
+              // card content edge (aligned with the balance + buttons below).
+              "absolute top-0 -left-2 z-20 max-w-full outline-none transition-colors hover:bg-muted/60",
+            )}
+          >
+            {activeAccount ? (
+              <>
+                <AccountAvatar account={activeAccount} />
+                <motion.span
+                  layout="position"
+                  className="truncate text-sm font-medium text-foreground"
+                >
+                  {activeAccount.name}
+                </motion.span>
+                <motion.span layout="position" className="text-muted-foreground">
+                  <ChevronDown className="h-4 w-4" />
+                </motion.span>
+              </>
+            ) : null}
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence initial={false} mode="popLayout">
+        {open ? (
+          <motion.div
+            key="panel"
+            layoutId={layoutId}
+            role="listbox"
+            transition={morph}
+            style={{ borderRadius: 16 }}
+            className="absolute top-0 -right-2 -left-2 z-30 overflow-hidden border border-border/30 bg-background backdrop-blur-md"
+          >
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className={cn(HEAD, "w-full outline-none")}
+            >
+              {activeAccount ? <AccountAvatar account={activeAccount} /> : null}
+              <motion.span
+                layout="position"
+                className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+              >
+                {activeAccount?.name ?? "Select account"}
+              </motion.span>
+              <motion.span
+                layout="position"
+                animate={{ rotate: 180 }}
+                transition={morph}
+                className="text-muted-foreground"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </motion.span>
+            </button>
+
+            <motion.ul
+              initial="hidden"
+              animate="show"
+              variants={reduce ? undefined : LIST}
+              className={cn(
+                "max-h-64 overflow-y-auto p-1.5",
+                armed ? "" : "pointer-events-none",
+              )}
+            >
+              {accounts.map((account) => {
+                const selected = account.id === activeAccount?.id;
+                return (
+                  <motion.li
+                    key={account.id}
+                    variants={reduce ? undefined : ITEM}
+                    className={cn(
+                      "flex items-center rounded-xl pr-1 text-sm transition-colors",
+                      selected
+                        ? "bg-muted text-foreground"
+                        : cn(
+                            "text-muted-foreground",
+                            armed && "hover:bg-muted hover:text-foreground",
+                          ),
+                    )}
+                  >
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => {
+                        onSelect(account.id);
+                        setOpen(false);
+                      }}
+                      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-2 text-left outline-none"
+                    >
+                      <AccountAvatar account={account} />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate font-medium">
+                          {account.name}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {truncateAddress(account.address)}
+                        </span>
+                      </span>
+                      {selected ? (
+                        <Check className="h-4 w-4 shrink-0 text-foreground" />
+                      ) : null}
+                    </button>
+                    <CopyButton value={account.address} />
+                  </motion.li>
+                );
+              })}
+            </motion.ul>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+Expand Code
+TSX
+components/motion/wallet-card/actions.tsx
+
+"use client";
+
+import { ArrowDownToLine, ArrowUp, CreditCard, Repeat } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import type { ComponentType } from "react";
+import { SPRING_PRESS } from "@/lib/ease";
+
+type WalletAction = {
+  key: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  onClick?: () => void;
+};
+
+/**
+ * Row of primary wallet actions rendered icon-over-label, with a spring press.
+ */
+export function WalletActions({
+  onSend,
+  onDeposit,
+  onSwap,
+  onBuy,
+}: {
+  onSend?: () => void;
+  onDeposit?: () => void;
+  onSwap?: () => void;
+  onBuy?: () => void;
+}) {
+  const reduce = useReducedMotion();
+
+  const actions: WalletAction[] = [
+    { key: "send", label: "Send", icon: ArrowUp, onClick: onSend },
+    { key: "deposit", label: "Deposit", icon: ArrowDownToLine, onClick: onDeposit },
+    { key: "swap", label: "Swap", icon: Repeat, onClick: onSwap },
+    { key: "buy", label: "Buy", icon: CreditCard, onClick: onBuy },
+  ];
+
+  return (
+    <div className="flex items-start justify-between gap-2">
+      {actions.map(({ key, label, icon: Icon, onClick }) => (
+        <motion.button
+          key={key}
+          type="button"
+          onClick={onClick}
+          whileTap={reduce ? undefined : { scale: 0.94 }}
+          transition={SPRING_PRESS}
+          className="flex flex-1 flex-col items-center gap-2 outline-none"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-foreground">
+            <Icon className="h-5 w-5" />
+          </span>
+          <span className="text-xs font-medium text-muted-foreground">
+            {label}
+          </span>
+        </motion.button>
+      ))}
+    </div>
+  );
+}
+
+Expand Code
+TSX
+components/motion/wallet-card/balance-delta.tsx
+
+"use client";
+
+import { TrendingDown, TrendingUp } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { EASE_OUT } from "@/lib/ease";
+import { cn } from "@/lib/utils";
+
+/**
+ * A transient change indicator for the balance: a tinted pill with a trend
+ * arrow that pops in whenever the balance moves and persists until it moves
+ * again.
+ */
+export function BalanceDelta({
+  balance,
+  initialChange,
+}: {
+  balance: number;
+  initialChange?: number;
+}) {
+  const reduce = useReducedMotion();
+  const prevRef = useRef(balance);
+  const [delta, setDelta] = useState<{ id: number; amount: number } | null>(
+    initialChange ? { id: 0, amount: initialChange } : null,
+  );
+
+  // Persist the last change until the balance moves again — don't auto-hide.
+  useEffect(() => {
+    const diff = balance - prevRef.current;
+    prevRef.current = balance;
+    if (diff === 0) return;
+    setDelta({ id: Date.now(), amount: diff });
+  }, [balance]);
+
+  const up = (delta?.amount ?? 0) > 0;
+
+  return (
+    <div className="mt-2 flex h-7 items-center justify-center">
+      <AnimatePresence mode="wait">
+        {delta ? (
+          <motion.span
+            key={delta.id}
+            initial={{ opacity: 0, y: reduce ? 0 : 6, scale: reduce ? 1 : 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: reduce ? 0 : -6, scale: reduce ? 1 : 0.9 }}
+            transition={{ duration: 0.2, ease: EASE_OUT }}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums",
+              up
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                : "bg-red-500/15 text-red-600 dark:text-red-400",
+            )}
+          >
+            {up ? (
+              <TrendingUp className="h-3.5 w-3.5" />
+            ) : (
+              <TrendingDown className="h-3.5 w-3.5" />
+            )}
+            {up ? "+" : "-"}$
+            {Math.abs(delta.amount).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </motion.span>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+Expand Code
+TSX
+components/motion/wallet-card/search-bar.tsx
+
+"use client";
+
+import { History, Search } from "lucide-react";
+import {
+  AnimatePresence,
+  motion,
+  type Transition,
+  useReducedMotion,
+} from "motion/react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { EASE_OUT } from "@/lib/ease";
+import { useDismiss } from "@/lib/hooks/use-dismiss";
+import { cn } from "@/lib/utils";
+import { ITEM, LIST, MORPH } from "./constants";
+
+/**
+ * Search icon that morphs into a full-width search bar via a shared layoutId,
+ * growing leftward across the header row. The recent-searches results render as
+ * a SEPARATE dropdown below the bar — not part of the morphing element — so
+ * filtering as you type resizes only the dropdown and never re-fires the morph
+ * (which would scale-distort the input text). The in-flow slot keeps its width
+ * whether open or closed so the header row (and card) never shifts.
+ */
+export function SearchBar({
+  placeholder = "Search",
+  recent = [],
+  onChange,
+  onSubmit,
+}: {
+  placeholder?: string;
+  recent?: string[];
+  onChange?: (value: string) => void;
+  onSubmit?: (value: string) => void;
+}) {
+  const reduce = useReducedMotion() ?? false;
+  const layoutId = `${useId()}-search`;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  // Hover arms after the dropdown reveals so it doesn't flash a phantom hover.
+  const [armed, setArmed] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+
+  useDismiss(open, close, rootRef);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setArmed(false);
+      return;
+    }
+    const t = window.setTimeout(() => setArmed(true), reduce ? 0 : 260);
+    return () => window.clearTimeout(t);
+  }, [open, reduce]);
+
+  // The box keeps the bouncy morph (same feel as the account switcher)...
+  const morph: Transition = reduce ? { duration: 0 } : MORPH;
+  // ...but the leading icon + input travel across the row, so their own layout
+  // uses a critically-damped spring — they glide to place without inheriting the
+  // box's overshoot (which read as the icon jittering right-then-left).
+  const glide: Transition = reduce
+    ? { duration: 0 }
+    : { type: "spring", duration: 0.5, bounce: 0 };
+
+  const query = value.trim().toLowerCase();
+  const filtered = query
+    ? recent.filter((r) => r.toLowerCase().includes(query))
+    : recent;
+
+  const submit = (next: string) => {
+    onSubmit?.(next);
+    setOpen(false);
+  };
+
+  return (
+    // static so the open bar + dropdown anchor to the header row (spanning its
+    // width), while the slot below reserves the icon's footprint.
+    <div ref={rootRef} className="shrink-0">
+      {/* reserve the icon's width while open (the icon has left the flow) */}
+      {open ? <div aria-hidden className="h-8 w-8" /> : null}
+
+      <AnimatePresence initial={false} mode="popLayout">
+        {open ? null : (
+          <motion.button
+            key="icon"
+            layoutId={layoutId}
+            type="button"
+            aria-label="Search"
+            onClick={() => setOpen(true)}
+            transition={morph}
+            style={{ borderRadius: 12 }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Search className="h-4 w-4" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* one connected panel: input + results grow out of the trigger. The text
+          nodes use layout="position" so when the panel resizes (filtering) they
+          reposition without scaling — no re-morph distortion, still connected. */}
+      <AnimatePresence initial={false} mode="popLayout">
+        {open ? (
+          <motion.div
+            key="panel"
+            layoutId={layoutId}
+            transition={morph}
+            style={{ borderRadius: 16 }}
+            className="absolute top-0 -right-2 -left-2 z-40 overflow-hidden border border-border/30 bg-background backdrop-blur-md"
+          >
+            <div className="flex h-9 items-center gap-2 px-3">
+              <motion.span
+                layout="position"
+                transition={glide}
+                className="shrink-0"
+              >
+                <Search className="h-4 w-4 text-muted-foreground" />
+              </motion.span>
+              <motion.input
+                ref={inputRef}
+                layout="position"
+                initial={reduce ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{
+                  opacity: { duration: 0.15, delay: 0.12, ease: EASE_OUT },
+                  layout: glide,
+                }}
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  onChange?.(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && value.trim()) submit(value.trim());
+                  if (e.key === "Escape") close();
+                }}
+                placeholder={placeholder}
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+
+            <div className="h-px bg-border/40" />
+
+            {filtered.length > 0 ? (
+              <motion.ul
+                initial="hidden"
+                animate="show"
+                variants={reduce ? undefined : LIST}
+                className={cn(
+                  "max-h-56 overflow-y-auto p-1.5",
+                  armed ? "" : "pointer-events-none",
+                )}
+              >
+                {filtered.map((term) => (
+                  <motion.li
+                    key={term}
+                    layout="position"
+                    variants={reduce ? undefined : ITEM}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setValue(term);
+                        onChange?.(term);
+                        submit(term);
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-muted-foreground outline-none transition-colors",
+                        armed && "hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <History className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{term}</span>
+                    </button>
+                  </motion.li>
+                ))}
+              </motion.ul>
+            ) : (
+              <motion.div
+                layout="position"
+                className="flex flex-col items-center gap-1 px-4 py-8 text-center"
+              >
+                <Search className="h-5 w-5 text-muted-foreground/60" />
+                <p className="text-sm text-muted-foreground">
+                  {query ? "No matches" : "No recent searches"}
+                </p>
+              </motion.div>
+            )}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+Expand Code
+TSX
+components/motion/wallet-card/types.ts
+
+import type { ReactNode } from "react";
+
+export type WalletAccount = {
+  id: string;
+  name: string;
+  address: string;
+  avatar?: ReactNode;
+};
+
+export interface WalletCardProps {
+  accounts: WalletAccount[];
+  accountId?: string;
+  defaultAccountId?: string;
+  onAccountChange?: (id: string) => void;
+  balance: number;
+  balancePrefix?: string;
+  /** Initial balance change shown in the pill before any live change. */
+  defaultChange?: number;
+  /** Start with the balance hidden behind dots. */
+  defaultBalanceHidden?: boolean;
+  onSend?: () => void;
+  onDeposit?: () => void;
+  onSwap?: () => void;
+  onBuy?: () => void;
+  searchPlaceholder?: string;
+  /** Recent searches shown in the expanded search panel. */
+  searchRecent?: string[];
+  onSearchChange?: (value: string) => void;
+  onSearchSubmit?: (value: string) => void;
+  /** Show an unread pulse on the notifications bell. */
+  hasNotifications?: boolean;
+  onNotifications?: () => void;
+  className?: string;
+}
+
+Expand Code
+TSX
+components/motion/action-swap.tsx
+
+"use client";
+
+import { AnimatePresence, motion, useReducedMotion, type HTMLMotionProps, type Variants } from "motion/react";
+import { useState } from "react";
+import type { ReactNode } from "react";
+import { EASE_OUT, SPRING_PRESS, SPRING_SWAP } from "@/lib/ease";
+import { cn } from "@/lib/utils";
+
+export type ActionSwapItem = {
+  id: string;
+  label: ReactNode;
+  icon?: ReactNode;
+  ariaLabel?: string;
+};
+
+export type ActionSwapButtonVariant = "primary" | "secondary" | "outline" | "ghost";
+export type ActionSwapButtonSize = "sm" | "md" | "lg" | "icon";
+export type ActionSwapAnimation = "blur" | "roll" | "cascade";
+
+/** Animations with a single-element variant set (cascade animates per letter). */
+type CoreAnimation = "blur" | "roll";
+
+export interface ActionSwapButtonProps extends Omit<
+  HTMLMotionProps<"button">,
+  "children" | "onChange"
+> {
+  items: ActionSwapItem[];
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string, item: ActionSwapItem) => void;
+  variant?: ActionSwapButtonVariant;
+  size?: ActionSwapButtonSize;
+  animation?: ActionSwapAnimation;
+  iconOnly?: boolean;
+  cycle?: boolean;
+}
+
+export interface ActionSwapTextProps {
+  value: string;
+  children: ReactNode;
+  animation?: ActionSwapAnimation;
+  className?: string;
+}
+
+export interface ActionSwapIconProps {
+  value: string;
+  children: ReactNode;
+  animation?: ActionSwapAnimation;
+  className?: string;
+}
+
+const BLUR_TRANSITION = { duration: 0.2, ease: "easeInOut" } as const;
+const ROLL_TRANSITION = SPRING_SWAP;
+const ROLL_EXIT_TRANSITION = { duration: 0.14, ease: EASE_OUT } as const;
+const SWAP_BLUR = "blur(8px)";
+const ROLL_BLUR = "blur(3px)";
+
+// Cascade rolls the label one letter at a time, left to right. The leaving
+// and landing strings overlap as independent layers (no shared cells), so
+// proportional glyph widths never jitter. Exits cascade at half the enter
+// stagger so the tail of the old label lingers briefly.
+const CASCADE_STAGGER = 0.025;
+
+const CASCADE_LETTER_VARIANTS: Variants = {
+  initial: { opacity: 0, y: "105%", filter: ROLL_BLUR },
+  animate: (delay: number = 0) => ({
+    opacity: 1,
+    y: "0%",
+    filter: "blur(0px)",
+    transition: { ...SPRING_SWAP, delay },
+  }),
+  exit: (delay: number = 0) => ({
+    opacity: 0,
+    y: "-105%",
+    filter: ROLL_BLUR,
+    transition: { duration: 0.16, ease: EASE_OUT, delay: delay * 0.5 },
+  }),
+};
+
+const TEXT_VARIANTS: Record<CoreAnimation, Variants> = {
+  blur: {
+    initial: { opacity: 0, scale: 0.94, filter: SWAP_BLUR },
+    animate: {
+      opacity: 1,
+      scale: 1,
+      filter: "blur(0px)",
+      transition: BLUR_TRANSITION,
+    },
+    exit: {
+      opacity: 0,
+      scale: 0.94,
+      filter: SWAP_BLUR,
+      transition: BLUR_TRANSITION,
+    },
+  },
+  roll: {
+    initial: { opacity: 0, y: "90%", filter: ROLL_BLUR },
+    animate: {
+      opacity: 1,
+      y: "0%",
+      filter: "blur(0px)",
+      transition: ROLL_TRANSITION,
+    },
+    exit: {
+      opacity: 0,
+      y: "-90%",
+      filter: ROLL_BLUR,
+      transition: ROLL_EXIT_TRANSITION,
+    },
+  },
+};
+
+const ICON_VARIANTS: Record<CoreAnimation, Variants> = {
+  blur: {
+    initial: { opacity: 0, scale: 0.25, filter: SWAP_BLUR },
+    animate: {
+      opacity: 1,
+      scale: 1,
+      filter: "blur(0px)",
+      transition: BLUR_TRANSITION,
+    },
+    exit: {
+      opacity: 0,
+      scale: 0.25,
+      filter: SWAP_BLUR,
+      transition: BLUR_TRANSITION,
+    },
+  },
+  roll: {
+    initial: { opacity: 0, y: 12, filter: ROLL_BLUR },
+    animate: {
+      opacity: 1,
+      y: 0,
+      filter: "blur(0px)",
+      transition: ROLL_TRANSITION,
+    },
+    exit: {
+      opacity: 0,
+      y: -12,
+      filter: ROLL_BLUR,
+      transition: ROLL_EXIT_TRANSITION,
+    },
+  },
+};
+
+const VARIANT_CLASS: Record<ActionSwapButtonVariant, string> = {
+  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  secondary: "border border-border bg-card text-foreground hover:border-border",
+  outline: "border border-border bg-transparent text-foreground hover:bg-primary/5",
+  ghost: "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
+};
+
+const SIZE_CLASS: Record<ActionSwapButtonSize, string> = {
+  sm: "h-8 gap-1.5 rounded-full px-3 text-xs",
+  md: "h-10 gap-2 rounded-full px-4 text-sm",
+  lg: "h-12 gap-2.5 rounded-full px-5 text-base",
+  icon: "h-10 w-10 rounded-full",
+};
+
+export function ActionSwapText({
+  value,
+  children,
+  animation = "blur",
+  className,
+}: ActionSwapTextProps) {
+  const reduce = useReducedMotion();
+
+  // Cascade needs a plain string to split into letters; non-string content
+  // and reduced motion fall back to the closest single-element animation.
+  const label = typeof children === "string" ? children : null;
+  const cascade = animation === "cascade" && label !== null && !reduce;
+  const coreAnimation: CoreAnimation =
+    animation === "cascade" ? "roll" : animation;
+
+  return (
+    <span
+      className={cn(
+        "relative -my-[0.08em] inline-block max-w-full whitespace-nowrap py-[0.08em] align-bottom",
+        className,
+      )}
+      style={{
+        clipPath: "inset(0 -999px)",
+        WebkitClipPath: "inset(0 -999px)",
+      }}
+    >
+      <span
+        aria-hidden
+        className="invisible inline-block whitespace-nowrap"
+      >
+        {cascade
+          ? label.split("").map((char, index) => (
+              <span
+                // biome-ignore lint/suspicious/noArrayIndexKey: position is the slot identity.
+                key={index}
+                className="inline-block whitespace-pre"
+              >
+                {char}
+              </span>
+            ))
+          : children}
+      </span>
+      {cascade ? (
+        <>
+          {/* Letters are decorative fragments; readers get the whole label. */}
+          <span className="sr-only">{label}</span>
+          <AnimatePresence initial={false}>
+            <motion.span
+              key={`cascade-${value}`}
+              aria-hidden
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="absolute left-0 top-[0.08em] inline-block whitespace-pre"
+            >
+              {label.split("").map((char, i) => (
+                <motion.span
+                  // biome-ignore lint/suspicious/noArrayIndexKey: position is the slot identity — the letter at a position is exactly what rolls.
+                  key={i}
+                  custom={i * CASCADE_STAGGER}
+                  variants={CASCADE_LETTER_VARIANTS}
+                  className="inline-block whitespace-pre will-change-[opacity,filter,transform]"
+                >
+                  {char}
+                </motion.span>
+              ))}
+            </motion.span>
+          </AnimatePresence>
+        </>
+      ) : (
+        <AnimatePresence initial={false}>
+          <motion.span
+            key={`${animation}-${value}`}
+            variants={TEXT_VARIANTS[coreAnimation]}
+            initial={reduce ? false : "initial"}
+            animate={reduce ? { opacity: 1, filter: "blur(0px)", scale: 1, y: 0 } : "animate"}
+            exit={reduce ? undefined : "exit"}
+            // Truncation lives on the layer that holds the text — the layer
+            // moves as a whole, so clipping it never eats the roll.
+            className="absolute left-0 top-[0.08em] inline-block max-w-full truncate will-change-[opacity,filter,transform]"
+          >
+            {children}
+          </motion.span>
+        </AnimatePresence>
+      )}
+    </span>
+  );
+}
+
+export function ActionSwapIcon({
+  value,
+  children,
+  animation = "blur",
+  className,
+}: ActionSwapIconProps) {
+  const reduce = useReducedMotion();
+  // Icons are single elements — cascade maps to its closest motion, roll.
+  const coreAnimation: CoreAnimation =
+    animation === "cascade" ? "roll" : animation;
+
+  return (
+    <span className={cn("relative inline-grid shrink-0 place-items-center overflow-hidden", className)}>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span
+          key={`${animation}-${value}`}
+          aria-hidden
+          variants={ICON_VARIANTS[coreAnimation]}
+          initial={reduce ? false : "initial"}
+          animate={reduce ? { opacity: 1, filter: "blur(0px)", scale: 1, y: 0 } : "animate"}
+          exit={reduce ? undefined : "exit"}
+          className="col-start-1 row-start-1 inline-flex items-center justify-center will-change-[opacity,filter,transform]"
         >
           {children}
-        </motion.ul>
-      ) : null}
-    </AnimatePresence>
+        </motion.span>
+      </AnimatePresence>
+    </span>
   );
-});
+}
 
-export const AnimatedSidebarMenuSubItem = forwardRef<
-  HTMLLIElement,
-  HTMLMotionProps<"li">
->(function AnimatedSidebarMenuSubItem(
-  { className, ...props },
-  forwardedRef,
-) {
+export function ActionSwapButton({
+  items,
+  value,
+  defaultValue,
+  onValueChange,
+  variant = "secondary",
+  size = "md",
+  animation = "blur",
+  iconOnly = size === "icon",
+  cycle = true,
+  className,
+  disabled,
+  onClick,
+  ...rest
+}: ActionSwapButtonProps) {
+  const reduce = useReducedMotion();
+  const [internalValue, setInternalValue] = useState(defaultValue ?? items[0]?.id);
+  const currentValue = value ?? internalValue;
+  const activeIndex = Math.max(0, items.findIndex((item) => item.id === currentValue));
+  const activeItem = items[activeIndex] ?? items[0];
+  const hasIcon = items.some((item) => item.icon);
+  const nextItem = cycle && items.length > 0 ? items[(activeIndex + 1) % items.length] : undefined;
+
+  if (!activeItem) return null;
+
+  const accessibleLabel = activeItem.ariaLabel ?? (iconOnly && typeof activeItem.label === "string" ? activeItem.label : undefined);
+
   return (
-    <motion.li
-      {...props}
-      ref={forwardedRef}
-      variants={SUBMENU_ITEM_VARIANTS}
-      data-slot="sidebar-menu-sub-item"
-      className={cn("relative min-w-0", className)}
+    <motion.button
+      type="button"
+      disabled={disabled}
+      whileTap={reduce || disabled ? undefined : { scale: 0.97 }}
+      transition={SPRING_PRESS}
+      className={cn(
+        "inline-flex items-center justify-center overflow-hidden font-medium transition-colors",
+        "disabled:pointer-events-none disabled:opacity-50",
+        VARIANT_CLASS[variant],
+        SIZE_CLASS[size],
+        className,
+      )}
+      aria-label={accessibleLabel}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented || disabled || !cycle || !nextItem) return;
+        if (value === undefined) setInternalValue(nextItem.id);
+        onValueChange?.(nextItem.id, nextItem);
+      }}
+      {...rest}
+    >
+      {hasIcon ? (
+        <ActionSwapIcon value={activeItem.id} animation={animation} className="h-4 w-4">
+          {activeItem.icon ?? null}
+        </ActionSwapIcon>
+      ) : null}
+      {!iconOnly ? (
+        <ActionSwapText value={activeItem.id} animation={animation}>
+          {activeItem.label}
+        </ActionSwapText>
+      ) : null}
+    </motion.button>
+  );
+}
+
+Expand Code
+TSX
+components/motion/button/index.tsx
+
+export type {
+  ButtonLinkProps,
+  ButtonProps,
+  ButtonSize,
+  ButtonVariant,
+} from "./base";
+export { Button, ButtonLink } from "./base";
+export type { MagneticButtonProps } from "./magnetic";
+export { MagneticButton } from "./magnetic";
+export type { MetallicButtonProps } from "./metallic";
+export { MetallicButton } from "./metallic";
+export type { ButtonState, StatefulButtonProps } from "./stateful";
+export { StatefulButton } from "./stateful";
+
+Expand Code
+TSX
+components/motion/wallet-card/account-avatar.tsx
+
+import { cn } from "@/lib/utils";
+import type { WalletAccount } from "./types";
+import { diceBearGlassUrl } from "./utils";
+
+export function AccountAvatar({
+  account,
+  className,
+}: {
+  account: WalletAccount;
+  className?: string;
+}) {
+  if (account.avatar) return <>{account.avatar}</>;
+  return (
+    // biome-ignore lint/performance/noImgElement: remote DiceBear SVG, no next/image benefit
+    <img
+      src={diceBearGlassUrl(account.id || account.address)}
+      alt={account.name}
+      className={cn("h-7 w-7 shrink-0 rounded-full bg-muted", className)}
     />
   );
-});
-
-export interface AnimatedSidebarMenuSubButtonProps {
-  children: ReactNode;
-  icon?: ReactNode;
-  href?: string;
-  isActive?: boolean;
-  disabled?: boolean;
-  closeOnSelect?: boolean;
-  target?: "_blank" | "_self" | "_parent" | "_top";
-  rel?: string;
-  onSelect?: () => void;
-  className?: string;
 }
 
-export function AnimatedSidebarMenuSubButton({
-  children,
-  icon,
-  href,
-  isActive = false,
-  disabled = false,
-  closeOnSelect = true,
-  target,
-  rel,
-  onSelect,
-  className,
-}: AnimatedSidebarMenuSubButtonProps) {
-  const context = useAnimatedSidebar();
+Expand Code
+TSX
+components/motion/wallet-card/constants.ts
 
-  const select = (
-    event: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>,
-  ) => {
-    if (disabled) {
-      event.preventDefault();
-      return;
+import type { Transition, Variants } from "motion/react";
+
+// Trigger box grows into the full-width panel and back — one shared surface.
+export const MORPH: Transition = { type: "spring", duration: 0.5, bounce: 0.22 };
+
+export const LIST: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.035, delayChildren: 0.12 } },
+};
+
+export const ITEM: Variants = {
+  hidden: { opacity: 0, y: -6, filter: "blur(3px)" },
+  show: { opacity: 1, y: 0, filter: "blur(0px)" },
+};
+
+// Shared padding for the account trigger + panel header so the avatar/name stay
+// put as the box morphs — the panel reads as the trigger itself growing open.
+export const HEAD = "flex items-center gap-2 px-2 py-1.5 text-left";
+
+Expand Code
+TSX
+components/motion/wallet-card/copy-button.tsx
+
+"use client";
+
+import { Check, Copy } from "lucide-react";
+import { useState } from "react";
+import { ActionSwapIcon } from "@/components/motion/action-swap";
+import { cn } from "@/lib/utils";
+
+/**
+ * Copies `value` to the clipboard and swaps the copy icon for a check via the
+ * library's ActionSwapIcon. Stops click propagation so it can sit inside a
+ * selectable row.
+ */
+export function CopyButton({
+  value,
+  className,
+}: {
+  value: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // clipboard may be unavailable (insecure context) — swap anyway
     }
-    onSelect?.();
-    if (context.isMobile && closeOnSelect) context.setOpenMobile(false);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
   };
 
-  const content = (
-    <>
-      <span
-        aria-hidden="true"
-        className="grid size-4 shrink-0 place-items-center"
-      >
-        {icon ?? <span className="size-1 rounded-full bg-current" />}
-      </span>
-      <span className="min-w-0 flex-1 truncate">{children}</span>
-    </>
-  );
-
-  const interactiveClassName = cn(
-    "flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-xs outline-none",
-    "text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
-    "focus-visible:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring",
-    isActive && "bg-muted/70 text-foreground",
-    disabled && "cursor-not-allowed opacity-40",
-    className,
-  );
-
-  return href ? (
-    <motion.a
-      href={href}
-      target={target}
-      rel={
-        rel ??
-        (target === "_blank" ? "noreferrer noopener" : undefined)
-      }
-      aria-current={isActive ? "page" : undefined}
-      aria-disabled={disabled || undefined}
-      tabIndex={disabled ? -1 : undefined}
-      onClick={select}
-      whileTap={context.reduce || disabled ? undefined : { scale: 0.98 }}
-      transition={SPRING_PRESS}
-      className={interactiveClassName}
-    >
-      {content}
-    </motion.a>
-  ) : (
-    <motion.button
+  return (
+    <button
       type="button"
-      disabled={disabled}
-      aria-current={isActive ? "page" : undefined}
-      onClick={select}
-      whileTap={context.reduce || disabled ? undefined : { scale: 0.98 }}
-      transition={SPRING_PRESS}
-      className={interactiveClassName}
+      aria-label={copied ? "Copied" : "Copy address"}
+      onClick={(e) => {
+        e.stopPropagation();
+        copy();
+      }}
+      className={cn(
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground",
+        className,
+      )}
     >
-      {content}
-    </motion.button>
-  );
-}
-
-export interface AnimatedSidebarMenuButtonProps {
-  children: ReactNode;
-  icon?: ReactNode;
-  badge?: ReactNode;
-  href?: string;
-  isActive?: boolean;
-  ariaExpanded?: boolean;
-  disabled?: boolean;
-  closeOnSelect?: boolean;
-  target?: "_blank" | "_self" | "_parent" | "_top";
-  rel?: string;
-  onSelect?: () => void;
-  className?: string;
-}
-
-export function AnimatedSidebarMenuButton({
-  children,
-  icon,
-  badge,
-  href,
-  isActive = false,
-  ariaExpanded,
-  disabled = false,
-  closeOnSelect,
-  target,
-  rel,
-  onSelect,
-  className,
-}: AnimatedSidebarMenuButtonProps) {
-  const context = useAnimatedSidebar();
-  const panel = useAnimatedSidebarPanel();
-  const textLabel = typeof children === "string" ? children : undefined;
-
-  const select = (
-    event: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>,
-  ) => {
-    if (disabled) {
-      event.preventDefault();
-      return;
-    }
-    onSelect?.();
-    const shouldCloseOnSelect =
-      closeOnSelect ?? ariaExpanded === undefined;
-    if (context.isMobile && shouldCloseOnSelect) {
-      context.setOpenMobile(false);
-    }
-    // A submenu cannot render in the icon rail, so opening one from there
-    // leaves its children unreachable — a pointer can still fall back to the
-    // rail or the shortcut, a finger has nothing. Selecting a group unfolds
-    // the panel that is about to hold it.
-    if (ariaExpanded !== undefined && panel.collapsed && !context.isMobile) {
-      context.setOpen(true);
-    }
-  };
-
-  const content = (
-    <>
-      {isActive ? (
-        <motion.span
-          layoutId={context.layoutId}
-          transition={context.reduce ? { duration: 0 } : SPRING_LAYOUT}
-          className="absolute inset-0 rounded-xl bg-muted"
-        />
-      ) : null}
-      {icon ? (
-        <span
-          aria-hidden="true"
-          className="relative z-10 grid size-5 shrink-0 place-items-center"
-        >
-          {icon}
-        </span>
-      ) : null}
-      <motion.span
-        initial={false}
-        animate={{
-          opacity: panel.collapsed ? 0 : 1,
-          x: panel.collapsed ? -4 : 0,
-        }}
-        transition={
-          context.reduce
-            ? REDUCED_TRANSITION
-            : panel.collapsed
-              ? LABEL_EXIT_TRANSITION
-              : LABEL_ENTER_TRANSITION
-        }
-        aria-hidden={panel.collapsed}
-        className={cn(
-          "relative z-10 min-w-0 flex-1 truncate",
-          panel.collapsed && "pointer-events-none",
+      <ActionSwapIcon
+        value={copied ? "check" : "copy"}
+        animation="cascade"
+        className="h-3.5 w-3.5"
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5 text-emerald-500" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
         )}
-      >
-        {children}
-      </motion.span>
-      {badge && !panel.collapsed ? (
-        <span className="relative z-10 shrink-0 text-xs text-muted-foreground">
-          {badge}
-        </span>
-      ) : null}
-      {ariaExpanded !== undefined ? (
-        <motion.span
-          aria-hidden="true"
-          initial={false}
-          animate={{
-            opacity: panel.collapsed ? 0 : 1,
-            rotate: ariaExpanded ? 90 : 0,
-            x: panel.collapsed ? 4 : 0,
-          }}
-          transition={context.reduce ? { duration: 0 } : SPRING_LAYOUT}
-          className="relative z-10 grid size-4 shrink-0 place-items-center text-muted-foreground"
-        >
-          <ChevronRight className="size-3.5" />
-        </motion.span>
-      ) : null}
-    </>
-  );
-
-  const interactiveClassName = cn(
-    "relative flex min-h-9 w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-xl px-3 text-left text-sm font-medium outline-none",
-    "text-muted-foreground transition-colors hover:text-foreground",
-    "focus-visible:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring",
-    isActive && "text-foreground",
-    disabled && "cursor-not-allowed opacity-40",
-    className,
-  );
-
-  return href ? (
-    <motion.a
-      href={href}
-      target={target}
-      rel={
-        rel ??
-        (target === "_blank" ? "noreferrer noopener" : undefined)
-      }
-      aria-current={isActive ? "page" : undefined}
-      aria-expanded={ariaExpanded}
-      aria-disabled={disabled || undefined}
-      aria-label={panel.collapsed ? textLabel : undefined}
-      title={panel.collapsed ? textLabel : undefined}
-      tabIndex={disabled ? -1 : undefined}
-      onClick={select}
-      whileTap={context.reduce || disabled ? undefined : { scale: 0.98 }}
-      transition={SPRING_PRESS}
-      className={interactiveClassName}
-    >
-      {content}
-    </motion.a>
-  ) : (
-    <motion.button
-      type="button"
-      disabled={disabled}
-      aria-current={isActive ? "page" : undefined}
-      aria-expanded={ariaExpanded}
-      aria-label={panel.collapsed ? textLabel : undefined}
-      title={panel.collapsed ? textLabel : undefined}
-      onClick={select}
-      whileTap={context.reduce || disabled ? undefined : { scale: 0.98 }}
-      transition={SPRING_PRESS}
-      className={interactiveClassName}
-    >
-      {content}
-    </motion.button>
+      </ActionSwapIcon>
+    </button>
   );
 }
 
+Expand Code
+TSX
+components/motion/wallet-card/utils.ts
 
-components/motion/shared-layout-bg.tsx -
+export function diceBearGlassUrl(seed: string) {
+  return `https://api.dicebear.com/9.x/glass/svg?seed=${encodeURIComponent(seed)}`;
+}
+
+export function truncateAddress(address: string) {
+  return address.length > 12
+    ? `${address.slice(0, 6)}…${address.slice(-4)}`
+    : address;
+}
+
+TSX
+components/motion/button/base.tsx
 
 "use client";
 
@@ -1186,147 +1514,617 @@ import {
   type HTMLMotionProps,
   motion,
   useReducedMotion,
-  type Variants,
 } from "motion/react";
 import {
-  Children,
-  cloneElement,
   forwardRef,
-  type HTMLAttributes,
-  isValidElement,
-  type MouseEvent,
-  type ReactElement,
+  type PointerEvent,
   type ReactNode,
-  type Ref,
-  useId,
+  useCallback,
+  useRef,
   useState,
 } from "react";
-import { SPRING_LAYOUT } from "@/lib/ease";
+import { EASE_OUT, SPRING_PRESS } from "@/lib/ease";
+import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
 import { cn } from "@/lib/utils";
 
-export interface SharedLayoutBgProps
-  extends Omit<HTMLAttributes<HTMLElement>, "children"> {
-  children: ReactNode;
-  /** Semantic container used for the children. */
-  as?: "div" | "ul";
-  /** Tailwind class applied to the moving pill. Defaults to a subtle foreground tint. */
-  pillClassName?: string;
-  /** Horizontal inset of the pill relative to each row (px). Default 20. */
-  inset?: number;
-  /** Optional positioning override for the pill wrapper inside each item. */
-  pillContainerClassName?: string;
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
+
+export interface ButtonProps extends Omit<
+  HTMLMotionProps<"button">,
+  "children"
+> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  pressScale?: number;
+  /** Spawn a Material-style ripple from the press point. Off by default. */
+  ripple?: boolean;
+  children?: ReactNode;
 }
 
-const variants: Variants = {
-  initial: { opacity: 0, filter: "blur(6px)" },
-  animate: { opacity: 1, filter: "blur(0px)" },
-  exit: (isActive: boolean) =>
-    !isActive ? { opacity: 0, filter: "blur(6px)" } : {},
+export interface ButtonLinkProps extends Omit<
+  HTMLMotionProps<"a">,
+  "children"
+> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  pressScale?: number;
+  children?: ReactNode;
+}
+
+type Ripple = { id: number; x: number; y: number; size: number };
+
+const VARIANT_CLASS: Record<ButtonVariant, string> = {
+  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  secondary: "border border-border bg-card text-foreground hover:border-border",
+  ghost: "text-muted-foreground hover:text-foreground hover:bg-primary/5",
+  outline:
+    "border border-border bg-transparent text-foreground hover:bg-primary/5",
 };
 
-const reducedVariants: Variants = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  exit: (isActive: boolean) => (!isActive ? { opacity: 0 } : {}),
+const SIZE_CLASS: Record<ButtonSize, string> = {
+  sm: "h-8 px-3 text-xs gap-1.5 rounded-full",
+  md: "h-10 px-5 text-sm gap-2 rounded-full",
+  lg: "h-12 px-6 text-base gap-2 rounded-full",
+  icon: "h-8 w-8 rounded-lg",
 };
 
-export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
-  function SharedLayoutBg(
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button(
     {
-      children,
-      as = "div",
+      variant = "primary",
+      size = "md",
+      pressScale = 0.93,
+      ripple = false,
       className,
-      onMouseLeave,
-      pillClassName,
-      pillContainerClassName,
-      inset = 20,
-      ...props
+      children,
+      onPointerDown,
+      ...rest
     },
-    forwardedRef,
+    ref,
   ) {
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const uid = useId();
-  const reduce = useReducedMotion();
+    const reduce = useReducedMotion();
+    const canHover = useHoverCapable();
+    const [ripples, setRipples] = useState<Ripple[]>([]);
+    const nextId = useRef(0);
 
-    const renderedChildren = Children.toArray(children)
-      .filter(isValidElement)
-      .map((child, index) => {
-        const el = child as ReactElement<{
-          className?: string;
-          onMouseEnter?: () => void;
-          children?: ReactNode;
-        }>;
-        const childKey = el.key ? String(el.key) : `item-${index}`;
-        return cloneElement(
-          el,
-          {
-            key: childKey,
-            className: cn("relative", el.props.className),
-            onMouseEnter: () => {
-              el.props.onMouseEnter?.();
-              setActiveId(childKey);
+    const handlePointerDown = useCallback(
+      (event: PointerEvent<HTMLButtonElement>) => {
+        if (ripple && !reduce) {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const size = Math.max(rect.width, rect.height) * 2;
+          const id = nextId.current++;
+          setRipples((prev) => [
+            ...prev,
+            {
+              id,
+              x: event.clientX - rect.left,
+              y: event.clientY - rect.top,
+              size,
             },
-          },
-          <>
-            <AnimatePresence custom={activeId !== null}>
-              {activeId !== null ? (
-                <motion.div
-                  variants={reduce ? reducedVariants : variants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  custom={activeId !== null}
-                  className={cn(
-                    "pointer-events-none absolute inset-y-0",
-                    pillContainerClassName,
-                  )}
-                  style={{ left: -inset, right: -inset }}
-                >
-                  {activeId === childKey ? (
-                    <motion.div
-                      layoutId={`shared-bg-${uid}`}
-                      transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
-                      className={cn(
-                        "pointer-events-none h-full w-full rounded-2xl bg-primary/[0.06]",
-                        pillClassName,
-                      )}
-                    />
-                  ) : null}
-                </motion.div>
-              ) : null}
+          ]);
+        }
+        onPointerDown?.(event);
+      },
+      [ripple, reduce, onPointerDown],
+    );
+
+    return (
+      <motion.button
+        ref={ref}
+        type="button"
+        whileTap={reduce ? undefined : { scale: pressScale }}
+        whileHover={reduce || !canHover ? undefined : { scale: 1.02 }}
+        transition={SPRING_PRESS}
+        onPointerDown={handlePointerDown}
+        className={cn(
+          "inline-flex items-center justify-center font-medium select-none",
+          "transition-colors",
+          "disabled:pointer-events-none disabled:opacity-50",
+          ripple && "relative overflow-hidden",
+          VARIANT_CLASS[variant],
+          SIZE_CLASS[size],
+          className,
+        )}
+        {...rest}
+      >
+        {ripple && !reduce ? (
+          <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+            <AnimatePresence>
+              {ripples.map((r) => (
+                <motion.span
+                  key={r.id}
+                  className="absolute rounded-full bg-current"
+                  style={{
+                    left: r.x,
+                    top: r.y,
+                    width: r.size,
+                    height: r.size,
+                    x: "-50%",
+                    y: "-50%",
+                  }}
+                  initial={{ scale: 0.05, opacity: 0.3 }}
+                  animate={{ scale: 1, opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 1.6, ease: EASE_OUT }}
+                  onAnimationComplete={() =>
+                    setRipples((prev) => prev.filter((x) => x.id !== r.id))
+                  }
+                />
+              ))}
             </AnimatePresence>
-            <div className="relative z-10">{el.props.children}</div>
-          </>,
-        );
-      });
-
-    const handleMouseLeave = (event: MouseEvent<HTMLElement>) => {
-      setActiveId(null);
-      onMouseLeave?.(event);
-    };
-
-    // layoutRoot scopes the pill's layout projection to this list, so fixed or
-    // scrolled ancestors can't smear scroll offsets into its movement.
-    return as === "ul" ? (
-      <motion.ul
-        {...(props as HTMLMotionProps<"ul">)}
-        ref={forwardedRef as Ref<HTMLUListElement>}
-        layoutRoot
-        onMouseLeave={handleMouseLeave}
-        className={cn("flex w-full flex-col", className)}
-      >
-        {renderedChildren}
-      </motion.ul>
-    ) : (
-      <motion.div
-        {...(props as HTMLMotionProps<"div">)}
-        ref={forwardedRef as Ref<HTMLDivElement>}
-        layoutRoot
-        onMouseLeave={handleMouseLeave}
-        className={cn("flex w-full flex-col", className)}
-      >
-        {renderedChildren}
-      </motion.div>
+          </span>
+        ) : null}
+        {children}
+      </motion.button>
     );
   },
 );
+
+export const ButtonLink = forwardRef<HTMLAnchorElement, ButtonLinkProps>(
+  function ButtonLink(
+    {
+      variant = "primary",
+      size = "md",
+      pressScale = 0.93,
+      className,
+      children,
+      ...rest
+    },
+    ref,
+  ) {
+    const reduce = useReducedMotion();
+    const canHover = useHoverCapable();
+
+    return (
+      <motion.a
+        ref={ref}
+        whileTap={reduce ? undefined : { scale: pressScale }}
+        whileHover={reduce || !canHover ? undefined : { scale: 1.02 }}
+        transition={SPRING_PRESS}
+        className={cn(
+          "inline-flex items-center justify-center font-medium select-none",
+          "transition-colors",
+          VARIANT_CLASS[variant],
+          SIZE_CLASS[size],
+          className,
+        )}
+        {...rest}
+      >
+        {children}
+      </motion.a>
+    );
+  },
+);
+
+Expand Code
+TSX
+components/motion/button/magnetic.tsx
+
+"use client";
+
+import { forwardRef } from "react";
+import { Magnetic } from "../magnetic";
+import { Button, type ButtonProps } from "./base";
+
+export interface MagneticButtonProps extends ButtonProps {
+  /** Magnetic pull strength. Default 0.25. */
+  strength?: number;
+  /** Class applied to the magnetic wrapper. */
+  magneticClassName?: string;
+}
+
+export const MagneticButton = forwardRef<HTMLButtonElement, MagneticButtonProps>(function MagneticButton(
+  { strength = 0.25, magneticClassName, children, ...rest },
+  ref,
+) {
+  return (
+    <Magnetic strength={strength} className={magneticClassName}>
+      <Button ref={ref} {...rest}>
+        {children}
+      </Button>
+    </Magnetic>
+  );
+});
+
+Expand Code
+TSX
+components/motion/button/metallic.tsx
+
+"use client";
+
+import { motion, useReducedMotion } from "motion/react";
+import { forwardRef, useState } from "react";
+import { EASE_IN_OUT } from "@/lib/ease";
+import { cn } from "@/lib/utils";
+import { Button, type ButtonProps } from "./base";
+
+export interface MetallicButtonProps extends Omit<
+  ButtonProps,
+  "ripple" | "variant"
+> {
+  /** Stops the traveling reflection while preserving the chrome rim. */
+  paused?: boolean;
+}
+
+// The rim and highlight drift separately so the material stays quiet and reflective.
+const SILVER_DRIFT = {
+  duration: 8,
+  ease: EASE_IN_OUT,
+  repeat: Infinity,
+};
+
+const CHROME_SHIMMER = {
+  duration: 2.4,
+  ease: EASE_IN_OUT,
+};
+
+export const MetallicButton = forwardRef<
+  HTMLButtonElement,
+  MetallicButtonProps
+>(function MetallicButton(
+  {
+    size = "md",
+    paused = false,
+    className,
+    children,
+    onHoverStart,
+    onHoverEnd,
+    ...rest
+  },
+  ref,
+) {
+  const reduce = useReducedMotion();
+  const still = paused || Boolean(reduce);
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <Button
+      ref={ref}
+      variant="ghost"
+      size={size}
+      onHoverStart={(event, info) => {
+        setHovered(true);
+        onHoverStart?.(event, info);
+      }}
+      onHoverEnd={(event, info) => {
+        setHovered(false);
+        onHoverEnd?.(event, info);
+      }}
+      className={cn(
+        "group relative isolate overflow-hidden border-0 bg-transparent text-foreground",
+        "hover:bg-transparent hover:text-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "shadow-[0_8px_22px_rgba(0,0,0,0.16)]",
+        size === "icon" && "rounded-full",
+        className,
+      )}
+      {...rest}
+    >
+      <motion.span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-[-18%] z-0 w-[136%] rounded-[inherit] bg-[linear-gradient(105deg,#111_0%,#737373_14%,#fafafa_26%,#525252_38%,#0a0a0a_50%,#a3a3a3_64%,#fff_75%,#404040_87%,#111_100%)]"
+        animate={still ? undefined : { x: ["0%", "13%", "0%"] }}
+        transition={still ? undefined : SILVER_DRIFT}
+      />
+
+      <motion.span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-[-58%] z-[1] w-[52%] -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5)_48%,transparent)] opacity-50 blur-[3px] mix-blend-screen"
+        animate={still ? undefined : { x: hovered ? "310%" : "0%" }}
+        transition={still ? undefined : CHROME_SHIMMER}
+      />
+
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-[2px] z-[2] rounded-[inherit] bg-background transition-colors group-hover:bg-muted/40"
+      />
+
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-[2px] z-[3] rounded-[inherit] shadow-[inset_0_1px_0_rgba(255,255,255,0.28),inset_0_-1px_0_rgba(0,0,0,0.16)]"
+      />
+
+      <span className="relative z-10 inline-flex items-center justify-center gap-2">
+        {children}
+      </span>
+    </Button>
+  );
+});
+
+Expand Code
+TSX
+components/motion/button/stateful.tsx
+
+"use client";
+
+import { Check, Loader2, X } from "lucide-react";
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  type Variants,
+} from "motion/react";
+import {
+  forwardRef,
+  type ReactNode,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { EASE_OUT, SPRING_SWAP } from "@/lib/ease";
+import { Button, type ButtonProps } from "./base";
+
+export type ButtonState = "idle" | "loading" | "success" | "error";
+
+export interface StatefulButtonProps extends Omit<ButtonProps, "children"> {
+  state?: ButtonState;
+  children: ReactNode;
+  loadingText?: ReactNode;
+  successText?: ReactNode;
+  errorText?: ReactNode;
+  icon?: ReactNode;
+}
+
+const CASCADE_STAGGER = 0.025;
+const ROLL_BLUR = "blur(6px)";
+
+const CASCADE_LETTER_VARIANTS: Variants = {
+  initial: { opacity: 0, y: "105%", filter: ROLL_BLUR },
+  animate: (delay: number = 0) => ({
+    opacity: 1,
+    y: "0%",
+    filter: "blur(0px)",
+    transition: { ...SPRING_SWAP, delay },
+  }),
+  exit: (delay: number = 0) => ({
+    opacity: 0,
+    y: "-105%",
+    filter: ROLL_BLUR,
+    transition: { duration: 0.16, ease: EASE_OUT, delay: delay * 0.5 },
+  }),
+};
+
+const ICON_VARIANTS: Variants = {
+  // Width collapses too, so the icon adds/removes its own space smoothly
+  // instead of popping the row width in a single frame.
+  initial: { opacity: 0, width: 0, scale: 0.7, filter: ROLL_BLUR },
+  animate: {
+    opacity: 1,
+    width: "1.5rem",
+    scale: 1,
+    filter: "blur(0px)",
+    transition: SPRING_SWAP,
+  },
+  exit: {
+    opacity: 0,
+    width: 0,
+    scale: 0.7,
+    filter: ROLL_BLUR,
+    transition: { duration: 0.16, ease: EASE_OUT },
+  },
+};
+
+function IconSlot({ keyId, children }: { keyId: string; children: ReactNode }) {
+  const reduce = useReducedMotion();
+  return (
+    <motion.span
+      key={keyId}
+      variants={ICON_VARIANTS}
+      initial={reduce ? { opacity: 0 } : "initial"}
+      animate={reduce ? { opacity: 1 } : "animate"}
+      exit={reduce ? { opacity: 0 } : "exit"}
+      transition={reduce ? { duration: 0.15 } : undefined}
+      className="inline-grid shrink-0 place-items-center overflow-hidden"
+    >
+      {children}
+    </motion.span>
+  );
+}
+
+function TextSlot({
+  value,
+  children,
+}: {
+  value: string;
+  children: ReactNode;
+}) {
+  const reduce = useReducedMotion();
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const [width, setWidth] = useState<number>();
+  const label = typeof children === "string" ? children : null;
+  const cascade = label !== null && !reduce;
+
+  // Measure strings with the same per-letter layout as the cascade. Measuring
+  // the whole string preserves kerning, which can make it narrower than the
+  // inline-block letters and clip the final glyph during the width animation.
+  useLayoutEffect(() => {
+    const nextWidth = measureRef.current?.offsetWidth;
+    if (!nextWidth) return;
+    setWidth((current) => (current === nextWidth ? current : nextWidth));
+  });
+
+  return (
+    <motion.span
+      initial={false}
+      animate={{ width }}
+      transition={reduce ? { duration: 0 } : SPRING_SWAP}
+      className="relative inline-block overflow-hidden whitespace-nowrap align-bottom"
+    >
+      <span
+        ref={measureRef}
+        aria-hidden
+        className="invisible inline-block whitespace-nowrap"
+      >
+        {cascade
+          ? label.split("").map((char, index) => (
+              <span
+                // biome-ignore lint/suspicious/noArrayIndexKey: position is the slot identity.
+                key={index}
+                className="inline-block whitespace-pre"
+              >
+                {char}
+              </span>
+            ))
+          : children}
+      </span>
+
+      {cascade ? (
+        <>
+          <span className="sr-only">{label}</span>
+          <AnimatePresence initial={false}>
+            <motion.span
+              key={`cascade-${value}`}
+              aria-hidden
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="absolute left-0 top-0 inline-block whitespace-pre"
+            >
+              {label.split("").map((char, index) => (
+                <motion.span
+                  // biome-ignore lint/suspicious/noArrayIndexKey: position is the slot identity.
+                  key={index}
+                  custom={index * CASCADE_STAGGER}
+                  variants={CASCADE_LETTER_VARIANTS}
+                  className="inline-block whitespace-pre will-change-[opacity,filter,transform]"
+                >
+                  {char}
+                </motion.span>
+              ))}
+            </motion.span>
+          </AnimatePresence>
+        </>
+      ) : (
+        <AnimatePresence initial={false}>
+          <motion.span
+            key={`text-${value}`}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14, filter: ROLL_BLUR }}
+            animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, y: -14, filter: ROLL_BLUR }}
+            transition={reduce ? { duration: 0.15 } : SPRING_SWAP}
+            className="absolute left-0 top-0 inline-block will-change-[opacity,filter,transform]"
+          >
+            {children}
+          </motion.span>
+        </AnimatePresence>
+      )}
+    </motion.span>
+  );
+}
+
+export const StatefulButton = forwardRef<HTMLButtonElement, StatefulButtonProps>(function StatefulButton(
+  {
+    state = "idle",
+    children,
+    loadingText = "Loading",
+    successText = "Done",
+    errorText = "Try again",
+    icon,
+    disabled,
+    ...rest
+  },
+  ref,
+) {
+  const isBusy = state === "loading";
+  const stateText =
+    state === "loading"
+      ? loadingText
+      : state === "success"
+        ? successText
+        : state === "error"
+        ? errorText
+        : children;
+  const textKey =
+    typeof stateText === "string" ? `${state}-${stateText}` : state;
+
+  return (
+    <Button ref={ref} disabled={disabled || isBusy} aria-busy={isBusy} whileHover={undefined} {...rest}>
+      <span
+        aria-live="polite"
+        className="relative inline-flex items-center justify-center overflow-hidden"
+      >
+        <AnimatePresence initial={false}>
+          {state === "loading" ? (
+            <IconSlot keyId="loading-icon">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </IconSlot>
+          ) : null}
+          {state === "success" ? (
+            <IconSlot keyId="success-icon">
+              <Check className="h-4 w-4" />
+            </IconSlot>
+          ) : null}
+          {state === "error" ? (
+            <IconSlot keyId="error-icon">
+              <X className="h-4 w-4" />
+            </IconSlot>
+          ) : null}
+        </AnimatePresence>
+
+        <TextSlot value={textKey}>{stateText}</TextSlot>
+
+        <AnimatePresence initial={false}>
+          {state === "idle" && icon ? (
+            <IconSlot keyId="idle-icon">{icon}</IconSlot>
+          ) : null}
+        </AnimatePresence>
+      </span>
+    </Button>
+  );
+});
+
+Expand Code
+TSX
+components/motion/magnetic.tsx
+
+"use client";
+
+import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
+import { useRef, type ReactNode } from "react";
+import { SPRING_MOUSE } from "@/lib/ease";
+import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
+import { cn } from "@/lib/utils";
+
+export interface MagneticProps {
+  children: ReactNode;
+  strength?: number;
+  className?: string;
+}
+
+export function Magnetic({ children, strength = 0.35, className }: MagneticProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
+  const canHover = useHoverCapable();
+  // Decorative cursor-follow: skip on touch (phantom hover) and reduced motion.
+  const enabled = !reduce && canHover;
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const sx = useSpring(x, SPRING_MOUSE);
+  const sy = useSpring(y, SPRING_MOUSE);
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    const rect = el.getBoundingClientRect();
+    x.set((e.clientX - rect.left - rect.width / 2) * strength);
+    y.set((e.clientY - rect.top - rect.height / 2) * strength);
+  };
+
+  const onLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      style={{ x: sx, y: sy }}
+      className={cn("inline-block", className)}
+    >
+      {children}
+    </motion.div>
+  );
+}
