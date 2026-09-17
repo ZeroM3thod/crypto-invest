@@ -16,6 +16,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { WalletCard } from "@/components/motion/wallet-card";
+import {
+  ReturnsCalendar,
+  ReturnsCalendarGrid,
+  ReturnsCalendarTooltip,
+} from "@/components/charts/returns-calendar";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
@@ -157,11 +162,8 @@ const NOTIFICATIONS = [
 ];
 
 export default function DashboardPage() {
-  const [chartRange, setChartRange] = useState<"1D" | "7D" | "1M" | "3M" | "6M" | "1Y">("1M");
   const [walletBalance] = useState(12480.32);
   const loading = false;
-
-  const chartRanges = ["1D", "7D", "1M", "3M", "6M", "1Y"] as const;
 
   return (
     <UserShell active="Dashboard">
@@ -216,62 +218,26 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── Portfolio Chart ───────────────────────────── */}
-        <section aria-label="Portfolio Performance">
-          <Card>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <SectionHeader title="Portfolio Performance" />
-              <div className="flex items-center gap-1 rounded-xl bg-muted p-1">
-                {chartRanges.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setChartRange(r)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
-                      chartRange === r
-                        ? "bg-card text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="relative h-48 w-full overflow-hidden rounded-xl bg-muted">
-              <svg viewBox="0 0 400 120" className="h-full w-full" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M0,90 C40,85 70,70 100,60 C130,50 160,75 200,55 C240,35 270,40 310,25 C350,10 380,15 400,10 L400,120 L0,120 Z"
-                  fill="url(#chartGrad)"
-                />
-                <path
-                  d="M0,90 C40,85 70,70 100,60 C130,50 160,75 200,55 C240,35 270,40 310,25 C350,10 380,15 400,10"
-                  fill="none"
-                  stroke="#60a5fa"
-                  strokeWidth="2"
-                />
-              </svg>
-              <p className="absolute bottom-2 right-3 text-[10px] text-muted-foreground">
-                Connect chart API for live data
-              </p>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { label: "Portfolio Value",  value: "$12,480" },
-                { label: "Investment Value", value: "$5,500" },
-                { label: "Trading Value",    value: "$1,820" },
-                { label: "Mining Value",     value: "$980" },
-              ].map((s) => (
-                <Stat key={s.label} label={s.label} value={s.value} loading={loading} />
-              ))}
-            </div>
-          </Card>
+        {/* ── Returns Calendar ─────────────────────────── */}
+        <section aria-label="Monthly Returns">
+          <SectionHeader title="Monthly Returns" />
+          <ReturnsCalendar
+            className="w-full"
+            years={[2021, 2022, 2023, 2024, 2025]}
+            returns={(() => {
+              let seed = 2021;
+              const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+              return [2021, 2022, 2023, 2024, 2025].map((_, yi) =>
+                Array.from({ length: 12 }).map(() =>
+                  Math.round(((yi === 1 ? -1.6 : 0.9) + (rnd() - 0.5) * 12) * 10) / 10,
+                ),
+              );
+            })()}
+          >
+            <ReturnsCalendarGrid>
+              <ReturnsCalendarTooltip />
+            </ReturnsCalendarGrid>
+          </ReturnsCalendar>
         </section>
 
         {/* ── Activity Overview ─────────────────────────── */}
@@ -449,25 +415,7 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* ── Quick Actions ─────────────────────────────── */}
-        <section aria-label="Quick Actions">
-          <SectionHeader title="Quick Actions" />
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-            {QUICK_ACTIONS.map(({ label, icon: Icon }) => (
-              <button
-                key={label}
-                type="button"
-                className="flex flex-col items-center gap-2 rounded-4xl border border-border bg-card p-3 text-center transition-colors hover:bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
-                  <Icon className="size-4" />
-                </div>
-                <span className="text-[10px] font-medium text-muted-foreground leading-tight">{label}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
+       
         {/* ── Recent Transactions ───────────────────────── */}
         <section aria-label="Recent Transactions">
           <SectionHeader title="Recent Transactions" actionLabel="View All" action={() => {}} />

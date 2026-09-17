@@ -1,86 +1,41 @@
----
-title: "Theme Toggle"
-description: "Theme toggle button that repaints the whole page through the View Transition API — a rectangle or circle clip-path reveal, or slats that open across the screen like a shutter."
-category: "Components"
-publishedAt: "2026-06-15"
-updatedAt: "2026-06-20"
-documentation: "https://beui.dev/components/motion/theme-toggle"
-markdown: "https://beui.dev/components/motion/theme-toggle.md"
-license: "MIT"
----
+Let me read the current page.tsx to see the exact current state.Good. You're still on the original `page.tsx` (the changes from last time weren't applied yet). No problem — here's exactly what to do:
 
-# Theme Toggle
-
-> Theme toggle button that repaints the whole page through the View Transition API — a rectangle or circle clip-path reveal, or slats that open across the screen like a shutter.
-
-## Install
-
-```bash
-npx shadcn@latest add @beui/theme-toggle
-```
-
-## Dependencies
-
-- `clsx`
-- `lucide-react`
-- `motion`
-- `next-themes`
-- `react`
-- `tailwind-merge`
-
-## Usage
+**Replace lines 219–275** (the entire Portfolio Chart section) with this single block:
 
 ```tsx
-"use client";
-
-import { ThemeToggle, type ThemeVariant } from "@/components/motion/theme-toggle";
-
-const VARIANTS: { variant: ThemeVariant; label: string }[] = [
-  { variant: "rectangle", label: "Rectangle" },
-  { variant: "circle", label: "Circle" },
-  { variant: "circle-blur", label: "Circle blur" },
-  { variant: "blinds", label: "Blinds" },
-];
-
-export function ThemeTogglePreview() {
-  return (
-    <div className="flex h-full w-full items-center justify-center gap-5">
-      {VARIANTS.map(({ variant, label }) => (
-        <div key={variant} className="flex flex-col items-center gap-2">
-          <ThemeToggle
-            variant={variant}
-            start="bottom-up"
-            className="rounded-xl border border-border bg-background p-2.5"
-            iconClassName="h-5 w-5"
-          />
-          <span className="text-[11px] text-muted-foreground">{label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+{/* ── Returns Calendar ─────────────────────────── */}
+<section aria-label="Monthly Returns">
+  <SectionHeader title="Monthly Returns" />
+  <ReturnsCalendar
+    className="w-full"
+    years={[2021, 2022, 2023, 2024, 2025]}
+    returns={(() => {
+      let seed = 2021;
+      const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+      return [2021, 2022, 2023, 2024, 2025].map((_, yi) =>
+        Array.from({ length: 12 }).map(() =>
+          Math.round(((yi === 1 ? -1.6 : 0.9) + (rnd() - 0.5) * 12) * 10) / 10,
+        ),
+      );
+    })()}
+  >
+    <ReturnsCalendarGrid />
+  </ReturnsCalendar>
+</section>
 ```
 
-## API Reference
+That's the only change needed in `page.tsx` for this. Two things to note:
 
-### useThemeToggle
+- **No `<Card>` wrapper** — the calendar sits directly in the section, no card padding or border around it.
+- **`className="w-full"`** — this overrides the component's default `w-[480px]` so it stretches to fill the full horizontal width of the page. The `max-w-full` is already baked in so it won't overflow on small screens.
+- **No `<ReturnsCalendarTooltip />`** inside `<ReturnsCalendarGrid />` — tooltips still work because `ReturnsCalendarGrid` renders children you pass but the tooltip is optional. If you want tooltips, add `<ReturnsCalendarTooltip />` inside `<ReturnsCalendarGrid>` like this: `<ReturnsCalendarGrid><ReturnsCalendarTooltip /></ReturnsCalendarGrid>`. Up to you.
 
-| Prop | Type | Default | Required | Description |
-| --- | --- | --- | --- | --- |
-| `variant` | `"circle" \| "rectangle" \| "circle-blur" \| "blinds"` | `rectangle` | No | — |
-| `start` | `"center" \| "top-left" \| "top-right" \| "bottom-left" \| "bottom-right" \| "bottom-up"` | `bottom-up` | No | — |
+Also remember the two lines to remove from the top of `DashboardPage` (if you haven't already):
 
-### ThemeToggle
+```tsx
+// DELETE these two lines:
+const [chartRange, setChartRange] = useState<"1D" | "7D" | "1M" | "3M" | "6M" | "1Y">("1M");
+const chartRanges = ["1D", "7D", "1M", "3M", "6M", "1Y"] as const;
+```
 
-| Prop | Type | Default | Required | Description |
-| --- | --- | --- | --- | --- |
-| `variant` | `"circle" \| "rectangle" \| "circle-blur" \| "blinds"` | `rectangle` | No | Animation variant. Default: "rectangle". |
-| `start` | `"center" \| "top-left" \| "top-right" \| "bottom-left" \| "bottom-right" \| "bottom-up"` | `bottom-up` | No | Origin direction for the reveal. Default: "bottom-up". |
-| `iconClassName` | `string` | — | No | — |
-| `className` | `string` | — | No | — |
-
-## Source
-
-- Registry detail: https://beui.dev/r/theme-toggle
-- Raw source: https://beui.dev/r/theme-toggle/raw
-- GitHub: https://github.com/starc007/ui-components
+And remove `useState` from the React import if it's no longer used elsewhere.
