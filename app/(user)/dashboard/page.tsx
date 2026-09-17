@@ -6,15 +6,21 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Bot,
+  CalendarClock,
   CloudLightning,
+  FileText,
+  FolderKanban,
   LayoutGrid,
+  PackageCheck,
+  RadioTower,
   RefreshCw,
+  ShieldCheck,
   TrendingUp,
   Users,
   Wallet,
-  Zap,
 } from "lucide-react";
 import { useState } from "react";
+import { BouncyAccordion } from "@/components/motion/bouncy-accordion";
 import { WalletCard } from "@/components/motion/wallet-card";
 import {
   ReturnsCalendar,
@@ -131,15 +137,6 @@ const WALLET_ACCOUNTS = [
 
 const RECENT_SEARCHES = ["vitalik.eth", "0xA0b8…6EB4", "Uniswap", "Send to Trading"];
 
-
-
-const NOTIFICATIONS = [
-  { id: "1", message: "Your deposit of $500 has been confirmed.",   time: "9 min ago",  tone: "success" as const },
-  { id: "2", message: "AI Trading strategy activated successfully.", time: "1 hr ago",   tone: "default" as const },
-  { id: "3", message: "New login detected from Dhaka, Bangladesh.", time: "3 hrs ago",  tone: "destructive" as const },
-  { id: "4", message: "Mining contract #MC-882 earnings credited.", time: "Yesterday",  tone: "success" as const },
-];
-
 export default function DashboardPage() {
   const [walletBalance] = useState(12480.32);
   const loading = false;
@@ -244,7 +241,7 @@ export default function DashboardPage() {
                   <span className="font-medium text-foreground">3</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Today's Profit</span>
+                  <span className="text-muted-foreground">Today&apos;s Profit</span>
                   <span className="font-medium text-success">+$28.40</span>
                 </div>
                 <div className="flex justify-between text-xs">
@@ -315,7 +312,7 @@ export default function DashboardPage() {
                   <span className="font-medium text-foreground">120 TH/s</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Today's Earnings</span>
+                  <span className="text-muted-foreground">Today&apos;s Earnings</span>
                   <span className="font-medium text-success">+$12.40</span>
                 </div>
               </div>
@@ -347,7 +344,7 @@ export default function DashboardPage() {
                 <span className="font-medium text-foreground">1</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Today's P/L</span>
+                  <span className="text-muted-foreground">Today&apos;s P/L</span>
                 <span className="font-medium text-success">+$22.00</span>
               </div>
               <div className="flex justify-between text-xs">
@@ -405,26 +402,38 @@ export default function DashboardPage() {
           <TableAsyncPreview />
         </section>
 
-        {/* ── Notifications ─────────────────────────────── */}
+        {/* ── Notifications ───────────────────────────────── */}
         <section aria-label="Notifications">
-          <SectionHeader title="Notifications" actionLabel="View All" action={() => {}} />
-          <div className="space-y-2">
-            {NOTIFICATIONS.length === 0 ? (
-              <Card>
-                <EmptyState icon={Zap} message="You're all caught up." actionLabel="View Settings" />
-              </Card>
-            ) : (
-              NOTIFICATIONS.map((n) => (
-                <Card key={n.id} className="flex items-start gap-3 py-3.5">
-                  <StatusDot status={n.tone === "success" ? "active" : n.tone === "destructive" ? "paused" : "pending"} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-foreground">{n.message}</p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">{n.time}</p>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
+          <SectionHeader title="Notifications" />
+          <BouncyAccordion
+            defaultValue="1"
+            items={[
+  {
+    id: "1",
+    title: "Deposit Confirmed",
+    description: "Your deposit of $500 has been confirmed.",
+    icon: <ArrowDownRight className="h-4 w-4" />,
+  },
+  {
+    id: "2",
+    title: "AI Trading Activated",
+    description: "AI Trading strategy activated successfully.",
+    icon: <RadioTower className="h-4 w-4" />,
+  },
+  {
+    id: "3",
+    title: "New Login Detected",
+    description: "New login detected from Dhaka, Bangladesh.",
+    icon: <ShieldCheck className="h-4 w-4" />,
+  },
+  {
+    id: "4",
+    title: "Mining Earnings Credited",
+    description: "Mining contract #MC-882 earnings credited.",
+    icon: <PackageCheck className="h-4 w-4" />,
+  },
+]}
+          />
         </section>
 
         <div className="h-20" />
