@@ -59,7 +59,7 @@ const destinations = [
   {
     label: "Investment",
     icon: Sparkles,
-    children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining", "OTC Trading"],
+    children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining"],
   },
   {
     label: "Trading",
