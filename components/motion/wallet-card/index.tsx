@@ -30,10 +30,10 @@ export function WalletCard({
   balancePrefix = "$",
   defaultChange,
   defaultBalanceHidden = false,
-  onSend,
   onDeposit,
-  onSwap,
-  onBuy,
+  onWithdraw,
+  onTransfer,
+  onInvest,
   searchPlaceholder,
   searchRecent,
   onSearchChange,
@@ -63,12 +63,12 @@ export function WalletCard({
   };
 
   return (
-    <div
-      className={cn(
-        "relative w-full max-w-xs overflow-hidden rounded-4xl border border-border p-6",
-        className,
-      )}
-    >
+   <div
+  className={cn(
+    "relative w-full overflow-hidden rounded-4xl border border-border p-6",
+    className,
+  )}
+>
       {/* relative anchor so the switcher + search panels span the whole row */}
       <div className="relative flex items-center justify-between gap-2">
         <AccountSwitcher
@@ -140,12 +140,12 @@ export function WalletCard({
       </div>
 
       <div className="mt-8">
-        <WalletActions
-          onSend={onSend}
-          onDeposit={onDeposit}
-          onSwap={onSwap}
-          onBuy={onBuy}
-        />
+       <WalletActions
+           onDeposit={onDeposit}
+           onWithdraw={onWithdraw}
+           onTransfer={onTransfer}
+           onInvest={onInvest}
+       />
       </div>
     </div>
   );

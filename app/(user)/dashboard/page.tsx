@@ -17,11 +17,9 @@ import {
 import { useState } from "react";
 import { WalletCard } from "@/components/motion/wallet-card";
 
-// ─── Tiny reusable primitives (no new design — pure Tailwind tokens from globals.css) ───
-
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-border bg-card p-5 ${className}`}>
+    <div className={`rounded-4xl border border-border bg-card p-6 ${className}`}>
       {children}
     </div>
   );
@@ -117,59 +115,51 @@ function StatusDot({ status }: { status: "active" | "inactive" | "pending" | "pa
   return <span className={`inline-block size-1.5 rounded-full ${colors[status]}`} />;
 }
 
-// ─── WalletCard data (mirrors wallet-card.preview.tsx exactly) ────────────────
-
 const WALLET_ACCOUNTS = [
- 
-  { id: "main",    name: "Main Wallet",  address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
-  { id: "investment",    name: "Investment Wallet",  address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
-  { id: "mining",    name: "Mining Wallet",  address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
-  { id: "trading", name: "Trading Wallet",      address: "0x1a2B3c4D5e6F7a8B9c0D1e2F3a4B5c6D7e8F9a0B" },
-  { id: "refer",    name: "Referral Wallet", address: "0x9F8e7D6c5B4a3E2d1C0b9A8f7E6d5C4b3A2e1F0d" },
+  { id: "main",       name: "Main Wallet",       address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
+  { id: "investment", name: "Investment Wallet",  address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
+  { id: "mining",     name: "Mining Wallet",      address: "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b" },
+  { id: "trading",    name: "Trading Wallet",     address: "0x1a2B3c4D5e6F7a8B9c0D1e2F3a4B5c6D7e8F9a0B" },
+  { id: "refer",      name: "Referral Wallet",    address: "0x9F8e7D6c5B4a3E2d1C0b9A8f7E6d5C4b3A2e1F0d" },
 ];
 
 const RECENT_SEARCHES = ["vitalik.eth", "0xA0b8…6EB4", "Uniswap", "Send to Trading"];
 
-// ─── Static mock data (replace with real API calls) ───────────────────────────
-
 const QUICK_ACTIONS = [
-  { label: "Deposit",      icon: ArrowDownRight,     href: "/fund/deposit" },
-  { label: "Withdraw",     icon: ArrowUpRight,       href: "/fund/withdraw" },
-  { label: "Transfer",     icon: RefreshCw,          href: "/fund/transfer" },
-  { label: "Invest",       icon: TrendingUp,         href: "/investment" },
-  { label: "Trade",        icon: LayoutGrid,         href: "/trading" },
-  { label: "AI Trading",   icon: Bot,                href: "/investment/ai-trading" },
-  { label: "Cloud Mining", icon: CloudLightning,     href: "/investment/cloud-mining" },
+  { label: "Deposit",      icon: ArrowDownRight, href: "/fund/deposit" },
+  { label: "Withdraw",     icon: ArrowUpRight,   href: "/fund/withdraw" },
+  { label: "Transfer",     icon: RefreshCw,      href: "/fund/transfer" },
+  { label: "Invest",       icon: TrendingUp,     href: "/investment" },
+  { label: "Trade",        icon: LayoutGrid,     href: "/trading" },
+  { label: "AI Trading",   icon: Bot,            href: "/investment/ai-trading" },
+  { label: "Cloud Mining", icon: CloudLightning, href: "/investment/cloud-mining" },
 ] as const;
 
 const RECENT_TRANSACTIONS = [
-  { id: "1", type: "Deposit",          amount: "+$500.00",  status: "Completed", date: "Today, 09:14" },
-  { id: "2", type: "Investment",       amount: "-$200.00",  status: "Completed", date: "Today, 08:31" },
-  { id: "3", type: "Mining Earnings",  amount: "+$12.40",   status: "Completed", date: "Yesterday" },
-  { id: "4", type: "AI Trading Profit",amount: "+$34.17",   status: "Completed", date: "Yesterday" },
-  { id: "5", type: "Withdrawal",       amount: "-$100.00",  status: "Pending",   date: "2 days ago" },
+  { id: "1", type: "Deposit",           amount: "+$500.00",  status: "Completed", date: "Today, 09:14" },
+  { id: "2", type: "Investment",        amount: "-$200.00",  status: "Completed", date: "Today, 08:31" },
+  { id: "3", type: "Mining Earnings",   amount: "+$12.40",   status: "Completed", date: "Yesterday" },
+  { id: "4", type: "AI Trading Profit", amount: "+$34.17",   status: "Completed", date: "Yesterday" },
+  { id: "5", type: "Withdrawal",        amount: "-$100.00",  status: "Pending",   date: "2 days ago" },
 ];
 
 const RECENT_TRADES = [
-  { id: "1", pair: "BTC/USDT", side: "BUY",  price: "$67,240",  amount: "0.003 BTC", total: "$201.72",  date: "Today, 10:02" },
-  { id: "2", pair: "ETH/USDT", side: "SELL", price: "$3,512",   amount: "0.05 ETH",  total: "$175.60",  date: "Today, 09:45" },
-  { id: "3", pair: "SOL/USDT", side: "BUY",  price: "$182",     amount: "1.2 SOL",   total: "$218.40",  date: "Yesterday" },
+  { id: "1", pair: "BTC/USDT", side: "BUY",  price: "$67,240", amount: "0.003 BTC", total: "$201.72", date: "Today, 10:02" },
+  { id: "2", pair: "ETH/USDT", side: "SELL", price: "$3,512",  amount: "0.05 ETH",  total: "$175.60", date: "Today, 09:45" },
+  { id: "3", pair: "SOL/USDT", side: "BUY",  price: "$182",    amount: "1.2 SOL",   total: "$218.40", date: "Yesterday" },
 ];
 
 const NOTIFICATIONS = [
-  { id: "1", message: "Your deposit of $500 has been confirmed.",       time: "9 min ago",  tone: "success" as const },
-  { id: "2", message: "AI Trading strategy activated successfully.",     time: "1 hr ago",   tone: "default" as const },
-  { id: "3", message: "New login detected from Dhaka, Bangladesh.",      time: "3 hrs ago",  tone: "destructive" as const },
-  { id: "4", message: "Mining contract #MC-882 earnings credited.",      time: "Yesterday",  tone: "success" as const },
+  { id: "1", message: "Your deposit of $500 has been confirmed.",   time: "9 min ago",  tone: "success" as const },
+  { id: "2", message: "AI Trading strategy activated successfully.", time: "1 hr ago",   tone: "default" as const },
+  { id: "3", message: "New login detected from Dhaka, Bangladesh.", time: "3 hrs ago",  tone: "destructive" as const },
+  { id: "4", message: "Mining contract #MC-882 earnings credited.", time: "Yesterday",  tone: "success" as const },
 ];
-
-// ─── Main Dashboard Page ──────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const [chartRange, setChartRange] = useState<"1D" | "7D" | "1M" | "3M" | "6M" | "1Y">("1M");
-  // WalletCard balance state — matches the preview's simulate button behaviour
-  const [walletBalance, setWalletBalance] = useState(12480.32);
-  const loading = false; // flip to true to preview skeleton states
+  const [walletBalance] = useState(12480.32);
+  const loading = false;
 
   const chartRanges = ["1D", "7D", "1M", "3M", "6M", "1Y"] as const;
 
@@ -187,9 +177,7 @@ export default function DashboardPage() {
           </h1>
         </div>
 
-        {/* ── Wallet Card ────────────────────────────────
-              Layout mirrors wallet-card.preview.tsx exactly:
-              a centred flex column with the card + a ghost button below. */}
+        {/* ── Wallet Card ───────────────────────────────── */}
         <section aria-label="Wallet">
           <div className="flex w-full flex-col items-start gap-4 p-2">
             <WalletCard
@@ -198,13 +186,11 @@ export default function DashboardPage() {
               defaultChange={124.5}
               searchRecent={RECENT_SEARCHES}
               hasNotifications
-              onSend={() => {}}
               onDeposit={() => {}}
-              onSwap={() => {}}
-              onBuy={() => {}}
+              onWithdraw={() => {}}
+              onTransfer={() => {}}
+              onInvest={() => {}}
             />
-            
-            
           </div>
         </section>
 
@@ -252,8 +238,6 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-
-            {/* Chart placeholder — swap with your real chart component */}
             <div className="relative h-48 w-full overflow-hidden rounded-xl bg-muted">
               <svg viewBox="0 0 400 120" className="h-full w-full" preserveAspectRatio="none">
                 <defs>
@@ -277,7 +261,6 @@ export default function DashboardPage() {
                 Connect chart API for live data
               </p>
             </div>
-
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { label: "Portfolio Value",  value: "$12,480" },
@@ -291,12 +274,11 @@ export default function DashboardPage() {
           </Card>
         </section>
 
-        {/* ── Activity Overview Row ─────────────────────── */}
+        {/* ── Activity Overview ─────────────────────────── */}
         <section aria-label="Activity Overview">
           <SectionHeader title="Activity Overview" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
-            {/* Investment */}
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -325,15 +307,11 @@ export default function DashboardPage() {
                   <span className="font-medium text-success">+$1,240.00</span>
                 </div>
               </div>
-              <button
-                type="button"
-                className="mt-4 w-full rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
+              <button type="button" className="mt-4 w-full rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 View Investments
               </button>
             </Card>
 
-            {/* AI Trading */}
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -363,15 +341,11 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="mt-3 text-[10px] text-muted-foreground">Past performance does not guarantee future results.</p>
-              <button
-                type="button"
-                className="mt-3 w-full rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
+              <button type="button" className="mt-3 w-full rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 View AI Trading
               </button>
             </Card>
 
-            {/* Cloud Mining */}
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -400,10 +374,7 @@ export default function DashboardPage() {
                   <span className="font-medium text-success">+$12.40</span>
                 </div>
               </div>
-              <button
-                type="button"
-                className="mt-4 w-full rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
+              <button type="button" className="mt-4 w-full rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 View Mining
               </button>
             </Card>
@@ -411,10 +382,9 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── Manual Trading + Referral Row ─────────────── */}
+        {/* ── Manual Trading + Referral ─────────────────── */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 
-          {/* Manual Trading */}
           <Card>
             <div className="mb-3 flex items-center gap-2">
               <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -441,16 +411,11 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-2">
-              <button type="button" className="flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                Trade
-              </button>
-              <button type="button" className="flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                History
-              </button>
+              <button type="button" className="flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">Trade</button>
+              <button type="button" className="flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">History</button>
             </div>
           </Card>
 
-          {/* Referral */}
           <Card>
             <div className="mb-3 flex items-center gap-2">
               <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -477,14 +442,11 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="mt-4 flex gap-2">
-              <button type="button" className="flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                Referrals
-              </button>
-              <button type="button" className="flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                Earnings
-              </button>
+              <button type="button" className="flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">Referrals</button>
+              <button type="button" className="flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring">Earnings</button>
             </div>
           </Card>
+
         </div>
 
         {/* ── Quick Actions ─────────────────────────────── */}
@@ -495,7 +457,7 @@ export default function DashboardPage() {
               <button
                 key={label}
                 type="button"
-                className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition-colors hover:bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex flex-col items-center gap-2 rounded-4xl border border-border bg-card p-3 text-center transition-colors hover:bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
                   <Icon className="size-4" />
@@ -580,10 +542,7 @@ export default function DashboardPage() {
                       >
                         <td className="px-5 py-3 font-semibold text-foreground">{trade.pair}</td>
                         <td className="px-5 py-3">
-                          <Badge
-                            label={trade.side}
-                            tone={trade.side === "BUY" ? "success" : "destructive"}
-                          />
+                          <Badge label={trade.side} tone={trade.side === "BUY" ? "success" : "destructive"} />
                         </td>
                         <td className="hidden px-5 py-3 text-right text-muted-foreground sm:table-cell">{trade.price}</td>
                         <td className="hidden px-5 py-3 text-right text-muted-foreground sm:table-cell">{trade.amount}</td>
@@ -598,7 +557,7 @@ export default function DashboardPage() {
           </Card>
         </section>
 
-        {/* ── Notifications + Announcements ────────────── */}
+        {/* ── Notifications ─────────────────────────────── */}
         <section aria-label="Notifications">
           <SectionHeader title="Notifications" actionLabel="View All" action={() => {}} />
           <div className="space-y-2">
@@ -609,9 +568,7 @@ export default function DashboardPage() {
             ) : (
               NOTIFICATIONS.map((n) => (
                 <Card key={n.id} className="flex items-start gap-3 py-3.5">
-                  <StatusDot
-                    status={n.tone === "success" ? "active" : n.tone === "destructive" ? "paused" : "pending"}
-                  />
+                  <StatusDot status={n.tone === "success" ? "active" : n.tone === "destructive" ? "paused" : "pending"} />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-foreground">{n.message}</p>
                     <p className="mt-0.5 text-[10px] text-muted-foreground">{n.time}</p>
@@ -622,7 +579,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Bottom breathing room for GlobalDock */}
         <div className="h-20" />
       </div>
     </UserShell>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownToLine, ArrowUp, CreditCard, Repeat } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, TrendingUp } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import type { ComponentType } from "react";
 import { SPRING_PRESS } from "@/lib/ease";
@@ -16,23 +16,23 @@ type WalletAction = {
  * Row of primary wallet actions rendered icon-over-label, with a spring press.
  */
 export function WalletActions({
-  onSend,
   onDeposit,
-  onSwap,
-  onBuy,
+  onWithdraw,
+  onTransfer,
+  onInvest,
 }: {
-  onSend?: () => void;
   onDeposit?: () => void;
-  onSwap?: () => void;
-  onBuy?: () => void;
+  onWithdraw?: () => void;
+  onTransfer?: () => void;
+  onInvest?: () => void;
 }) {
   const reduce = useReducedMotion();
 
   const actions: WalletAction[] = [
-    { key: "send", label: "Send", icon: ArrowUp, onClick: onSend },
-    { key: "deposit", label: "Deposit", icon: ArrowDownToLine, onClick: onDeposit },
-    { key: "swap", label: "Swap", icon: Repeat, onClick: onSwap },
-    { key: "buy", label: "Buy", icon: CreditCard, onClick: onBuy },
+    { key: "deposit",  label: "Deposit",  icon: ArrowDownToLine,  onClick: onDeposit  },
+    { key: "withdraw", label: "Withdraw", icon: ArrowUpFromLine,   onClick: onWithdraw },
+    { key: "transfer", label: "Transfer", icon: ArrowLeftRight,    onClick: onTransfer },
+    { key: "invest",   label: "Invest",   icon: TrendingUp,        onClick: onInvest   },
   ];
 
   return (

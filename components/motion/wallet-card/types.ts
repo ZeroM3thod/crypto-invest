@@ -16,10 +16,10 @@ export interface WalletCardProps {
   balancePrefix?: string;
   defaultChange?: number;
   defaultBalanceHidden?: boolean;
-  onSend?: () => void;
   onDeposit?: () => void;
-  onSwap?: () => void;
-  onBuy?: () => void;
+  onWithdraw?: () => void;
+  onTransfer?: () => void;
+  onInvest?: () => void;
   searchPlaceholder?: string;
   searchRecent?: string[];
   onSearchChange?: (value: string) => void;
