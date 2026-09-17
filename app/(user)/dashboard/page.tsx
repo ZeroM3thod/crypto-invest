@@ -21,6 +21,7 @@ import {
   ReturnsCalendarGrid,
   ReturnsCalendarTooltip,
 } from "@/components/charts/returns-calendar";
+import { TableAsyncPreview } from "@/components/previews/motion/table-async.preview";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
@@ -130,29 +131,7 @@ const WALLET_ACCOUNTS = [
 
 const RECENT_SEARCHES = ["vitalik.eth", "0xA0b8…6EB4", "Uniswap", "Send to Trading"];
 
-const QUICK_ACTIONS = [
-  { label: "Deposit",      icon: ArrowDownRight, href: "/fund/deposit" },
-  { label: "Withdraw",     icon: ArrowUpRight,   href: "/fund/withdraw" },
-  { label: "Transfer",     icon: RefreshCw,      href: "/fund/transfer" },
-  { label: "Invest",       icon: TrendingUp,     href: "/investment" },
-  { label: "Trade",        icon: LayoutGrid,     href: "/trading" },
-  { label: "AI Trading",   icon: Bot,            href: "/investment/ai-trading" },
-  { label: "Cloud Mining", icon: CloudLightning, href: "/investment/cloud-mining" },
-] as const;
 
-const RECENT_TRANSACTIONS = [
-  { id: "1", type: "Deposit",           amount: "+$500.00",  status: "Completed", date: "Today, 09:14" },
-  { id: "2", type: "Investment",        amount: "-$200.00",  status: "Completed", date: "Today, 08:31" },
-  { id: "3", type: "Mining Earnings",   amount: "+$12.40",   status: "Completed", date: "Yesterday" },
-  { id: "4", type: "AI Trading Profit", amount: "+$34.17",   status: "Completed", date: "Yesterday" },
-  { id: "5", type: "Withdrawal",        amount: "-$100.00",  status: "Pending",   date: "2 days ago" },
-];
-
-const RECENT_TRADES = [
-  { id: "1", pair: "BTC/USDT", side: "BUY",  price: "$67,240", amount: "0.003 BTC", total: "$201.72", date: "Today, 10:02" },
-  { id: "2", pair: "ETH/USDT", side: "SELL", price: "$3,512",  amount: "0.05 ETH",  total: "$175.60", date: "Today, 09:45" },
-  { id: "3", pair: "SOL/USDT", side: "BUY",  price: "$182",    amount: "1.2 SOL",   total: "$218.40", date: "Yesterday" },
-];
 
 const NOTIFICATIONS = [
   { id: "1", message: "Your deposit of $500 has been confirmed.",   time: "9 min ago",  tone: "success" as const },
@@ -416,93 +395,14 @@ export default function DashboardPage() {
         </div>
 
        
-        {/* ── Recent Transactions ───────────────────────── */}
-        <section aria-label="Recent Transactions">
-          <SectionHeader title="Recent Transactions" actionLabel="View All" action={() => {}} />
-          <Card className="p-0 overflow-hidden">
-            {RECENT_TRANSACTIONS.length === 0 ? (
-              <div className="p-5">
-                <EmptyState icon={Wallet} message="No transactions yet." actionLabel="Make a Deposit" />
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="px-5 py-3 text-left font-medium text-muted-foreground">Type</th>
-                      <th className="px-5 py-3 text-right font-medium text-muted-foreground">Amount</th>
-                      <th className="hidden px-5 py-3 text-left font-medium text-muted-foreground sm:table-cell">Status</th>
-                      <th className="hidden px-5 py-3 text-right font-medium text-muted-foreground md:table-cell">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {RECENT_TRANSACTIONS.map((tx, i) => (
-                      <tr
-                        key={tx.id}
-                        className={`transition-colors hover:bg-muted/40 ${i < RECENT_TRANSACTIONS.length - 1 ? "border-b border-border" : ""}`}
-                      >
-                        <td className="px-5 py-3 font-medium text-foreground">{tx.type}</td>
-                        <td className={`px-5 py-3 text-right font-semibold ${tx.amount.startsWith("+") ? "text-success" : "text-foreground"}`}>
-                          {tx.amount}
-                        </td>
-                        <td className="hidden px-5 py-3 sm:table-cell">
-                          <Badge
-                            label={tx.status}
-                            tone={tx.status === "Completed" ? "success" : tx.status === "Failed" ? "destructive" : "muted"}
-                          />
-                        </td>
-                        <td className="hidden px-5 py-3 text-right text-muted-foreground md:table-cell">{tx.date}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+        {/* ── Activity Table ───────────────────────────── */}
+        <section aria-label="Activity Table">
+          <SectionHeader title="Recent Transactions" />
+          <TableAsyncPreview />
         </section>
-
-        {/* ── Recent Trades ─────────────────────────────── */}
-        <section aria-label="Recent Trades">
-          <SectionHeader title="Recent Trades" actionLabel="View All Trades" action={() => {}} />
-          <Card className="p-0 overflow-hidden">
-            {RECENT_TRADES.length === 0 ? (
-              <div className="p-5">
-                <EmptyState icon={LayoutGrid} message="No trades yet." actionLabel="Start Trading" />
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="px-5 py-3 text-left font-medium text-muted-foreground">Pair</th>
-                      <th className="px-5 py-3 text-left font-medium text-muted-foreground">Side</th>
-                      <th className="hidden px-5 py-3 text-right font-medium text-muted-foreground sm:table-cell">Price</th>
-                      <th className="hidden px-5 py-3 text-right font-medium text-muted-foreground sm:table-cell">Amount</th>
-                      <th className="px-5 py-3 text-right font-medium text-muted-foreground">Total</th>
-                      <th className="hidden px-5 py-3 text-right font-medium text-muted-foreground md:table-cell">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {RECENT_TRADES.map((trade, i) => (
-                      <tr
-                        key={trade.id}
-                        className={`transition-colors hover:bg-muted/40 ${i < RECENT_TRADES.length - 1 ? "border-b border-border" : ""}`}
-                      >
-                        <td className="px-5 py-3 font-semibold text-foreground">{trade.pair}</td>
-                        <td className="px-5 py-3">
-                          <Badge label={trade.side} tone={trade.side === "BUY" ? "success" : "destructive"} />
-                        </td>
-                        <td className="hidden px-5 py-3 text-right text-muted-foreground sm:table-cell">{trade.price}</td>
-                        <td className="hidden px-5 py-3 text-right text-muted-foreground sm:table-cell">{trade.amount}</td>
-                        <td className="px-5 py-3 text-right font-medium text-foreground">{trade.total}</td>
-                        <td className="hidden px-5 py-3 text-right text-muted-foreground md:table-cell">{trade.date}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+        <section aria-label="Activity Table">
+          <SectionHeader title="Trade History" />
+          <TableAsyncPreview />
         </section>
 
         {/* ── Notifications ─────────────────────────────── */}
