@@ -220,12 +220,8 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
                 onClick={handleProfileClick}
                 className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               >
-              <span   aria-label="Profile"
-                      active={active === "profile"}
-                      onClick={() => setActive("profile")}
-                       >
-          <Avatar9/>
-          </span>
+            <Avatar9 active={active === "profile"} />
+          
                 <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
                   <span className="block truncate text-sm font-medium text-foreground">
                     Ava Stone
