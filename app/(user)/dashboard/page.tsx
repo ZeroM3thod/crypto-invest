@@ -27,7 +27,7 @@ import {
   ReturnsCalendarGrid,
   ReturnsCalendarTooltip,
 } from "@/components/charts/returns-calendar";
-import { TableAsyncPreview } from "@/components/previews/motion/table-async.preview";
+import { Table } from "@/components/motion/table";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
@@ -136,6 +136,93 @@ const WALLET_ACCOUNTS = [
 ];
 
 const RECENT_SEARCHES = ["vitalik.eth", "0xA0b8…6EB4", "Uniswap", "Send to Trading"];
+
+// ── Recent Transactions data ────────────────────────────────────────────────
+
+type Transaction = {
+  id: string;
+  date: string;
+  type: string;
+  amount: string;
+  asset: string;
+  status: "Completed" | "Pending" | "Failed";
+  txHash: string;
+};
+
+const RECENT_TRANSACTIONS: Transaction[] = [
+  { id: "t1",  date: "2025-07-18", type: "Deposit",    amount: "+$500.00",   asset: "USDT",  status: "Completed", txHash: "0x4f3a…c91e" },
+  { id: "t2",  date: "2025-07-17", type: "Withdrawal", amount: "-$200.00",   asset: "USDT",  status: "Completed", txHash: "0x8b2d…f04c" },
+  { id: "t3",  date: "2025-07-16", type: "Deposit",    amount: "+$1,000.00", asset: "BTC",   status: "Completed", txHash: "0x1c7e…a83b" },
+  { id: "t4",  date: "2025-07-15", type: "Transfer",   amount: "-$150.00",   asset: "ETH",   status: "Pending",   txHash: "0x9d5f…7721" },
+  { id: "t5",  date: "2025-07-14", type: "Deposit",    amount: "+$250.00",   asset: "USDT",  status: "Completed", txHash: "0x3e2a…bb49" },
+  { id: "t6",  date: "2025-07-13", type: "Withdrawal", amount: "-$80.00",    asset: "BTC",   status: "Failed",    txHash: "0x6f1c…2d30" },
+];
+
+const TRANSACTION_COLUMNS = [
+  { key: "date",    header: "Date",    width: "110px" },
+  { key: "type",    header: "Type",    width: "110px" },
+  { key: "asset",   header: "Asset",   width: "80px"  },
+  { key: "amount",  header: "Amount",  width: "120px", align: "right" as const },
+  { key: "status",  header: "Status",  width: "100px",
+    cell: (r: Transaction) => {
+      const tone: Record<Transaction["status"], string> = {
+        Completed: "text-success",
+        Pending:   "text-primary",
+        Failed:    "text-destructive",
+      };
+      return <span className={`text-xs font-semibold ${tone[r.status]}`}>{r.status}</span>;
+    },
+  },
+  { key: "txHash",  header: "Tx Hash", cell: (r: Transaction) => (
+      <span className="font-mono text-xs text-muted-foreground">{r.txHash}</span>
+    ),
+  },
+];
+
+// ── Trade History data ──────────────────────────────────────────────────────
+
+type Trade = {
+  id: string;
+  date: string;
+  pair: string;
+  side: "Buy" | "Sell";
+  entry: string;
+  exit: string;
+  size: string;
+  pnl: string;
+  positive: boolean;
+};
+
+const TRADE_HISTORY: Trade[] = [
+  { id: "tr1", date: "2025-07-18", pair: "BTC/USDT", side: "Buy",  entry: "$63,120", exit: "$64,480", size: "0.05 BTC", pnl: "+$68.00",  positive: true  },
+  { id: "tr2", date: "2025-07-17", pair: "ETH/USDT", side: "Sell", entry: "$3,510",  exit: "$3,390",  size: "0.4 ETH",  pnl: "+$48.00",  positive: true  },
+  { id: "tr3", date: "2025-07-16", pair: "BNB/USDT", side: "Buy",  entry: "$598",    exit: "$574",    size: "1 BNB",    pnl: "-$24.00",  positive: false },
+  { id: "tr4", date: "2025-07-15", pair: "BTC/USDT", side: "Sell", entry: "$64,200", exit: "$63,800", size: "0.03 BTC", pnl: "+$12.00",  positive: true  },
+  { id: "tr5", date: "2025-07-14", pair: "SOL/USDT", side: "Buy",  entry: "$148",    exit: "$162",    size: "5 SOL",    pnl: "+$70.00",  positive: true  },
+  { id: "tr6", date: "2025-07-13", pair: "ETH/USDT", side: "Buy",  entry: "$3,420",  exit: "$3,390",  size: "0.2 ETH",  pnl: "-$6.00",   positive: false },
+];
+
+const TRADE_COLUMNS = [
+  { key: "date",  header: "Date",   width: "110px" },
+  { key: "pair",  header: "Pair",   width: "110px" },
+  { key: "side",  header: "Side",   width: "70px",
+    cell: (r: Trade) => (
+      <span className={`text-xs font-semibold ${r.side === "Buy" ? "text-success" : "text-destructive"}`}>
+        {r.side}
+      </span>
+    ),
+  },
+  { key: "entry", header: "Entry",  width: "100px", align: "right" as const },
+  { key: "exit",  header: "Exit",   width: "100px", align: "right" as const },
+  { key: "size",  header: "Size",   width: "100px" },
+  { key: "pnl",   header: "P&L",   align: "right" as const,
+    cell: (r: Trade) => (
+      <span className={`text-xs font-semibold ${r.positive ? "text-success" : "text-destructive"}`}>
+        {r.pnl}
+      </span>
+    ),
+  },
+];
 
 export default function DashboardPage() {
   const [walletBalance] = useState(12480.32);
@@ -392,14 +479,28 @@ export default function DashboardPage() {
         </div>
 
        
-        {/* ── Activity Table ───────────────────────────── */}
-        <section aria-label="Activity Table">
-          <SectionHeader title="Recent Transactions" />
-          <TableAsyncPreview />
+        {/* ── Recent Transactions ──────────────────────── */}
+        <section aria-label="Recent Transactions">
+          <SectionHeader title="Recent Transactions" actionLabel="View all" action={() => {}} />
+          <Table
+            data={RECENT_TRANSACTIONS}
+            columns={TRANSACTION_COLUMNS}
+            getRowId={(r) => r.id}
+            height={280}
+            rowHeight={44}
+          />
         </section>
-        <section aria-label="Activity Table">
-          <SectionHeader title="Trade History" />
-          <TableAsyncPreview />
+
+        {/* ── Trade History ─────────────────────────────── */}
+        <section aria-label="Trade History">
+          <SectionHeader title="Trade History" actionLabel="View all" action={() => {}} />
+          <Table
+            data={TRADE_HISTORY}
+            columns={TRADE_COLUMNS}
+            getRowId={(r) => r.id}
+            height={280}
+            rowHeight={44}
+          />
         </section>
 
         {/* ── Notifications ───────────────────────────────── */}
