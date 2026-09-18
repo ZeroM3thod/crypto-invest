@@ -1,398 +1,104 @@
-Clear. Here's exactly what to do — two steps total.
 
----
 
-## Step 1 — Create the component file
+**Global Dock icons:**
+- Home → `Home`
+- Investment → `BriefcaseBusiness`
+- Trading → `CandlestickChart`
+- Wallet → `Wallet`
+- Fund → `Landmark`
 
-Create `components/motion/bouncy-accordion.tsx` with this code:
+**User Shell current icons:**
+- Dashboard → `LayoutGrid`
+- Markets → `Target`
+- Investment → `Sparkles`
+- Trading → `Workflow`
+- Wallet → `Building2`
+- Fund → `Inbox`
+- Referral → `CircleUserRound`
+- Support → `NotebookTabs`
+
+So swap the ones that overlap. Here's the updated `destinations` array:
 
 ```tsx
-"use client";
-// beui.dev/components/motion/bouncy-accordion
-
-import {
-  motion,
-  useReducedMotion,
-  type Transition,
-} from "motion/react";
-import { ChevronDown } from "lucide-react";
-import {
-  useCallback,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { EASE_OUT } from "@/lib/ease";
-import { cn } from "@/lib/utils";
-
-export type BouncyAccordionItem = {
-  id: string;
-  title: ReactNode;
-  description?: ReactNode;
-  icon?: ReactNode;
-  disabled?: boolean;
-};
-
-export type BouncyAccordionClassNames = {
-  root?: string;
-  item?: string;
-  trigger?: string;
-  icon?: string;
-  title?: string;
-  chevron?: string;
-  content?: string;
-  description?: string;
-};
-
-export interface BouncyAccordionProps {
-  items: BouncyAccordionItem[];
-  value?: string | null;
-  defaultValue?: string | null;
-  onValueChange?: (value: string | null) => void;
-  collapsible?: boolean;
-  className?: string;
-  classNames?: BouncyAccordionClassNames;
-}
-
-const ROW_TRANSITION: Transition = {
-  type: "spring",
-  duration: 0.55,
-  bounce: 0.38,
-};
-
-const CONTENT_OPEN_TRANSITION: Transition = {
-  type: "spring",
-  duration: 0.58,
-  bounce: 0.32,
-};
-
-const CONTENT_CLOSE_TRANSITION: Transition = {
-  type: "spring",
-  duration: 0.46,
-  bounce: 0.26,
-};
-
-const DESCRIPTION_TRANSITION: Transition = {
-  duration: 0.18,
-  ease: EASE_OUT,
-};
-
-const CHEVRON_TRANSITION: Transition = {
-  type: "spring",
-  duration: 0.42,
-  bounce: 0.28,
-};
-
-function useControllableAccordionValue({
-  value,
-  defaultValue,
-  onValueChange,
-}: {
-  value?: string | null;
-  defaultValue?: string | null;
-  onValueChange?: (value: string | null) => void;
-}) {
-  const [internalValue, setInternalValue] = useState(defaultValue ?? null);
-  const isControlled = value !== undefined;
-  const currentValue = value ?? internalValue;
-
-  const setValue = useCallback(
-    (next: string | null) => {
-      if (!isControlled) {
-        setInternalValue(next);
-      }
-      onValueChange?.(next);
-    },
-    [isControlled, onValueChange],
-  );
-
-  return [currentValue, setValue] as const;
-}
-
-function BouncyAccordionRow({
-  item,
-  open,
-  startsGroup,
-  endsGroup,
-  separatedFromPrevious,
-  contentId,
-  triggerId,
-  reduce,
-  classNames,
-  onToggle,
-}: {
-  item: BouncyAccordionItem;
-  open: boolean;
-  startsGroup: boolean;
-  endsGroup: boolean;
-  separatedFromPrevious: boolean;
-  contentId: string;
-  triggerId: string;
-  reduce: boolean | null;
-  classNames?: BouncyAccordionClassNames;
-  onToggle: () => void;
-}) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState(0);
-
-  useLayoutEffect(() => {
-    const node = contentRef.current;
-    if (!node) return;
-    const updateHeight = () => { setContentHeight(node.offsetHeight); };
-    updateHeight();
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(node);
-    return () => { observer.disconnect(); };
-  }, []);
-
-  return (
-    <motion.div
-      layout="position"
-      initial={false}
-      style={{ marginTop: separatedFromPrevious ? 12 : 0 }}
-      transition={reduce ? { duration: 0 } : ROW_TRANSITION}
-    >
-      <motion.div
-        data-state={open ? "open" : "closed"}
-        initial={false}
-        animate={{
-          borderTopLeftRadius: startsGroup ? 28 : 0,
-          borderTopRightRadius: startsGroup ? 28 : 0,
-          borderBottomLeftRadius: endsGroup ? 28 : 0,
-          borderBottomRightRadius: endsGroup ? 28 : 0,
-        }}
-        transition={reduce ? { duration: 0 } : ROW_TRANSITION}
-        className={cn(
-          "overflow-hidden bg-card text-card-foreground",
-          item.disabled && "opacity-50",
-          classNames?.item,
-        )}
-      >
-        <button
-          id={triggerId}
-          type="button"
-          disabled={item.disabled}
-          aria-expanded={open}
-          aria-controls={contentId}
-          onClick={onToggle}
-          className={cn(
-            "flex min-h-[54px] w-full items-center gap-4 px-5 text-left outline-none transition-colors",
-            "focus-visible:bg-muted/25",
-            "disabled:pointer-events-none",
-            classNames?.trigger,
-          )}
-        >
-          {item.icon ? (
-            <span className={cn("grid h-7 w-7 shrink-0 place-items-center text-muted-foreground", classNames?.icon)}>
-              {item.icon}
-            </span>
-          ) : null}
-          <span className={cn("min-w-0 flex-1 truncate text-[15px] font-medium text-foreground", classNames?.title)}>
-            {item.title}
-          </span>
-          <motion.span
-            aria-hidden
-            animate={{ rotate: open ? 180 : 0 }}
-            transition={reduce ? { duration: 0 } : CHEVRON_TRANSITION}
-            className={cn("grid h-6 w-6 shrink-0 place-items-center text-muted-foreground", classNames?.chevron)}
-          >
-            <ChevronDown className="h-4 w-4" />
-          </motion.span>
-        </button>
-
-        <motion.div
-          layout="size"
-          id={contentId}
-          role="region"
-          aria-labelledby={triggerId}
-          aria-hidden={!open}
-          inert={!open}
-          initial={false}
-          style={{ height: open && item.description ? contentHeight : 0 }}
-          transition={reduce ? { duration: 0 } : open ? CONTENT_OPEN_TRANSITION : CONTENT_CLOSE_TRANSITION}
-          className={cn("overflow-hidden", classNames?.content)}
-        >
-          <motion.div
-            ref={contentRef}
-            animate={{ opacity: open ? 1 : 0 }}
-            transition={reduce ? { duration: 0 } : DESCRIPTION_TRANSITION}
-            className="px-5 pb-5"
-          >
-            <div className={cn("text-[15px] leading-6 text-muted-foreground", classNames?.description)}>
-              {item.description}
-            </div>
-          </motion.div>
-        </motion.div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-export function BouncyAccordion({
-  items,
-  value,
-  defaultValue = null,
-  onValueChange,
-  collapsible = true,
-  className,
-  classNames,
-}: BouncyAccordionProps) {
-  const reduce = useReducedMotion();
-  const baseId = useId();
-  const [activeValue, setActiveValue] = useControllableAccordionValue({ value, defaultValue, onValueChange });
-  const activeIndex = items.findIndex((item) => item.id === activeValue);
-
-  const toggleItem = useCallback(
-    (id: string) => {
-      if (activeValue === id) {
-        if (collapsible) setActiveValue(null);
-        return;
-      }
-      setActiveValue(id);
-    },
-    [activeValue, collapsible, setActiveValue],
-  );
-
-  return (
-    <div className={cn("w-full", className, classNames?.root)}>
-      {items.map((item, index) => {
-        const open = activeValue === item.id;
-        const previousIsOpen = activeIndex === index - 1;
-        const nextIsOpen = activeIndex === index + 1;
-        const startsGroup = open || index === 0 || previousIsOpen;
-        const endsGroup = open || index === items.length - 1 || nextIsOpen;
-        const separatedFromPrevious = index > 0 && (open || previousIsOpen);
-        const contentId = `${baseId}-${item.id}-content`;
-        const triggerId = `${baseId}-${item.id}-trigger`;
-
-        return (
-          <BouncyAccordionRow
-            key={item.id}
-            item={item}
-            open={open}
-            startsGroup={startsGroup}
-            endsGroup={endsGroup}
-            separatedFromPrevious={separatedFromPrevious}
-            contentId={contentId}
-            triggerId={triggerId}
-            reduce={reduce}
-            classNames={classNames}
-            onToggle={() => toggleItem(item.id)}
-          />
-        );
-      })}
-    </div>
-  );
-}
+const destinations = [
+  { label: "Dashboard", icon: Home },
+  { label: "Markets", icon: Target },
+  {
+    label: "Investment",
+    icon: BriefcaseBusiness,
+    children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining"],
+  },
+  {
+    label: "Trading",
+    icon: CandlestickChart,
+    children: ["Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
+  },
+  {
+    label: "Wallet",
+    icon: Wallet,
+    children: [
+      "Main Wallet",
+      "Investment Wallet",
+      "Trading Wallet",
+      "Mining Wallet",
+      "Referral Wallet",
+      "Wallet History",
+    ],
+  },
+  {
+    label: "Fund",
+    icon: Landmark,
+    children: ["Deposit", "Withdraw", "Transfer", "Fund History"],
+  },
+  {
+    label: "Referral",
+    icon: CircleUserRound,
+    children: [
+      "Referral Dashboard",
+      "My Referrals",
+      "Referral Earnings",
+      "Referral History",
+    ],
+  },
+  {
+    label: "Support",
+    icon: NotebookTabs,
+    children: ["Help Center", "My Tickets", "Create Ticket"],
+  },
+] satisfies {
+  label: string;
+  icon: typeof CircleUserRound;
+  children?: string[];
+}[];
 ```
 
----
+And update the imports — add the new ones, remove the unused:
 
-## Step 2 — Update `page.tsx`
-
-Make these three targeted changes:
-
-**1. Replace the imports block** — swap `Zap` out and add the accordion icons + import:
-
-Change this:
 ```tsx
 import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Bot,
-  CloudLightning,
-  LayoutGrid,
-  RefreshCw,
-  TrendingUp,
-  Users,
-  Wallet,
-  Zap,
-} from "lucide-react";
-```
-
-To this:
-```tsx
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Bot,
-  CalendarClock,
-  CloudLightning,
-  FileText,
-  FolderKanban,
-  LayoutGrid,
-  PackageCheck,
-  RadioTower,
-  RefreshCw,
+  BriefcaseBusiness,   // ← add
+  CandlestickChart,    // ← add
+  Home,                // ← add
+  Landmark,            // ← add
+  Wallet,              // ← add
+  // keep these:
+  BadgeCheck,
+  Bell,
+  ChevronRight,
+  ChevronsUpDown,
+  CircleUserRound,
+  Command,
+  History,
+  LogOut,
+  NotebookTabs,
+  PanelLeft,
+  Settings,
   ShieldCheck,
-  TrendingUp,
-  Users,
-  Wallet,
+  Target,
+  User,
+  X,
+  // remove: Sparkles, Workflow, Building2, Inbox, LayoutGrid
 } from "lucide-react";
-import { BouncyAccordion } from "@/components/motion/bouncy-accordion";
 ```
 
-**2. Remove the `NOTIFICATIONS` const** (lines 136–141) — delete this entire block:
-
-```tsx
-const NOTIFICATIONS = [
-  { id: "1", message: "Your deposit of $500 has been confirmed.",   time: "9 min ago",  tone: "success" as const },
-  { id: "2", message: "AI Trading strategy activated successfully.", time: "1 hr ago",   tone: "default" as const },
-  { id: "3", message: "New login detected from Dhaka, Bangladesh.", time: "3 hrs ago",  tone: "destructive" as const },
-  { id: "4", message: "Mining contract #MC-882 earnings credited.", time: "Yesterday",  tone: "success" as const },
-];
-```
-
-**3. Replace the Notifications section** — swap the entire `{/* ── Notifications ── */}` section with this:
-
-```tsx
-{/* ── Quick Guide ───────────────────────────────── */}
-<section aria-label="Quick Guide">
-  <SectionHeader title="Quick Guide" />
-  <BouncyAccordion
-    defaultValue="deposit"
-    items={[
-      {
-        id: "deposit",
-        title: "How to Deposit",
-        description: "Go to Fund → Deposit, choose your method, enter the amount, and confirm. Funds arrive within minutes for crypto and 1–3 days for bank transfers.",
-        icon: <ArrowDownRight className="h-4 w-4" />,
-      },
-      {
-        id: "withdraw",
-        title: "How to Withdraw",
-        description: "Go to Fund → Withdraw, select your wallet or bank account, enter the amount, and submit. Withdrawals are processed within 24 hours.",
-        icon: <ArrowUpRight className="h-4 w-4" />,
-      },
-      {
-        id: "invest",
-        title: "Investment Plans",
-        description: "Browse active plans under Investments, pick a duration and amount, and confirm. Daily earnings are credited automatically to your Investment Wallet.",
-        icon: <PackageCheck className="h-4 w-4" />,
-      },
-      {
-        id: "trading",
-        title: "AI Trading",
-        description: "Enable an AI strategy from the AI Trading page, fund your trading balance, and let the bot run. You can pause or stop it at any time.",
-        icon: <RadioTower className="h-4 w-4" />,
-      },
-      {
-        id: "mining",
-        title: "Cloud Mining",
-        description: "Purchase a mining contract, choose your hashrate tier, and earnings accumulate daily. Contracts run for a fixed term shown at checkout.",
-        icon: <CalendarClock className="h-4 w-4" />,
-      },
-      {
-        id: "referral",
-        title: "Referral Program",
-        description: "Share your referral link from the Referral page. You earn a commission on every deposit your referrals make, paid directly to your Referral Wallet.",
-        icon: <FolderKanban className="h-4 w-4" />,
-      },
-    ]}
-  />
-</section>
-```
-
-That's the complete change — no other lines in `page.tsx` need touching. You can also safely remove the unused `StatusDot`, `EmptyState`, and `Wallet` references if you want to clean up, but they won't cause errors if left in.
+5 icon swaps — `Dashboard` keeps `Target` since the dock doesn't have a direct equivalent for Markets, and Referral/Support stay as-is since they have no dock counterpart.

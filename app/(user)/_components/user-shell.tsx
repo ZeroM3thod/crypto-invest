@@ -6,25 +6,25 @@ import Avatar9 from "@/components/base-ui/avatar2";
 import {
   BadgeCheck,
   Bell,
-  Building2,
+  BriefcaseBusiness,
+  CandlestickChart,
   ChevronRight,
   ChevronsUpDown,
   CircleUserRound,
   Command,
   History,
-  Inbox,
-  LayoutGrid,
-  LogOut,
-  NotebookTabs,
+  Home,
+  Landmark,
+  LogOut, 
   PanelLeft,
   Settings,
   ShieldCheck,
-  Sparkles,
-  Target,
   User,
-  Workflow,
+  Wallet,
   X,
-} from "lucide-react";
+  TrendingUp,
+  LifeBuoy,
+} from "lucide-react"
 import { useRef, useState, type ReactNode } from "react";
 import {
   AnimatedSidebar,
@@ -56,21 +56,21 @@ import {
 } from "@/components/motion/context-menu";
 
 const destinations = [
-  { label: "Dashboard", icon: LayoutGrid },
-  { label: "Markets", icon: Target },
+  { label: "Dashboard", icon: Home },
+  { label: "Markets", icon: TrendingUp },
   {
     label: "Investment",
-    icon: Sparkles,
+    icon: BriefcaseBusiness,
     children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining"],
   },
   {
     label: "Trading",
-    icon: Workflow,
+    icon: CandlestickChart,
     children: ["Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
   },
   {
     label: "Wallet",
-    icon: Building2,
+    icon: Wallet,
     children: [
       "Main Wallet",
       "Investment Wallet",
@@ -82,7 +82,7 @@ const destinations = [
   },
   {
     label: "Fund",
-    icon: Inbox,
+    icon: Landmark,
     children: ["Deposit", "Withdraw", "Transfer", "Fund History"],
   },
   {
@@ -97,7 +97,7 @@ const destinations = [
   },
   {
     label: "Support",
-    icon: NotebookTabs,
+    icon: LifeBuoy,
     children: ["Help Center", "My Tickets", "Create Ticket"],
   },
 ] satisfies {
