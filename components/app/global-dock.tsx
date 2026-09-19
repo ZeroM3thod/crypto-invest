@@ -34,8 +34,8 @@ export function GlobalDock() {
   };
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2">
-      <Dock size={36}>
+    <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2">
+      <Dock size={48}>
         {ITEMS.map(({ id, icon: Icon, label }) => (
           <DockItem
             key={id}
@@ -43,7 +43,7 @@ export function GlobalDock() {
             active={active === id}
             onClick={() => setActive(id)}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-5 w-5" />
           </DockItem>
         ))}
 
@@ -55,9 +55,9 @@ export function GlobalDock() {
           onClick={toggleTheme}
         >
           {isDark ? (
-            <Sun className="h-4 w-4" />
+            <Sun className="h-5 w-5" />
           ) : (
-            <Moon className="h-4 w-4" />
+            <Moon className="h-5 w-5" />
           )}
         </DockItem>
 
