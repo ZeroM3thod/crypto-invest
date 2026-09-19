@@ -10,7 +10,7 @@ import {
   CandlestickChart,
   ChevronRight,
   ChevronsUpDown,
-  CircleUserRound,
+  Users,
   Command,
   History,
   Home,
@@ -86,7 +86,7 @@ const destinations = [
   },
   {
     label: "Referral",
-    icon: CircleUserRound,
+    icon: Users,
     children: [
       "Referral Dashboard",
       "My Referrals",
