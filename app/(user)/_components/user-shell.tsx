@@ -106,7 +106,7 @@ const destinations = [
   },
 ] satisfies {
   label: string;
-  icon: typeof CircleUserRound;
+  icon: typeof Users;
   children?: string[];
 }[];
 
