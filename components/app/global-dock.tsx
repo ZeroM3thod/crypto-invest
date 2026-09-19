@@ -35,7 +35,7 @@ export function GlobalDock() {
 
   return (
     <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2">
-      <Dock size={48}>
+      <Dock size={42}>
         {ITEMS.map(({ id, icon: Icon, label }) => (
           <DockItem
             key={id}

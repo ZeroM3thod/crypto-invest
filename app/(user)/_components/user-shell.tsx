@@ -57,7 +57,6 @@ import {
 
 const destinations = [
   { label: "Dashboard", icon: Home },
-  { label: "Markets", icon: TrendingUp },
   {
     label: "Investment",
     icon: BriefcaseBusiness,
