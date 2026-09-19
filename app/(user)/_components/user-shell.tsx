@@ -22,7 +22,7 @@ import {
   User,
   Wallet,
   X,
-  TrendingUp,
+  MessagesCircle,
   LifeBuoy,
 } from "lucide-react"
 import { useRef, useState, type ReactNode } from "react";
@@ -60,12 +60,12 @@ const destinations = [
   {
     label: "Investment",
     icon: BriefcaseBusiness,
-    children: ["Overview", "Daily Profit", "AI Trading", "Cloud Mining"],
+    children: ["Overview", "Daily Profit",  "Cloud Mining"],
   },
   {
     label: "Trading",
     icon: CandlestickChart,
-    children: ["Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
+    children: [ "AI Trading","Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
   },
   {
     label: "Wallet",
@@ -98,6 +98,11 @@ const destinations = [
     label: "Support",
     icon: LifeBuoy,
     children: ["Help Center", "My Tickets", "Create Ticket"],
+  },
+   {
+    label: "Community",
+    icon: MessagesCircle,
+    children: ["International Chat", "Announcements"],
   },
 ] satisfies {
   label: string;
