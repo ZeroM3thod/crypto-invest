@@ -143,8 +143,8 @@ const PROFIT_COLUMNS = [
 
 // ── Calendar heatmap data (reuse ReturnsCalendar pattern) ───────────────────
 
-const CALENDAR_RETURNS = [
-  [null, null, null, null, null, null, 8.4, 9.2, 10.1, 11.0, 12.4, 11.8],
+const CALENDAR_RETURNS: number[][] = [
+  [0, 0, 0, 0, 0, 0, 8.4, 9.2, 10.1, 11.0, 12.4, 11.8],
 ];
 
 // ── Toggle button ────────────────────────────────────────────────────────────
