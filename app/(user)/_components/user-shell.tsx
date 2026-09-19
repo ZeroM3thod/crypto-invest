@@ -2,6 +2,8 @@
 "use client";
 
 import Avatar9 from "@/components/base-ui/avatar2";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import {
   BadgeCheck,
@@ -55,17 +57,64 @@ import {
   ContextMenuTrigger,
 } from "@/components/motion/context-menu";
 
+/** Maps every nav label (top-level or child) to its Next.js route. */
+const ROUTES: Record<string, string> = {
+  // Top-level
+  "Dashboard": "/dashboard",
+  // Investment
+  "Investment": "/investment/overview",
+  "Overview":   "/investment/overview",
+  "Daily Profit": "/investment/daily-profit",
+  "Cloud Mining": "/investment/cloud-mining",
+  // Trading
+  "Trading":          "/trading",
+  "AI Trading":       "/trading/ai-trading",
+  "Manual Trading":   "/trading/manual-trading",
+  "Open Orders":      "/trading/open-orders",
+  "Trade History":    "/trading/trade-history",
+  "Trading Portfolio":"/trading/portfolio",
+  // Wallet
+  "Wallet":            "/wallet",
+  "Main Wallet":       "/wallet/main",
+  "Investment Wallet": "/wallet/investment",
+  "Trading Wallet":    "/wallet/trading",
+  "Mining Wallet":     "/wallet/mining",
+  "Referral Wallet":   "/wallet/referral",
+  "Wallet History":    "/wallet/history",
+  // Fund
+  "Fund":         "/fund",
+  "Deposit":      "/fund/deposit",
+  "Withdraw":     "/fund/withdraw",
+  "Transfer":     "/fund/transfer",
+  "Fund History": "/fund/history",
+  // Referral
+  "Referral":           "/referral",
+  "Referral Dashboard": "/referral/dashboard",
+  "My Referrals":       "/referral/my-referrals",
+  "Referral Earnings":  "/referral/earnings",
+  "Referral History":   "/referral/history",
+  // Support
+  "Support":       "/support",
+  "Help Center":   "/support/help-center",
+  "My Tickets":    "/support/my-tickets",
+  "Create Ticket": "/support/create-ticket",
+  // Community
+  "Community":           "/community",
+  "International Chat":  "/community/chat",
+  "Announcements":       "/community/announcements",
+};
+
 const destinations = [
   { label: "Dashboard", icon: Home },
   {
     label: "Investment",
     icon: BriefcaseBusiness,
-    children: ["Overview", "Daily Profit",  "Cloud Mining"],
+    children: ["Overview", "Daily Profit", "Cloud Mining"],
   },
   {
     label: "Trading",
     icon: CandlestickChart,
-    children: [ "AI Trading","Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
+    children: ["AI Trading", "Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
   },
   {
     label: "Wallet",
@@ -99,7 +148,7 @@ const destinations = [
     icon: LifeBuoy,
     children: ["Help Center", "My Tickets", "Create Ticket"],
   },
-   {
+  {
     label: "Community",
     icon: MessagesCircle,
     children: ["International Chat", "Announcements"],
@@ -122,6 +171,13 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
+
+  /** Navigate to the route for a label if one is registered. */
+  const navigate = (label: string) => {
+    const route = ROUTES[label];
+    if (route) router.push(route);
+  };
 
   const handleProfileClick = () => {
     const btn = profileButtonRef.current;
@@ -150,6 +206,7 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
             </div>
             <button
               type="button"
+              onClick={() => { setActive("Dashboard"); router.push("/dashboard"); }}
               className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[state=collapsed]/sidebar:hidden"
             >
               <span className="truncate text-sm font-semibold text-foreground">
@@ -186,6 +243,7 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
                         setOpenSection((current) => {
                           if (!children) {
                             setActive(label);
+                            navigate(label);
                             return null;
                           }
                           return current === label ? null : label;
@@ -200,7 +258,7 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
                           <AnimatedSidebarMenuSubItem key={child}>
                             <AnimatedSidebarMenuSubButton
                               isActive={active === child}
-                              onSelect={() => setActive(child)}
+                              onSelect={() => { setActive(child); navigate(child); }}
                             >
                               {child}
                             </AnimatedSidebarMenuSubButton>
@@ -245,42 +303,42 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
               <ContextMenuLabel>Profile</ContextMenuLabel>
               <ContextMenuItem
                 textValue="Personal Information"
-                onSelect={() => setActive("Personal Information")}
+                onSelect={() => { setActive("Personal Information"); router.push("/profile/personal-info"); }}
               >
                 <User aria-hidden="true" className="h-4 w-4" />
                 Personal Information
               </ContextMenuItem>
               <ContextMenuItem
                 textValue="Security"
-                onSelect={() => setActive("Security")}
+                onSelect={() => { setActive("Security"); router.push("/profile/security"); }}
               >
                 <ShieldCheck aria-hidden="true" className="h-4 w-4" />
                 Security
               </ContextMenuItem>
               <ContextMenuItem
                 textValue="KYC Verification"
-                onSelect={() => setActive("KYC Verification")}
+                onSelect={() => { setActive("KYC Verification"); router.push("/profile/kyc"); }}
               >
                 <BadgeCheck aria-hidden="true" className="h-4 w-4" />
                 KYC Verification
               </ContextMenuItem>
               <ContextMenuItem
                 textValue="Login History"
-                onSelect={() => setActive("Login History")}
+                onSelect={() => { setActive("Login History"); router.push("/profile/login-history"); }}
               >
                 <History aria-hidden="true" className="h-4 w-4" />
                 Login History
               </ContextMenuItem>
               <ContextMenuItem
                 textValue="Notification Settings"
-                onSelect={() => setActive("Notification Settings")}
+                onSelect={() => { setActive("Notification Settings"); router.push("/profile/notifications"); }}
               >
                 <Bell aria-hidden="true" className="h-4 w-4" />
                 Notification Settings
               </ContextMenuItem>
               <ContextMenuItem
                 textValue="Account Settings"
-                onSelect={() => setActive("Account Settings")}
+                onSelect={() => { setActive("Account Settings"); router.push("/profile/settings"); }}
               >
                 <Settings aria-hidden="true" className="h-4 w-4" />
                 Account Settings
