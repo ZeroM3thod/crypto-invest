@@ -88,14 +88,13 @@ const ROUTES: Record<string, string> = {
   "Transfer":     "/fund/transfer",
   "Fund History": "/fund/history",
   // Referral
-  "Referral":           "/referral",
+  "Referral":           "/referral/dashboard",
   "Referral Dashboard": "/referral/dashboard",
-  "My Referrals":       "/referral/my-referrals",
-  "Referral Earnings":  "/referral/earnings",
-  "Referral History":   "/referral/history",
+  "Leaderboard":       "/referral/leaderboard",
+
   // Support
   "Support":       "/support",
-  "Help Center":   "/support/help-center",
+  
   "My Tickets":    "/support/my-tickets",
   "Create Ticket": "/support/create-ticket",
   // Community
@@ -138,15 +137,13 @@ const destinations = [
     icon: Users,
     children: [
       "Referral Dashboard",
-      "My Referrals",
-      "Referral Earnings",
-      "Referral History",
-    ],
+      "Leaderboard",
+          ],
   },
   {
     label: "Support",
     icon: LifeBuoy,
-    children: ["Help Center", "My Tickets", "Create Ticket"],
+    children: [ "Create Tickets" , "My Tickets" ],
   },
   {
     label: "Community",
@@ -210,7 +207,7 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
               className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[state=collapsed]/sidebar:hidden"
             >
               <span className="truncate text-sm font-semibold text-foreground">
-                Acme Inc
+                MultiMod
               </span>
               <ChevronsUpDown
                 aria-hidden="true"
@@ -286,10 +283,10 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
           
                 <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
                   <span className="block truncate text-sm font-medium text-foreground">
-                    Ava Stone
+                    Imran Khan
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    ava@solace.app
+                    imran@gmail.com
                   </span>
                 </span>
                 <ChevronRight
