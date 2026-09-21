@@ -12,6 +12,7 @@ import {
   Upload,
   Check,
   ExternalLink,
+  Send,
 } from "lucide-react";
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
@@ -310,6 +311,41 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+function SendModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [amount, setAmount] = useState("");
+  const [recipient, setRecipient] = useState("");
+  return (
+    <Modal open={open} onClose={onClose} title="Send">
+      <div className="space-y-3">
+        <div>
+          <label className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Recipient Address</label>
+          <input
+            type="text"
+            value={recipient}
+            onChange={(e) => setRecipient(e.target.value)}
+            placeholder="0x..."
+            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Amount (USDT)</label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <p className="text-[11px] text-muted-foreground">Available: $12,480.32 · Fee: $1.00</p>
+        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          Confirm Send
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Wallet Balance Card ─────────────────────────────────────────────────────
 
 function WalletBalanceCard({
@@ -319,6 +355,7 @@ function WalletBalanceCard({
   onDeposit,
   onWithdraw,
   onTransfer,
+  onSend,
 }: {
   balance: number;
   address: string;
@@ -326,6 +363,7 @@ function WalletBalanceCard({
   onDeposit: () => void;
   onWithdraw: () => void;
   onTransfer: () => void;
+  onSend: () => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -336,7 +374,6 @@ function WalletBalanceCard({
   };
 
   const positive = change24h >= 0;
-  const shortAddr = `${address.slice(0, 6)}…${address.slice(-4)}`;
 
   return (
     <Card className="w-full">
@@ -358,7 +395,7 @@ function WalletBalanceCard({
 
         {/* Address */}
         <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted px-3 py-2">
-          <span className="font-mono text-xs text-muted-foreground flex-1">{shortAddr}</span>
+          <span className="font-mono text-xs text-muted-foreground flex-1 break-all">{address}</span>
           <button
             type="button"
             onClick={handleCopy}
@@ -377,11 +414,12 @@ function WalletBalanceCard({
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {[
             { label: "Deposit",  icon: <Download className="size-4" />,       action: onDeposit  },
             { label: "Withdraw", icon: <Upload className="size-4" />,         action: onWithdraw },
             { label: "Transfer", icon: <ArrowLeftRight className="size-4" />, action: onTransfer },
+            { label: "Send",     icon: <Send className="size-4" />,           action: onSend     },
           ].map(({ label, icon, action }) => (
             <button
               key={label}
@@ -405,6 +443,7 @@ export default function MainWalletPage() {
   const [depositOpen, setDepositOpen]   = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [sendOpen, setSendOpen]         = useState(false);
 
   const [typeFilter,   setTypeFilter]   = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -439,6 +478,7 @@ export default function MainWalletPage() {
               onDeposit={() => setDepositOpen(true)}
               onWithdraw={() => setWithdrawOpen(true)}
               onTransfer={() => setTransferOpen(true)}
+              onSend={() => setSendOpen(true)}
             />
           </div>
         </section>
@@ -481,6 +521,7 @@ export default function MainWalletPage() {
       <DepositModal  open={depositOpen}  onClose={() => setDepositOpen(false)} />
       <WithdrawModal open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
       <TransferModal open={transferOpen} onClose={() => setTransferOpen(false)} />
+      <SendModal     open={sendOpen}     onClose={() => setSendOpen(false)} />
     </UserShell>
   );
 }

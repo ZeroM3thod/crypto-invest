@@ -112,11 +112,10 @@ const PLANS: Plan[] = [
     minimum: 30,
     icon: <TrendingUp className="size-4" />,
     badge: "Growth",
-    accentClass: "border-primary ring-1 ring-primary/30",
-    badgeClass: "bg-primary/10 text-primary",
+    accentClass: "border-border",
+    badgeClass: "bg-muted text-muted-foreground",
     buttonClass:
-      "bg-primary text-primary-foreground hover:opacity-90",
-    
+      "bg-foreground text-background hover:opacity-90",
   },
   {
     id: "elite",
@@ -125,11 +124,10 @@ const PLANS: Plan[] = [
     minimum: 50,
     icon: <Crown className="size-4" />,
     badge: "Elite",
-    accentClass: "border-amber-400/60 ring-1 ring-amber-400/20",
-    badgeClass: "bg-amber-400/10 text-amber-500",
+    accentClass: "border-border",
+    badgeClass: "bg-muted text-muted-foreground",
     buttonClass:
-      "bg-amber-500 text-white hover:opacity-90",
-    
+      "bg-foreground text-background hover:opacity-90",
   },
 ];
 
@@ -280,7 +278,7 @@ function PlanCard({
           <h3 className="text-base font-semibold text-foreground">{plan.name}</h3>
         </div>
         <div className="text-right">
-          <p className={`text-2xl font-bold ${plan.id === "elite" ? "text-amber-500" : plan.id === "growth" ? "text-primary" : "text-foreground"}`}>
+          <p className="text-2xl font-bold text-foreground">
             {plan.rate}%
           </p>
           <p className="text-[10px] font-medium text-muted-foreground">per day</p>
@@ -314,7 +312,7 @@ function PlanCard({
             min={plan.minimum}
             value={amount}
             onChange={(e) => setAmount(Number(e.target.value))}
-            className="h-9 w-full rounded-xl border border-border bg-background px-3 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-9 w-full rounded-xl border border-border bg-background px-3 text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         </div>
         {amount < plan.minimum && (

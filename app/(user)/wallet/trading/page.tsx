@@ -272,7 +272,7 @@ export default function TradingWalletPage() {
                   <button
                     type="button"
                     onClick={() => setFundOpen(true)}
-                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-primary py-3 text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-muted py-3 text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <ArrowDownRight className="size-4" />
                     <span className="text-[11px] font-semibold">Fund Trading</span>

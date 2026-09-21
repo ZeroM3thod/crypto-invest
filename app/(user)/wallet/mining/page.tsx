@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   ArrowLeftRight,
   CloudLightning,
+  Download,
 } from "lucide-react";
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
@@ -173,10 +174,38 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [amount, setAmount] = useState("");
+  return (
+    <Modal open={open} onClose={onClose} title="Withdraw">
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Withdraw your mining earnings directly to an external wallet.
+        </p>
+        <div>
+          <label className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Amount (USDT)</label>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <p className="text-[11px] text-muted-foreground">Mining balance: $540.20 · Fee: $1.00</p>
+        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          Confirm Withdrawal
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function MiningWalletPage() {
   const [transferOpen, setTransferOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   return (
     <UserShell active="Wallet">
@@ -218,14 +247,24 @@ export default function MiningWalletPage() {
                   <CloudLightning className="size-5 text-muted-foreground" />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setTransferOpen(true)}
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <ArrowLeftRight className="size-4" />
-                  <span className="text-[11px] font-semibold">Transfer to Main</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawOpen(true)}
+                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-muted py-3 text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Download className="size-4" />
+                    <span className="text-[11px] font-semibold">Withdraw</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransferOpen(true)}
+                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-muted py-3 text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ArrowLeftRight className="size-4" />
+                    <span className="text-[11px] font-semibold">Transfer to Main</span>
+                  </button>
+                </div>
               </div>
             </Card>
           </div>
@@ -263,6 +302,7 @@ export default function MiningWalletPage() {
       </div>
 
       <TransferModal open={transferOpen} onClose={() => setTransferOpen(false)} />
+      <WithdrawModal open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
     </UserShell>
   );
 }
