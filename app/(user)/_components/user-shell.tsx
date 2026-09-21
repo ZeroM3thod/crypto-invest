@@ -25,7 +25,7 @@ import {
   Wallet,
   X,
   MessagesCircle,
-  LifeBuoy,
+  HeadsetIcon,
 } from "lucide-react"
 import { useRef, useState, type ReactNode } from "react";
 import {
@@ -113,7 +113,7 @@ const destinations = [
   {
     label: "Trading",
     icon: CandlestickChart,
-    children: ["AI Trading", "Manual Trading", "Open Orders", "Trade History", "Trading Portfolio"],
+    children: [ "Overview" , "AI Trading", "Manual Trading",  "Trade History"],
   },
   {
     label: "Wallet",
@@ -130,7 +130,7 @@ const destinations = [
   {
     label: "Fund",
     icon: Landmark,
-    children: ["Deposit", "Withdraw", "Transfer", "Fund History"],
+    children: ["Deposit", "Withdraw", "Send", "Fund History"],
   },
   {
     label: "Referral",
@@ -142,7 +142,7 @@ const destinations = [
   },
   {
     label: "Support",
-    icon: LifeBuoy,
+    icon: HeadsetIcon,
     children: [ "Create Tickets" , "My Tickets" ],
   },
   {
@@ -326,20 +326,7 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
                 <History aria-hidden="true" className="h-4 w-4" />
                 Login History
               </ContextMenuItem>
-              <ContextMenuItem
-                textValue="Notification Settings"
-                onSelect={() => { setActive("Notification Settings"); router.push("/profile/notifications"); }}
-              >
-                <Bell aria-hidden="true" className="h-4 w-4" />
-                Notification Settings
-              </ContextMenuItem>
-              <ContextMenuItem
-                textValue="Account Settings"
-                onSelect={() => { setActive("Account Settings"); router.push("/profile/settings"); }}
-              >
-                <Settings aria-hidden="true" className="h-4 w-4" />
-                Account Settings
-              </ContextMenuItem>
+
 
               <ContextMenuSeparator />
 
