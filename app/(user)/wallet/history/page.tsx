@@ -56,7 +56,7 @@ function SectionHeader({ title, action, actionLabel }: {
         <button
           type="button"
           onClick={action}
-          className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="text-xs font-medium text-foreground transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
         >
           {actionLabel}
         </button>
@@ -102,11 +102,11 @@ const TX_COLUMNS = [
     key: "wallet", header: "Wallet", width: "110px",
     cell: (r: WalletTransaction) => {
       const colors: Record<string, string> = {
-        Main:       "bg-primary/10 text-primary",
+        Main:       "bg-foreground/10 text-foreground",
         Investment: "bg-success/10 text-success",
         Trading:    "bg-destructive/10 text-destructive",
         Mining:     "bg-muted text-muted-foreground",
-        Referral:   "bg-primary/10 text-primary",
+        Referral:   "bg-foreground/10 text-foreground",
       };
       return (
         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors[r.wallet] ?? "bg-muted text-muted-foreground"}`}>
@@ -129,7 +129,7 @@ const TX_COLUMNS = [
     cell: (r: WalletTransaction) => {
       const tone: Record<WalletTransaction["status"], string> = {
         Completed: "text-success",
-        Pending:   "text-primary",
+        Pending:   "text-foreground",
         Failed:    "text-destructive",
       };
       return <span className={`text-xs font-semibold ${tone[r.status]}`}>{r.status}</span>;
@@ -143,7 +143,7 @@ const TX_COLUMNS = [
   },
 ];
 
-// ── Filter bar ──────────────────────────────────────────────────────────────
+// ── Filter bar — daily-profit pill style ────────────────────────────────────
 
 type FilterBarProps = {
   wallet: string; setWallet: (v: string) => void;
@@ -156,17 +156,16 @@ function FilterBar({ wallet, setWallet, status, setStatus }: FilterBarProps) {
 
   return (
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-      {/* Wallet toggle */}
-      <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-3 py-1.5 overflow-x-auto">
-        <span className="text-[11px] font-medium text-muted-foreground mr-1 shrink-0">Wallet:</span>
+      {/* Wallet pill group */}
+      <div className="inline-flex items-center gap-0.5 rounded-2xl border border-border bg-muted p-1">
         {wallets.map((w) => (
           <button
             key={w}
             type="button"
             onClick={() => setWallet(w)}
-            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0 ${
+            className={`rounded-xl px-3 py-1 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               wallet === w
-                ? "bg-primary text-primary-foreground"
+                ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -175,17 +174,16 @@ function FilterBar({ wallet, setWallet, status, setStatus }: FilterBarProps) {
         ))}
       </div>
 
-      {/* Status filter */}
-      <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-3 py-1.5 w-fit">
-        <span className="text-[11px] font-medium text-muted-foreground mr-1">Status:</span>
+      {/* Status pill group */}
+      <div className="inline-flex items-center gap-0.5 rounded-2xl border border-border bg-muted p-1 w-fit">
         {statuses.map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setStatus(s)}
-            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`rounded-xl px-3 py-1 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               status === s
-                ? "bg-primary text-primary-foreground"
+                ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >

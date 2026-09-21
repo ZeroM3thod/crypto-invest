@@ -23,7 +23,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" }) {
   const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
+    default:     "bg-foreground/10 text-foreground",
     success:     "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
     muted:       "bg-muted text-muted-foreground",
@@ -71,7 +71,7 @@ function SectionHeader({ title, action, actionLabel }: {
         <button
           type="button"
           onClick={action}
-          className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="text-xs font-medium text-foreground transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
         >
           {actionLabel}
         </button>
@@ -111,7 +111,7 @@ const TX_COLUMNS = [
     cell: (r: Transaction) => {
       const tone: Record<Transaction["status"], string> = {
         Completed: "text-success",
-        Pending:   "text-primary",
+        Pending:   "text-foreground",
         Failed:    "text-destructive",
       };
       return <span className={`text-xs font-semibold ${tone[r.status]}`}>{r.status}</span>;
@@ -166,7 +166,7 @@ function FundTradingModal({ open, onClose }: { open: boolean; onClose: () => voi
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Main Wallet available: $12,480.32 · Instant</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" className="w-full rounded-2xl bg-foreground py-2.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
           Fund Trading Wallet
         </button>
       </div>
@@ -190,7 +190,7 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Trading balance: $1,820.30 · Instant · No fees</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" className="w-full rounded-2xl bg-foreground py-2.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
           Transfer to Main
         </button>
       </div>
@@ -209,7 +209,7 @@ function FilterBar({ type, setType }: { type: string; setType: (v: string) => vo
           type="button"
           onClick={() => setType(t)}
           className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-            type === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            type === t ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           {t}
