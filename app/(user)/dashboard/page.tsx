@@ -220,6 +220,11 @@ const TRADE_COLUMNS = [
   },
 ];
 
+// ── Shared panel button style ───────────────────────────────────────────────
+// Single source of truth — used by every panel button so they're all identical.
+const PANEL_BTN =
+  "flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 // ── Activity Overview tab content ───────────────────────────────────────────
 
 function InvestmentPanel() {
@@ -230,31 +235,33 @@ function InvestmentPanel() {
           <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <TrendingUp className="size-4" />
           </div>
-          <p className="text-sm font-semibold text-[#181818]">Investment</p>
+          <p className="text-sm font-semibold text-foreground">Investment</p>
         </div>
         <Badge label="Active" tone="success" />
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Total Invested</span>
-          <span className="font-medium text-[#111827]">$5,500.00</span>
+          <span className="text-muted-foreground">Total Invested</span>
+          <span className="font-medium text-foreground">$5,500.00</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Active Plans</span>
-          <span className="font-medium text-[#111827]">3</span>
+          <span className="text-muted-foreground">Active Plans</span>
+          <span className="font-medium text-foreground">3</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Today&apos;s Profit</span>
+          <span className="text-muted-foreground">Today&apos;s Profit</span>
           <span className="font-medium text-success">+$28.40</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Total Profit</span>
+          <span className="text-muted-foreground">Total Profit</span>
           <span className="font-medium text-success">+$1,240.00</span>
         </div>
       </div>
-      <button type="button" className="mt-2 w-full rounded-xl bg-[#f3f4f6] py-2 text-xs font-semibold text-[#111827] transition-colors hover:bg-[#e5e7eb] outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        View Investments
-      </button>
+      <div className="flex gap-2 mt-2">
+        <button type="button" className={PANEL_BTN}>
+          View Investments
+        </button>
+      </div>
     </div>
   );
 }
@@ -267,32 +274,34 @@ function AITradingPanel() {
           <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <Bot className="size-4" />
           </div>
-          <p className="text-sm font-semibold text-[#181818]">AI Trading</p>
+          <p className="text-sm font-semibold text-foreground">AI Trading</p>
         </div>
         <Badge label="Active" tone="success" />
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Trading Balance</span>
-          <span className="font-medium text-[#111827]">$1,820.30</span>
+          <span className="text-muted-foreground">Trading Balance</span>
+          <span className="font-medium text-foreground">$1,820.30</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Active Strategies</span>
-          <span className="font-medium text-[#111827]">2</span>
+          <span className="text-muted-foreground">Active Strategies</span>
+          <span className="font-medium text-foreground">2</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Current P/L</span>
+          <span className="text-muted-foreground">Current P/L</span>
           <span className="font-medium text-success">+$34.17</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Total P/L</span>
+          <span className="text-muted-foreground">Total P/L</span>
           <span className="font-medium text-success">+$820.50</span>
         </div>
       </div>
-      <p className="text-[10px] text-[#9ca3af]">Past performance does not guarantee future results.</p>
-      <button type="button" className="w-full rounded-xl bg-[#f3f4f6] py-2 text-xs font-semibold text-[#111827] transition-colors hover:bg-[#e5e7eb] outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        View AI Trading
-      </button>
+      <p className="text-[10px] text-muted-foreground">Past performance does not guarantee future results.</p>
+      <div className="flex gap-2 mt-2">
+        <button type="button" className={PANEL_BTN}>
+          View AI Trading
+        </button>
+      </div>
     </div>
   );
 }
@@ -305,31 +314,33 @@ function CloudMiningPanel() {
           <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <CloudLightning className="size-4" />
           </div>
-          <p className="text-sm font-semibold text-[#181818]">Cloud Mining</p>
+          <p className="text-sm font-semibold text-foreground">Cloud Mining</p>
         </div>
         <Badge label="Active" tone="success" />
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Active Contracts</span>
-          <span className="font-medium text-[#111827]">2</span>
+          <span className="text-muted-foreground">Active Contracts</span>
+          <span className="font-medium text-foreground">2</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Total Invested</span>
-          <span className="font-medium text-[#111827]">$980.25</span>
+          <span className="text-muted-foreground">Total Invested</span>
+          <span className="font-medium text-foreground">$980.25</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Hashrate</span>
-          <span className="font-medium text-[#111827]">120 TH/s</span>
+          <span className="text-muted-foreground">Hashrate</span>
+          <span className="font-medium text-foreground">120 TH/s</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Today&apos;s Earnings</span>
+          <span className="text-muted-foreground">Today&apos;s Earnings</span>
           <span className="font-medium text-success">+$12.40</span>
         </div>
       </div>
-      <button type="button" className="mt-2 w-full rounded-xl bg-[#f3f4f6] py-2 text-xs font-semibold text-[#111827] transition-colors hover:bg-[#e5e7eb] outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        View Mining
-      </button>
+      <div className="flex gap-2 mt-2">
+        <button type="button" className={PANEL_BTN}>
+          View Mining
+        </button>
+      </div>
     </div>
   );
 }
@@ -337,33 +348,35 @@ function CloudMiningPanel() {
 function ManualTradingPanel() {
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
-          <LayoutGrid className="size-4" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
+            <LayoutGrid className="size-4" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">Manual Trading</p>
         </div>
-        <p className="text-sm font-semibold text-[#181818]">Manual Trading</p>
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Trading Balance</span>
-          <span className="font-medium text-[#111827]">$1,820.30</span>
+          <span className="text-muted-foreground">Trading Balance</span>
+          <span className="font-medium text-foreground">$1,820.30</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Open Positions</span>
-          <span className="font-medium text-[#111827]">1</span>
+          <span className="text-muted-foreground">Open Positions</span>
+          <span className="font-medium text-foreground">1</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Today&apos;s P/L</span>
+          <span className="text-muted-foreground">Today&apos;s P/L</span>
           <span className="font-medium text-success">+$22.00</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Total Volume</span>
-          <span className="font-medium text-[#111827]">$4,820.00</span>
+          <span className="text-muted-foreground">Total Volume</span>
+          <span className="font-medium text-foreground">$4,820.00</span>
         </div>
       </div>
       <div className="flex gap-2 mt-2">
-        <button type="button" className="flex-1 rounded-xl bg-[#f3f4f6] py-2 text-xs font-semibold text-[#111827] transition-colors hover:bg-[#e5e7eb] outline-none focus-visible:ring-2 focus-visible:ring-ring">Trade</button>
-        <button type="button" className="flex-1 rounded-xl bg-[#f3f4f6] py-2 text-xs font-semibold text-[#111827] transition-colors hover:bg-[#e5e7eb] outline-none focus-visible:ring-2 focus-visible:ring-ring">History</button>
+        <button type="button" className={PANEL_BTN}>Trade</button>
+        <button type="button" className={PANEL_BTN}>History</button>
       </div>
     </div>
   );
@@ -372,61 +385,103 @@ function ManualTradingPanel() {
 function ReferralPanel() {
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
-          <Users className="size-4" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
+            <Users className="size-4" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">Referral</p>
         </div>
-        <p className="text-sm font-semibold text-[#181818]">Referral</p>
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Total Referrals</span>
-          <span className="font-medium text-[#111827]">14</span>
+          <span className="text-muted-foreground">Total Referrals</span>
+          <span className="font-medium text-foreground">14</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Active Referrals</span>
-          <span className="font-medium text-[#111827]">9</span>
+          <span className="text-muted-foreground">Active Referrals</span>
+          <span className="font-medium text-foreground">9</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Total Earnings</span>
+          <span className="text-muted-foreground">Total Earnings</span>
           <span className="font-medium text-success">+$970.00</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[#6b7280]">Pending Earnings</span>
-          <span className="font-medium text-[#111827]">$120.00</span>
+          <span className="text-muted-foreground">Pending Earnings</span>
+          <span className="font-medium text-foreground">$120.00</span>
         </div>
       </div>
       <div className="flex gap-2 mt-2">
-        <button type="button" className="flex-1 rounded-xl bg-[#f3f4f6] py-2 text-xs font-semibold text-[#111827] transition-colors hover:bg-[#e5e7eb] outline-none focus-visible:ring-2 focus-visible:ring-ring">Referrals</button>
-        <button type="button" className="flex-1 rounded-xl bg-[#f3f4f6] py-2 text-xs font-semibold text-[#111827] transition-colors hover:bg-[#e5e7eb] outline-none focus-visible:ring-2 focus-visible:ring-ring">Earnings</button>
+        <button type="button" className={PANEL_BTN}>Referrals</button>
+        <button type="button" className={PANEL_BTN}>Earnings</button>
       </div>
     </div>
   );
 }
 
+// ── Activity Overview tabs ──────────────────────────────────────────────────
+// On desktop (lg+): show icon + label in each tab button.
+// On tablet/mobile (<lg): show icon only — label is hidden via sr-only.
+
 const ACTIVITY_TABS: MorphingTabsItem[] = [
-  { id: "investment",    label: "Investment",    icon: <TrendingUp className="size-4" />,     content: <InvestmentPanel /> },
-  { id: "ai-trading",   label: "AI Trading",    icon: <Bot className="size-4" />,            content: <AITradingPanel /> },
-  { id: "cloud-mining", label: "Mining",        icon: <CloudLightning className="size-4" />, content: <CloudMiningPanel /> },
-  { id: "manual",       label: "Manual",        icon: <LayoutGrid className="size-4" />,     content: <ManualTradingPanel /> },
-  { id: "referral",     label: "Referral",      icon: <Users className="size-4" />,          content: <ReferralPanel /> },
+  {
+    id: "investment",
+    label: "Investment",
+    icon: <TrendingUp className="size-4" />,
+    content: <InvestmentPanel />,
+  },
+  {
+    id: "ai-trading",
+    label: "AI Trading",
+    icon: <Bot className="size-4" />,
+    content: <AITradingPanel />,
+  },
+  {
+    id: "cloud-mining",
+    label: "Mining",
+    icon: <CloudLightning className="size-4" />,
+    content: <CloudMiningPanel />,
+  },
+  {
+    id: "manual",
+    label: "Manual",
+    icon: <LayoutGrid className="size-4" />,
+    content: <ManualTradingPanel />,
+  },
+  {
+    id: "referral",
+    label: "Referral",
+    icon: <Users className="size-4" />,
+    content: <ReferralPanel />,
+  },
 ];
 
 function ActivityOverviewTabs() {
   const [items, setItems] = useState<MorphingTabsItem[]>(ACTIVITY_TABS);
   const [activeTab, setActiveTab] = useState<string | null>("investment");
 
+  // Build responsive tab items:
+  // - icon is always visible
+  // - label text is hidden on mobile/tablet (< lg), visible on desktop (lg+)
+  const responsiveItems: MorphingTabsItem[] = items.map((item) => ({
+    ...item,
+    // Wrap the label so it only shows on lg+ screens
+    label: (
+      <span className="hidden lg:inline">{item.label}</span>
+    ) as unknown as string,
+  }));
+
   return (
     <MorphingTabs
-      items={items}
+      items={responsiveItems}
       value={activeTab}
       onValueChange={setActiveTab}
       onOrderChange={(ids) => {
         setItems((current) => {
-          const byId = new Map(current.map((item) => [item.id, item]));
+          const byId = new Map(current.map((tab) => [tab.id, tab]));
           return ids.flatMap((id) => {
-            const item = byId.get(id);
-            return item ? [item] : [];
+            const tab = byId.get(id);
+            return tab ? [tab] : [];
           });
         });
       }}
@@ -521,7 +576,6 @@ export default function DashboardPage() {
           <ActivityOverviewTabs />
         </section>
 
-       
         {/* ── Recent Transactions ──────────────────────── */}
         <section aria-label="Recent Transactions">
           <SectionHeader title="Recent Transactions" actionLabel="View all" action={() => {}} />
@@ -552,31 +606,31 @@ export default function DashboardPage() {
           <BouncyAccordion
             defaultValue="1"
             items={[
-  {
-    id: "1",
-    title: "Deposit Confirmed",
-    description: "Your deposit of $500 has been confirmed.",
-    icon: <ArrowDownRight className="h-4 w-4" />,
-  },
-  {
-    id: "2",
-    title: "AI Trading Activated",
-    description: "AI Trading strategy activated successfully.",
-    icon: <RadioTower className="h-4 w-4" />,
-  },
-  {
-    id: "3",
-    title: "New Login Detected",
-    description: "New login detected from Dhaka, Bangladesh.",
-    icon: <ShieldCheck className="h-4 w-4" />,
-  },
-  {
-    id: "4",
-    title: "Mining Earnings Credited",
-    description: "Mining contract #MC-882 earnings credited.",
-    icon: <PackageCheck className="h-4 w-4" />,
-  },
-]}
+              {
+                id: "1",
+                title: "Deposit Confirmed",
+                description: "Your deposit of $500 has been confirmed.",
+                icon: <ArrowDownRight className="h-4 w-4" />,
+              },
+              {
+                id: "2",
+                title: "AI Trading Activated",
+                description: "AI Trading strategy activated successfully.",
+                icon: <RadioTower className="h-4 w-4" />,
+              },
+              {
+                id: "3",
+                title: "New Login Detected",
+                description: "New login detected from Dhaka, Bangladesh.",
+                icon: <ShieldCheck className="h-4 w-4" />,
+              },
+              {
+                id: "4",
+                title: "Mining Earnings Credited",
+                description: "Mining contract #MC-882 earnings credited.",
+                icon: <PackageCheck className="h-4 w-4" />,
+              },
+            ]}
           />
         </section>
 
