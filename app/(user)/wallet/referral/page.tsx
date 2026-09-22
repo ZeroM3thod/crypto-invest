@@ -12,7 +12,7 @@ import {
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
 
-// ── Shared primitives (identical to dashboard) ──────────────────────────────
+// ── Shared primitives ──────────────────────────────────────────────────────
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
@@ -24,7 +24,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" }) {
   const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
+    default:     "bg-foreground/10 text-foreground",
     success:     "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
     muted:       "bg-muted text-muted-foreground",
@@ -72,11 +72,34 @@ function SectionHeader({ title, action, actionLabel }: {
         <button
           type="button"
           onClick={action}
-          className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="text-xs font-medium text-foreground transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
         >
           {actionLabel}
         </button>
       )}
+    </div>
+  );
+}
+
+// ── Filter Bar ─────────────────────────────────────────────────────────────
+
+function FilterBar({ type, setType }: { type: string; setType: (v: string) => void }) {
+  const types = ["All", "Commission", "Transfer"];
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-card px-3 py-1.5 w-fit">
+      <span className="text-[11px] font-medium text-muted-foreground mr-1">Type:</span>
+      {types.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => setType(t)}
+          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            type === t ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {t}
+        </button>
+      ))}
     </div>
   );
 }
@@ -114,7 +137,7 @@ const TX_COLUMNS = [
     cell: (r: Transaction) => {
       const tone: Record<Transaction["status"], string> = {
         Completed: "text-success",
-        Pending:   "text-primary",
+        Pending:   "text-foreground",
         Failed:    "text-destructive",
       };
       return <span className={`text-xs font-semibold ${tone[r.status]}`}>{r.status}</span>;
@@ -169,7 +192,7 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Referral balance: $970.00 · Instant · No fees</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" className="w-full rounded-2xl bg-foreground py-2.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
           Transfer to Main
         </button>
       </div>
@@ -182,12 +205,15 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
 export default function ReferralWalletPage() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [linkCopied,   setLinkCopied]   = useState(false);
+  const [typeFilter,   setTypeFilter]   = useState("All");
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(REFERRAL_LINK).catch(() => {});
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   };
+
+  const filtered = TRANSACTIONS.filter((t) => typeFilter === "All" || t.type === typeFilter);
 
   return (
     <UserShell active="Wallet">
@@ -277,8 +303,9 @@ export default function ReferralWalletPage() {
         {/* ── Transaction History ───────────────────────── */}
         <section aria-label="Transaction History">
           <SectionHeader title="Commission History" actionLabel="Export CSV" action={() => {}} />
+          <FilterBar type={typeFilter} setType={setTypeFilter} />
           <Table
-            data={TRANSACTIONS}
+            data={filtered}
             columns={TX_COLUMNS}
             getRowId={(r) => r.id}
             height={320}

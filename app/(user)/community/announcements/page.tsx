@@ -24,18 +24,9 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
-type BadgeTone = "default" | "success" | "destructive" | "muted" | "warning";
-
-function Badge({ label, tone = "default" }: { label: string; tone?: BadgeTone }) {
-  const colors: Record<BadgeTone, string> = {
-    default:     "bg-primary/10 text-primary",
-    success:     "bg-success/10 text-success",
-    destructive: "bg-destructive/10 text-destructive",
-    muted:       "bg-muted text-muted-foreground",
-    warning:     "bg-yellow-400/10 text-yellow-500",
-  };
+function Badge({ label }: { label: string }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}>
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground">
       {label}
     </span>
   );
@@ -53,7 +44,7 @@ function SectionHeader({ title, action, actionLabel }: {
         <button
           type="button"
           onClick={action}
-          className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="text-xs font-medium text-foreground transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
         >
           {actionLabel}
         </button>
@@ -140,13 +131,6 @@ const CATEGORY_ICON: Record<AnnouncementCategory, React.ReactNode> = {
   "Important":       <AlertTriangle className="size-3.5" />,
 };
 
-const CATEGORY_TONE: Record<AnnouncementCategory, BadgeTone> = {
-  "Platform Update": "default",
-  "Maintenance":     "warning",
-  "New Feature":     "success",
-  "Important":       "destructive",
-};
-
 // ── Announcement Card ─────────────────────────────────────────────────────────
 
 function AnnouncementCard({ item, onRead }: { item: Announcement; onRead: (id: string) => void }) {
@@ -160,7 +144,7 @@ function AnnouncementCard({ item, onRead }: { item: Announcement; onRead: (id: s
   return (
     <div
       className={`rounded-4xl border bg-card overflow-hidden transition-colors ${
-        item.read ? "border-border" : "border-primary/30"
+        item.read ? "border-border" : "border-foreground/20"
       }`}
     >
       <button
@@ -177,13 +161,13 @@ function AnnouncementCard({ item, onRead }: { item: Announcement; onRead: (id: s
           {/* Top row */}
           <div className="flex flex-wrap items-center gap-2">
             {item.pinned && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted text-foreground px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                 <Pin className="size-2.5" /> Pinned
               </span>
             )}
-            <Badge label={item.category} tone={CATEGORY_TONE[item.category]} />
+            <Badge label={item.category} />
             {!item.read && (
-              <span className="inline-block size-1.5 rounded-full bg-primary" aria-label="Unread" />
+              <span className="inline-block size-1.5 rounded-full bg-foreground" aria-label="Unread" />
             )}
           </div>
 
@@ -229,14 +213,14 @@ export default function CommunityAnnouncements() {
 
   const filtered = useMemo(() => {
     return items.filter((a) => {
-      const matchCat   = category === "All" || a.category === category;
+      const matchCat    = category === "All" || a.category === category;
       const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase()) || a.content.toLowerCase().includes(search.toLowerCase());
       return matchCat && matchSearch;
     });
   }, [items, category, search]);
 
-  const pinned   = filtered.filter((a) => a.pinned);
-  const unpinned = filtered.filter((a) => !a.pinned);
+  const pinned      = filtered.filter((a) => a.pinned);
+  const unpinned    = filtered.filter((a) => !a.pinned);
   const unreadCount = items.filter((a) => !a.read).length;
 
   return (
@@ -252,9 +236,9 @@ export default function CommunityAnnouncements() {
             </h1>
           </div>
           {unreadCount > 0 && (
-            <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 shrink-0">
-              <Bell className="size-3.5 text-primary" />
-              <span className="text-xs font-semibold text-primary">{unreadCount} unread</span>
+            <div className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 shrink-0">
+              <Bell className="size-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold text-foreground">{unreadCount} unread</span>
             </div>
           )}
         </div>
@@ -274,17 +258,17 @@ export default function CommunityAnnouncements() {
               />
             </div>
 
-            {/* Category pills */}
-            <div className="flex flex-wrap gap-2 shrink-0">
+            {/* Category pills — same style as daily profit filter bar */}
+            <div className="flex items-center rounded-xl bg-muted p-1 gap-1 flex-wrap shrink-0">
               {CATEGORIES.map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setCategory(c)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     category === c
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/70"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {c}

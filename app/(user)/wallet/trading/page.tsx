@@ -11,7 +11,7 @@ import {
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
 
-// ── Shared primitives (identical to dashboard) ──────────────────────────────
+// ── Shared primitives ──────────────────────────────────────────────────────
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (

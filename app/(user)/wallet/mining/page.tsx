@@ -11,7 +11,7 @@ import {
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
 
-// ── Shared primitives (identical to dashboard) ──────────────────────────────
+// ── Shared primitives ──────────────────────────────────────────────────────
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
@@ -23,7 +23,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" }) {
   const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
+    default:     "bg-foreground/10 text-foreground",
     success:     "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
     muted:       "bg-muted text-muted-foreground",
@@ -71,11 +71,34 @@ function SectionHeader({ title, action, actionLabel }: {
         <button
           type="button"
           onClick={action}
-          className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="text-xs font-medium text-foreground transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
         >
           {actionLabel}
         </button>
       )}
+    </div>
+  );
+}
+
+// ── Filter Bar ─────────────────────────────────────────────────────────────
+
+function FilterBar({ status, setStatus }: { status: string; setStatus: (v: string) => void }) {
+  const statuses = ["All", "Completed", "Pending", "Failed"];
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-card px-3 py-1.5 w-fit">
+      <span className="text-[11px] font-medium text-muted-foreground mr-1">Status:</span>
+      {statuses.map((s) => (
+        <button
+          key={s}
+          type="button"
+          onClick={() => setStatus(s)}
+          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            status === s ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {s}
+        </button>
+      ))}
     </div>
   );
 }
@@ -111,7 +134,7 @@ const TX_COLUMNS = [
     cell: (r: Transaction) => {
       const tone: Record<Transaction["status"], string> = {
         Completed: "text-success",
-        Pending:   "text-primary",
+        Pending:   "text-foreground",
         Failed:    "text-destructive",
       };
       return <span className={`text-xs font-semibold ${tone[r.status]}`}>{r.status}</span>;
@@ -166,7 +189,7 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Mining balance: $540.20 · Instant · No fees</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" className="w-full rounded-2xl bg-foreground py-2.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
           Transfer to Main
         </button>
       </div>
@@ -193,7 +216,7 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Mining balance: $540.20 · Fee: $1.00</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" className="w-full rounded-2xl bg-foreground py-2.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
           Confirm Withdrawal
         </button>
       </div>
@@ -206,6 +229,9 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
 export default function MiningWalletPage() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  const filtered = TRANSACTIONS.filter((t) => statusFilter === "All" || t.status === statusFilter);
 
   return (
     <UserShell active="Wallet">
@@ -289,8 +315,9 @@ export default function MiningWalletPage() {
         {/* ── Transaction History ───────────────────────── */}
         <section aria-label="Transaction History">
           <SectionHeader title="Transaction History" actionLabel="Export CSV" action={() => {}} />
+          <FilterBar status={statusFilter} setStatus={setStatusFilter} />
           <Table
-            data={TRANSACTIONS}
+            data={filtered}
             columns={TX_COLUMNS}
             getRowId={(r) => r.id}
             height={320}

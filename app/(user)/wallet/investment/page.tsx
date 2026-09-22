@@ -23,7 +23,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" }) {
   const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
+    default:     "bg-muted text-muted-foreground",
     success:     "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
     muted:       "bg-muted text-muted-foreground",
@@ -71,7 +71,7 @@ function SectionHeader({ title, action, actionLabel }: {
         <button
           type="button"
           onClick={action}
-          className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="text-xs font-medium text-muted-foreground transition-opacity hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-border rounded"
         >
           {actionLabel}
         </button>
@@ -93,12 +93,12 @@ type Transaction = {
 };
 
 const TRANSACTIONS: Transaction[] = [
-  { id: "i1", date: "2025-07-18", type: "Credit",   asset: "USDT", amount: "+$28.40",   status: "Completed", txHash: "0x4f3a…c91e" },
-  { id: "i2", date: "2025-07-17", type: "Credit",   asset: "USDT", amount: "+$28.40",   status: "Completed", txHash: "0x8b2d…f04c" },
-  { id: "i3", date: "2025-07-16", type: "Deposit",  asset: "USDT", amount: "+$2,000.00",status: "Completed", txHash: "0x1c7e…a83b" },
-  { id: "i4", date: "2025-07-15", type: "Credit",   asset: "USDT", amount: "+$27.90",   status: "Completed", txHash: "0x9d5f…7721" },
-  { id: "i5", date: "2025-07-14", type: "Transfer", asset: "USDT", amount: "-$500.00",  status: "Pending",   txHash: "0x3e2a…bb49" },
-  { id: "i6", date: "2025-07-13", type: "Credit",   asset: "USDT", amount: "+$26.80",   status: "Completed", txHash: "0x6f1c…2d30" },
+  { id: "i1", date: "2025-07-18", type: "Credit",   asset: "USDT", amount: "+$28.40",    status: "Completed", txHash: "0x4f3a…c91e" },
+  { id: "i2", date: "2025-07-17", type: "Credit",   asset: "USDT", amount: "+$28.40",    status: "Completed", txHash: "0x8b2d…f04c" },
+  { id: "i3", date: "2025-07-16", type: "Deposit",  asset: "USDT", amount: "+$2,000.00", status: "Completed", txHash: "0x1c7e…a83b" },
+  { id: "i4", date: "2025-07-15", type: "Credit",   asset: "USDT", amount: "+$27.90",    status: "Completed", txHash: "0x9d5f…7721" },
+  { id: "i5", date: "2025-07-14", type: "Transfer", asset: "USDT", amount: "-$500.00",   status: "Pending",   txHash: "0x3e2a…bb49" },
+  { id: "i6", date: "2025-07-13", type: "Credit",   asset: "USDT", amount: "+$26.80",    status: "Completed", txHash: "0x6f1c…2d30" },
 ];
 
 const TX_COLUMNS = [
@@ -111,7 +111,7 @@ const TX_COLUMNS = [
     cell: (r: Transaction) => {
       const tone: Record<Transaction["status"], string> = {
         Completed: "text-success",
-        Pending:   "text-primary",
+        Pending:   "text-muted-foreground",
         Failed:    "text-destructive",
       };
       return <span className={`text-xs font-semibold ${tone[r.status]}`}>{r.status}</span>;
@@ -137,7 +137,7 @@ function Modal({ open, onClose, title, children }: {
       <div className="relative w-full max-w-sm rounded-4xl border border-border bg-card p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          <button type="button" onClick={onClose} className="text-xs font-medium text-muted-foreground hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+          <button type="button" onClick={onClose} className="text-xs font-medium text-muted-foreground hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-border rounded">
             Close
           </button>
         </div>
@@ -162,11 +162,11 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
+            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-border"
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Available: $1,240.00 · Instant · No fees</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" className="w-full rounded-2xl bg-foreground py-2.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-border">
           Transfer to Main
         </button>
       </div>
@@ -176,9 +176,9 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
 
 function InvestNowModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const plans = [
-    { name: "Starter", roi: "0.5%/day", min: "$100",  duration: "30 days" },
-    { name: "Growth",  roi: "0.8%/day", min: "$500",  duration: "60 days" },
-    { name: "Pro",     roi: "1.2%/day", min: "$2,000",duration: "90 days" },
+    { name: "Starter", roi: "0.5%/day", min: "$100",   duration: "30 days" },
+    { name: "Growth",  roi: "0.8%/day", min: "$500",   duration: "60 days" },
+    { name: "Pro",     roi: "1.2%/day", min: "$2,000", duration: "90 days" },
   ];
   const [selected, setSelected] = useState("Growth");
   return (
@@ -190,21 +190,21 @@ function InvestNowModal({ open, onClose }: { open: boolean; onClose: () => void 
               key={p.name}
               type="button"
               onClick={() => setSelected(p.name)}
-              className={`w-full flex items-center justify-between rounded-2xl border px-3 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              className={`w-full flex items-center justify-between rounded-2xl border px-3 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-border ${
                 selected === p.name
-                  ? "border-primary bg-primary/10"
+                  ? "border-foreground/20 bg-muted"
                   : "border-border bg-muted hover:bg-muted/70"
               }`}
             >
               <div>
-                <p className={`text-xs font-semibold ${selected === p.name ? "text-primary" : "text-foreground"}`}>{p.name}</p>
+                <p className="text-xs font-semibold text-foreground">{p.name}</p>
                 <p className="text-[11px] text-muted-foreground">Min {p.min} · {p.duration}</p>
               </div>
-              <span className={`text-xs font-semibold ${selected === p.name ? "text-primary" : "text-success"}`}>{p.roi}</span>
+              <span className="text-xs font-semibold text-success">{p.roi}</span>
             </button>
           ))}
         </div>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" className="w-full rounded-2xl bg-foreground py-2.5 text-xs font-semibold text-background transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-border">
           Invest with {selected}
         </button>
       </div>
@@ -217,15 +217,16 @@ function InvestNowModal({ open, onClose }: { open: boolean; onClose: () => void 
 function FilterBar({ type, setType }: { type: string; setType: (v: string) => void }) {
   const types = ["All", "Credit", "Deposit", "Transfer"];
   return (
-    <div className="mb-4 flex items-center gap-1 rounded-2xl border border-border bg-card px-3 py-1.5 w-fit">
-      <span className="text-[11px] font-medium text-muted-foreground mr-1">Type:</span>
+    <div className="mb-4 flex items-center gap-1 rounded-xl bg-muted p-1">
       {types.map((t) => (
         <button
           key={t}
           type="button"
           onClick={() => setType(t)}
-          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-            type === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-border ${
+            type === t
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           {t}
@@ -238,9 +239,9 @@ function FilterBar({ type, setType }: { type: string; setType: (v: string) => vo
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function InvestmentWalletPage() {
-  const [transferOpen,   setTransferOpen]   = useState(false);
-  const [investNowOpen,  setInvestNowOpen]  = useState(false);
-  const [typeFilter,     setTypeFilter]     = useState("All");
+  const [transferOpen,  setTransferOpen]  = useState(false);
+  const [investNowOpen, setInvestNowOpen] = useState(false);
+  const [typeFilter,    setTypeFilter]    = useState("All");
 
   const filtered = TRANSACTIONS.filter((t) => typeFilter === "All" || t.type === typeFilter);
 
@@ -278,7 +279,7 @@ export default function InvestmentWalletPage() {
                   <button
                     type="button"
                     onClick={() => setInvestNowOpen(true)}
-                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-muted py-3 text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-muted py-3 text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-border"
                   >
                     <TrendingUp className="size-4" />
                     <span className="text-[11px] font-semibold">Invest Now</span>
@@ -286,7 +287,7 @@ export default function InvestmentWalletPage() {
                   <button
                     type="button"
                     onClick={() => setTransferOpen(true)}
-                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-muted py-3 text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-muted py-3 text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-border"
                   >
                     <ArrowLeftRight className="size-4" />
                     <span className="text-[11px] font-semibold">Transfer Out</span>
@@ -301,10 +302,10 @@ export default function InvestmentWalletPage() {
         <section aria-label="Investment Stats">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Total Invested",  value: "$5,500.00", delta: { value: "All time",  positive: true } },
-              { label: "Active Plans",    value: "3",          delta: { value: "Running",  positive: true } },
-              { label: "Today's Profit",  value: "+$28.40",    delta: { value: "Realized", positive: true } },
-              { label: "Total Profit",    value: "+$1,240.00", delta: { value: "Realized", positive: true } },
+              { label: "Total Invested", value: "$5,500.00", delta: { value: "All time",  positive: true } },
+              { label: "Active Plans",   value: "3",          delta: { value: "Running",  positive: true } },
+              { label: "Today's Profit", value: "+$28.40",    delta: { value: "Realized", positive: true } },
+              { label: "Total Profit",   value: "+$1,240.00", delta: { value: "Realized", positive: true } },
             ].map((item) => (
               <Card key={item.label}>
                 <Stat label={item.label} value={item.value} delta={item.delta} />
