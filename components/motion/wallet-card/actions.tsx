@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, TrendingUp } from "lucide-react";
+import {  ArrowLeftRight,  SendIcon, DownloadIcon, UploadIcon } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import type { ComponentType } from "react";
 import { SPRING_PRESS } from "@/lib/ease";
@@ -29,10 +29,10 @@ export function WalletActions({
   const reduce = useReducedMotion();
 
   const actions: WalletAction[] = [
-    { key: "deposit",  label: "Deposit",  icon: ArrowDownToLine,  onClick: onDeposit  },
-    { key: "withdraw", label: "Withdraw", icon: ArrowUpFromLine,   onClick: onWithdraw },
+    { key: "deposit",  label: "Deposit",  icon: DownloadIcon,  onClick: onDeposit  },
+    { key: "withdraw", label: "Withdraw", icon: UploadIcon,   onClick: onWithdraw },
     { key: "transfer", label: "Transfer", icon: ArrowLeftRight,    onClick: onTransfer },
-    { key: "invest",   label: "Invest",   icon: TrendingUp,        onClick: onInvest   },
+    { key: "send",   label: "Send",   icon: SendIcon,        onClick: onInvest   },
   ];
 
   return (

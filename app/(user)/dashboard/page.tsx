@@ -223,7 +223,7 @@ const TRADE_COLUMNS = [
 // ── Shared panel button style ───────────────────────────────────────────────
 // Single source of truth — used by every panel button so they're all identical.
 const PANEL_BTN =
-  "flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-white transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 // ── Activity Overview tab content ───────────────────────────────────────────
 
@@ -235,18 +235,18 @@ function InvestmentPanel() {
           <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <TrendingUp className="size-4" />
           </div>
-          <p className="text-sm font-semibold text-foreground">Investment</p>
+          <p className="text-sm font-semibold text-card-foreground">Investment</p>
         </div>
         <Badge label="Active" tone="success" />
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Total Invested</span>
-          <span className="font-medium text-foreground">$5,500.00</span>
+          <span className="font-medium text-card-foreground">$5,500.00</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Active Plans</span>
-          <span className="font-medium text-foreground">3</span>
+          <span className="font-medium text-card-foreground">3</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Today&apos;s Profit</span>
@@ -274,18 +274,18 @@ function AITradingPanel() {
           <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <Bot className="size-4" />
           </div>
-          <p className="text-sm font-semibold text-foreground">AI Trading</p>
+          <p className="text-sm font-semibold text-card-foreground">AI Trading</p>
         </div>
         <Badge label="Active" tone="success" />
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Trading Balance</span>
-          <span className="font-medium text-foreground">$1,820.30</span>
+          <span className="font-medium text-card-foreground">$1,820.30</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Active Strategies</span>
-          <span className="font-medium text-foreground">2</span>
+          <span className="font-medium text-card-foreground">2</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Current P/L</span>
@@ -314,22 +314,22 @@ function CloudMiningPanel() {
           <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <CloudLightning className="size-4" />
           </div>
-          <p className="text-sm font-semibold text-foreground">Cloud Mining</p>
+          <p className="text-sm font-semibold text-card-foreground">Cloud Mining</p>
         </div>
         <Badge label="Active" tone="success" />
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Active Contracts</span>
-          <span className="font-medium text-foreground">2</span>
+          <span className="font-medium text-card-foreground">2</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Total Invested</span>
-          <span className="font-medium text-foreground">$980.25</span>
+          <span className="font-medium text-card-foreground">$980.25</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Hashrate</span>
-          <span className="font-medium text-foreground">120 TH/s</span>
+          <span className="font-medium text-card-foreground">120 TH/s</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Today&apos;s Earnings</span>
@@ -353,17 +353,17 @@ function ManualTradingPanel() {
           <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <LayoutGrid className="size-4" />
           </div>
-          <p className="text-sm font-semibold text-foreground">Manual Trading</p>
+          <p className="text-sm font-semibold text-card-foreground">Manual Trading</p>
         </div>
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Trading Balance</span>
-          <span className="font-medium text-foreground">$1,820.30</span>
+          <span className="font-medium text-card-foreground">$1,820.30</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Open Positions</span>
-          <span className="font-medium text-foreground">1</span>
+          <span className="font-medium text-card-foreground">1</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Today&apos;s P/L</span>
@@ -371,7 +371,7 @@ function ManualTradingPanel() {
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Total Volume</span>
-          <span className="font-medium text-foreground">$4,820.00</span>
+          <span className="font-medium text-card-foreground">$4,820.00</span>
         </div>
       </div>
       <div className="flex gap-2 mt-2">
@@ -390,17 +390,17 @@ function ReferralPanel() {
           <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <Users className="size-4" />
           </div>
-          <p className="text-sm font-semibold text-foreground">Referral</p>
+          <p className="text-sm font-semibold text-card-foreground">Referral</p>
         </div>
       </div>
       <div className="space-y-2">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Total Referrals</span>
-          <span className="font-medium text-foreground">14</span>
+          <span className="font-medium text-card-foreground">14</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Active Referrals</span>
-          <span className="font-medium text-foreground">9</span>
+          <span className="font-medium text-card-foreground">9</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Total Earnings</span>
@@ -408,7 +408,7 @@ function ReferralPanel() {
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Pending Earnings</span>
-          <span className="font-medium text-foreground">$120.00</span>
+          <span className="font-medium text-card-foreground">$120.00</span>
         </div>
       </div>
       <div className="flex gap-2 mt-2">
