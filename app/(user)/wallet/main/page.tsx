@@ -11,13 +11,12 @@ import {
   Download,
   Upload,
   Check,
-  ExternalLink,
   Send,
 } from "lucide-react";
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
 
-// ── Shared primitives (identical to dashboard) ──────────────────────────────
+// ── Shared primitives ────────────────────────────────────────────────────────
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
@@ -27,15 +26,9 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
-function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" }) {
-  const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
-    success:     "bg-success/10 text-success",
-    destructive: "bg-destructive/10 text-destructive",
-    muted:       "bg-muted text-muted-foreground",
-  };
+function Badge({ label }: { label: string }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}>
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground">
       {label}
     </span>
   );
@@ -77,7 +70,7 @@ function SectionHeader({ title, action, actionLabel }: {
         <button
           type="button"
           onClick={action}
-          className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="text-xs font-medium text-foreground transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
         >
           {actionLabel}
         </button>
@@ -86,7 +79,7 @@ function SectionHeader({ title, action, actionLabel }: {
   );
 }
 
-// ── Wallet-specific data ────────────────────────────────────────────────────
+// ── Wallet-specific data ─────────────────────────────────────────────────────
 
 const WALLET_ADDRESS = "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b";
 
@@ -101,14 +94,14 @@ type Transaction = {
 };
 
 const TRANSACTIONS: Transaction[] = [
-  { id: "t1",  date: "2025-07-18", type: "Deposit",    asset: "USDT", amount: "+$500.00",   status: "Completed", txHash: "0x4f3a…c91e" },
-  { id: "t2",  date: "2025-07-17", type: "Withdrawal", asset: "USDT", amount: "-$200.00",   status: "Completed", txHash: "0x8b2d…f04c" },
-  { id: "t3",  date: "2025-07-16", type: "Deposit",    asset: "BTC",  amount: "+$1,000.00", status: "Completed", txHash: "0x1c7e…a83b" },
-  { id: "t4",  date: "2025-07-15", type: "Transfer",   asset: "ETH",  amount: "-$150.00",   status: "Pending",   txHash: "0x9d5f…7721" },
-  { id: "t5",  date: "2025-07-14", type: "Deposit",    asset: "USDT", amount: "+$250.00",   status: "Completed", txHash: "0x3e2a…bb49" },
-  { id: "t6",  date: "2025-07-13", type: "Withdrawal", asset: "BTC",  amount: "-$80.00",    status: "Failed",    txHash: "0x6f1c…2d30" },
-  { id: "t7",  date: "2025-07-12", type: "Transfer",   asset: "USDT", amount: "-$300.00",   status: "Completed", txHash: "0x2a1b…9e4f" },
-  { id: "t8",  date: "2025-07-11", type: "Deposit",    asset: "ETH",  amount: "+$750.00",   status: "Completed", txHash: "0x7c3d…1a82" },
+  { id: "t1", date: "2025-07-18", type: "Deposit",    asset: "USDT", amount: "+$500.00",   status: "Completed", txHash: "0x4f3a…c91e" },
+  { id: "t2", date: "2025-07-17", type: "Withdrawal", asset: "USDT", amount: "-$200.00",   status: "Completed", txHash: "0x8b2d…f04c" },
+  { id: "t3", date: "2025-07-16", type: "Deposit",    asset: "BTC",  amount: "+$1,000.00", status: "Completed", txHash: "0x1c7e…a83b" },
+  { id: "t4", date: "2025-07-15", type: "Transfer",   asset: "ETH",  amount: "-$150.00",   status: "Pending",   txHash: "0x9d5f…7721" },
+  { id: "t5", date: "2025-07-14", type: "Deposit",    asset: "USDT", amount: "+$250.00",   status: "Completed", txHash: "0x3e2a…bb49" },
+  { id: "t6", date: "2025-07-13", type: "Withdrawal", asset: "BTC",  amount: "-$80.00",    status: "Failed",    txHash: "0x6f1c…2d30" },
+  { id: "t7", date: "2025-07-12", type: "Transfer",   asset: "USDT", amount: "-$300.00",   status: "Completed", txHash: "0x2a1b…9e4f" },
+  { id: "t8", date: "2025-07-11", type: "Deposit",    asset: "ETH",  amount: "+$750.00",   status: "Completed", txHash: "0x7c3d…1a82" },
 ];
 
 const TX_COLUMNS = [
@@ -121,7 +114,7 @@ const TX_COLUMNS = [
     cell: (r: Transaction) => {
       const tone: Record<Transaction["status"], string> = {
         Completed: "text-success",
-        Pending:   "text-primary",
+        Pending:   "text-muted-foreground",
         Failed:    "text-destructive",
       };
       return <span className={`text-xs font-semibold ${tone[r.status]}`}>{r.status}</span>;
@@ -135,7 +128,7 @@ const TX_COLUMNS = [
   },
 ];
 
-// ── Filter bar ──────────────────────────────────────────────────────────────
+// ── Filter bar — same style as Daily Profit page ─────────────────────────────
 
 function FilterBar({
   type, setType, status, setStatus,
@@ -143,21 +136,22 @@ function FilterBar({
   type: string; setType: (v: string) => void;
   status: string; setStatus: (v: string) => void;
 }) {
-  const types   = ["All", "Deposit", "Withdrawal", "Transfer"];
+  const types    = ["All", "Deposit", "Withdrawal", "Transfer"];
   const statuses = ["All", "Completed", "Pending", "Failed"];
 
   return (
     <div className="mb-4 flex flex-wrap gap-2">
-      <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-3 py-1.5">
-        <span className="text-[11px] font-medium text-muted-foreground mr-1">Type:</span>
+      {/* Type filter */}
+      <div className="flex items-center rounded-xl bg-muted p-1 gap-1">
+        <span className="text-[11px] font-medium text-muted-foreground px-1.5">Type</span>
         {types.map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setType(t)}
-            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               type === t
-                ? "bg-primary text-primary-foreground"
+                ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -165,16 +159,18 @@ function FilterBar({
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-3 py-1.5">
-        <span className="text-[11px] font-medium text-muted-foreground mr-1">Status:</span>
+
+      {/* Status filter */}
+      <div className="flex items-center rounded-xl bg-muted p-1 gap-1">
+        <span className="text-[11px] font-medium text-muted-foreground px-1.5">Status</span>
         {statuses.map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setStatus(s)}
-            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               status === s
-                ? "bg-primary text-primary-foreground"
+                ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -186,7 +182,7 @@ function FilterBar({
   );
 }
 
-// ── Modals ──────────────────────────────────────────────────────────────────
+// ── Modals ───────────────────────────────────────────────────────────────────
 
 function Modal({ open, onClose, title, children }: {
   open: boolean; onClose: () => void; title: string; children: React.ReactNode;
@@ -258,7 +254,10 @@ function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Available: $12,480.32 · Fee: $1.00</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button
+          type="button"
+          className="w-full rounded-2xl bg-foreground text-background py-2.5 text-xs font-semibold transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           Confirm Withdrawal
         </button>
       </div>
@@ -283,7 +282,7 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
                 onClick={() => setDest(w)}
                 className={`rounded-2xl border px-3 py-1.5 text-xs font-semibold capitalize transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   dest === w
-                    ? "border-primary bg-primary/10 text-primary"
+                    ? "border-foreground bg-muted text-foreground"
                     : "border-border bg-muted text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -303,7 +302,10 @@ function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Instant · No fees</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button
+          type="button"
+          className="w-full rounded-2xl bg-foreground text-background py-2.5 text-xs font-semibold transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           Confirm Transfer
         </button>
       </div>
@@ -338,7 +340,10 @@ function SendModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           />
         </div>
         <p className="text-[11px] text-muted-foreground">Available: $12,480.32 · Fee: $1.00</p>
-        <button type="button" className="w-full rounded-2xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button
+          type="button"
+          className="w-full rounded-2xl bg-foreground text-background py-2.5 text-xs font-semibold transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           Confirm Send
         </button>
       </div>
@@ -346,7 +351,7 @@ function SendModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
-// ── Wallet Balance Card ─────────────────────────────────────────────────────
+// ── Wallet Balance Card ──────────────────────────────────────────────────────
 
 function WalletBalanceCard({
   balance,
@@ -390,7 +395,7 @@ function WalletBalanceCard({
               {positive ? "+" : ""}{change24h.toFixed(2)} USDT today
             </p>
           </div>
-          <Badge label="USDT" tone="default" />
+          <Badge label="USDT" />
         </div>
 
         {/* Address */}
@@ -437,7 +442,7 @@ function WalletBalanceCard({
   );
 }
 
-// ── Page ────────────────────────────────────────────────────────────────────
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MainWalletPage() {
   const [depositOpen, setDepositOpen]   = useState(false);
@@ -458,7 +463,7 @@ export default function MainWalletPage() {
     <UserShell active="Wallet">
       <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8 space-y-8">
 
-        {/* ── Heading ───────────────────────────────────── */}
+        {/* ── Heading ─────────────────────────────────── */}
         <div>
           <p className="text-xs font-medium text-muted-foreground">
             {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
@@ -468,7 +473,7 @@ export default function MainWalletPage() {
           </h1>
         </div>
 
-        {/* ── Balance Card ──────────────────────────────── */}
+        {/* ── Balance Card ─────────────────────────────── */}
         <section aria-label="Wallet Balance">
           <div className="flex w-full flex-col items-start gap-4 p-2">
             <WalletBalanceCard
@@ -483,14 +488,14 @@ export default function MainWalletPage() {
           </div>
         </section>
 
-        {/* ── Stats Row ─────────────────────────────────── */}
+        {/* ── Stats Row ────────────────────────────────── */}
         <section aria-label="Wallet Stats">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Total Deposited",  value: "$28,400.00", delta: { value: "All time",   positive: true } },
-              { label: "Total Withdrawn",  value: "$15,919.68", delta: { value: "All time",   positive: false } },
-              { label: "Total Transferred",value: "$4,200.00",  delta: { value: "All time",   positive: true } },
-              { label: "24h Change",        value: "+$124.50",   delta: { value: "vs yesterday", positive: true } },
+              { label: "Total Deposited",   value: "$28,400.00", delta: { value: "All time",      positive: true  } },
+              { label: "Total Withdrawn",   value: "$15,919.68", delta: { value: "All time",      positive: false } },
+              { label: "Total Transferred", value: "$4,200.00",  delta: { value: "All time",      positive: true  } },
+              { label: "24h Change",         value: "+$124.50",   delta: { value: "vs yesterday",  positive: true  } },
             ].map((item) => (
               <Card key={item.label}>
                 <Stat label={item.label} value={item.value} delta={item.delta} />
@@ -499,11 +504,11 @@ export default function MainWalletPage() {
           </div>
         </section>
 
-        {/* ── Transaction History ───────────────────────── */}
+        {/* ── Transaction History ──────────────────────── */}
         <section aria-label="Transaction History">
           <SectionHeader title="Transaction History" actionLabel="Export CSV" action={() => {}} />
           <FilterBar
-            type={typeFilter}   setType={setTypeFilter}
+            type={typeFilter}     setType={setTypeFilter}
             status={statusFilter} setStatus={setStatusFilter}
           />
           <Table
