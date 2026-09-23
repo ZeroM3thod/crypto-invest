@@ -2,412 +2,465 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
+import { useMemo, useState } from "react";
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  ChevronDown,
-  ChevronRight,
-  Search,
-  Send,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Send as SendIcon,
+  Check,
   X,
+  Clock,
+  Wallet,
+  ListFilter,
 } from "lucide-react";
-import { useState, useMemo } from "react";
 
-// ── Shared primitives ──────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────
+   Types
+──────────────────────────────────────────────────────────── */
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-4xl border border-border bg-card p-6 ${className}`}>
-      {children}
-    </div>
-  );
+type TxnType = "deposit" | "withdrawal" | "send";
+type TxnStatus = "approved" | "completed" | "pending" | "rejected" | "failed";
+
+interface FundTxn {
+  id: string;
+  type: TxnType;
+  date: string;
+  amount: number;
+  fee: number;
+  net: number; // amount actually credited/debited from main balance
+  coin: string;
+  network?: string;
+  counterparty?: string; // wallet address (deposit/withdraw) or recipient (send)
+  status: TxnStatus;
+  note?: string;
+  reason?: string;
 }
 
-function Badge({ label, tone = "default" }: {
-  label: string;
-  tone?: "default" | "success" | "destructive" | "muted" | "warning";
-}) {
-  const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
-    success:     "bg-success/10 text-success",
-    destructive: "bg-destructive/10 text-destructive",
-    muted:       "bg-muted text-muted-foreground",
-    warning:     "bg-yellow-500/10 text-yellow-500",
+/* Placeholder data — replace with a real merged fetch from your API */
+const ALL_HISTORY: FundTxn[] = [
+  {
+    id: "DEP-9C41A2",
+    type: "deposit",
+    date: "Jul 18, 2025",
+    amount: 500,
+    fee: 0,
+    net: 500,
+    coin: "USDT",
+    network: "TRC-20",
+    status: "approved",
+  },
+  {
+    id: "SND-7A21F9",
+    type: "send",
+    date: "Jul 15, 2025",
+    amount: 120,
+    fee: 0.1,
+    net: 120.1,
+    coin: "USD",
+    counterparty: "Jane Doe (jane@doe.com)",
+    status: "completed",
+  },
+  {
+    id: "WD-9F2A7C31",
+    type: "withdrawal",
+    date: "Jul 16, 2025",
+    amount: 200,
+    fee: 20,
+    net: 180,
+    coin: "USDT",
+    network: "BEP-20",
+    counterparty: "0xa73e40...c7c0e7",
+    status: "approved",
+  },
+  {
+    id: "DEP-B4E2F1",
+    type: "deposit",
+    date: "Jul 14, 2025",
+    amount: 250,
+    fee: 0,
+    net: 250,
+    coin: "USDC",
+    network: "ERC-20",
+    status: "pending",
+  },
+  {
+    id: "SND-3B88C0",
+    type: "send",
+    date: "Jul 9, 2025",
+    amount: 45,
+    fee: 0.1,
+    net: 45.1,
+    coin: "USD",
+    counterparty: "Michael Chen (USR10234)",
+    status: "completed",
+    note: "Split for dinner",
+  },
+  {
+    id: "WD-4B8E1D02",
+    type: "withdrawal",
+    date: "Jul 11, 2025",
+    amount: 75,
+    fee: 7.5,
+    net: 67.5,
+    coin: "USDC",
+    network: "BEP-20",
+    counterparty: "0x91cd22...5f0a19",
+    status: "pending",
+    note: "Monthly cash-out",
+  },
+  {
+    id: "DEP-A1C3E5",
+    type: "deposit",
+    date: "Jul 10, 2025",
+    amount: 80,
+    fee: 0,
+    net: 80,
+    coin: "USDT",
+    network: "BEP-20",
+    status: "rejected",
+    reason: "Transaction hash could not be verified on-chain.",
+  },
+  {
+    id: "SND-1F0E22",
+    type: "send",
+    date: "Jul 2, 2025",
+    amount: 300,
+    fee: 0.1,
+    net: 300.1,
+    coin: "USD",
+    counterparty: "Amara Okafor (0xa73e40...c7c0e7)",
+    status: "failed",
+  },
+  {
+    id: "WD-1C5F9A44",
+    type: "withdrawal",
+    date: "Jul 3, 2025",
+    amount: 40,
+    fee: 4,
+    net: 36,
+    coin: "USDT",
+    network: "BEP-20",
+    counterparty: "0x77ab90...2e4b31",
+    status: "rejected",
+    reason: "Wallet address did not match verified profile records.",
+  },
+];
+
+/* ────────────────────────────────────────────────────────────
+   Config
+──────────────────────────────────────────────────────────── */
+
+type FilterTab = "all" | "deposit" | "withdrawal" | "send";
+
+const FILTER_TABS: { id: FilterTab; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "deposit", label: "Deposits" },
+  { id: "withdrawal", label: "Withdrawals" },
+  { id: "send", label: "Sends" },
+];
+
+const TYPE_META: Record<TxnType, { label: string; icon: typeof ArrowDownCircle; sign: "+" | "−" }> = {
+  deposit: { label: "Deposit", icon: ArrowDownCircle, sign: "+" },
+  withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, sign: "−" },
+  send: { label: "Send", icon: SendIcon, sign: "−" },
+};
+
+/* ────────────────────────────────────────────────────────────
+   Small UI primitives (b/w/gray)
+──────────────────────────────────────────────────────────── */
+
+function StatusBadge({ status }: { status: TxnStatus }) {
+  const map: Record<TxnStatus, string> = {
+    approved: "bg-foreground/10 text-foreground",
+    completed: "bg-foreground/10 text-foreground",
+    pending: "bg-muted text-muted-foreground",
+    rejected: "bg-foreground/5 text-muted-foreground line-through",
+    failed: "bg-foreground/5 text-muted-foreground line-through",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}>
-      {label}
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${map[status]}`}>
+      {status}
     </span>
   );
 }
 
-// ── Types & data ───────────────────────────────────────────────────────────
-
-type TxType   = "Deposit" | "Withdrawal" | "Send" | "Receive" | "Fee";
-type TxStatus = "Completed" | "Pending" | "Failed" | "Rejected" | "Cancelled" | "Confirming" | "Processing";
-
-type Transaction = {
-  id: string;
-  txId: string;
-  type: TxType;
-  status: TxStatus;
-  amount: string;
-  fee: string;
-  net: string;
-  coin: string;
-  blockchain?: string;
-  counterparty?: string;
-  txHash?: string;
-  date: string;
-  description: string;
-};
-
-const ALL_TRANSACTIONS: Transaction[] = [
-  {
-    id: "1", txId: "TXN-20260922-00142", type: "Deposit",    status: "Completed",  amount: "+$500.00",   fee: "$0.00",  net: "+$500.00",
-    coin: "USDT", blockchain: "ERC-20", txHash: "0x4f3a…c91e", date: "2026-09-22", description: "Crypto deposit via ERC-20",
-  },
-  {
-    id: "2", txId: "TXN-20260920-00138", type: "Withdrawal", status: "Pending",     amount: "-$200.00",   fee: "$20.00", net: "-$180.00",
-    coin: "USDT", blockchain: "TRC-20", date: "2026-09-20", description: "Withdrawal to external wallet",
-  },
-  {
-    id: "3", txId: "TXN-20260918-00131", type: "Send",       status: "Completed",  amount: "-$100.10",   fee: "$0.10",  net: "-$100.00",
-    coin: "USD",  counterparty: "Alice Johnson", date: "2026-09-18", description: "Sent to Alice Johnson",
-  },
-  {
-    id: "4", txId: "TXN-20260916-00120", type: "Receive",    status: "Completed",  amount: "+$80.00",    fee: "$0.00",  net: "+$80.00",
-    coin: "USD",  counterparty: "Bob Martinez", date: "2026-09-16", description: "Received from Bob Martinez",
-  },
-  {
-    id: "5", txId: "TXN-20260914-00115", type: "Deposit",    status: "Confirming", amount: "+$1,000.00", fee: "$0.00",  net: "+$1,000.00",
-    coin: "USDC", blockchain: "BEP-20", txHash: "0x8b2d…f04c", date: "2026-09-14", description: "Crypto deposit via BEP-20",
-  },
-  {
-    id: "6", txId: "TXN-20260910-00101", type: "Withdrawal", status: "Rejected",   amount: "-$50.00",    fee: "$5.00",  net: "-$45.00",
-    coin: "USDT", blockchain: "ERC-20", date: "2026-09-10", description: "Withdrawal rejected — invalid address",
-  },
-  {
-    id: "7", txId: "TXN-20260908-00099", type: "Send",       status: "Failed",     amount: "-$30.10",    fee: "$0.10",  net: "-$30.00",
-    coin: "USD",  counterparty: "Unknown", date: "2026-09-08", description: "Send failed — recipient not found",
-  },
-  {
-    id: "8", txId: "TXN-20260901-00088", type: "Receive",    status: "Completed",  amount: "+$250.00",   fee: "$0.00",  net: "+$250.00",
-    coin: "USD",  counterparty: "Charlie Kim", date: "2026-09-01", description: "Received from Charlie Kim",
-  },
-];
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function statusTone(s: TxStatus): "success" | "warning" | "destructive" | "muted" | "default" {
-  const map: Record<TxStatus, "success" | "warning" | "destructive" | "muted" | "default"> = {
-    Completed:   "success",
-    Pending:     "warning",
-    Confirming:  "warning",
-    Processing:  "warning",
-    Failed:      "destructive",
-    Rejected:    "destructive",
-    Cancelled:   "muted",
-  };
-  return map[s];
+function StatusIcon({ status }: { status: TxnStatus }) {
+  if (status === "approved" || status === "completed") return <Check className="size-4 text-foreground" />;
+  if (status === "rejected" || status === "failed") return <X className="size-4 text-muted-foreground" />;
+  return <Clock className="size-4 text-muted-foreground" />;
 }
 
-function typeIcon(t: TxType) {
-  const cls = "size-4";
-  if (t === "Deposit")    return <ArrowDownLeft className={cls} />;
-  if (t === "Withdrawal") return <ArrowUpRight  className={cls} />;
-  if (t === "Send")       return <Send          className={cls} />;
-  if (t === "Receive")    return <ArrowDownLeft className={cls} />;
-  return <ChevronDown className={cls} />;
-}
-
-function typeBg(t: TxType) {
-  if (t === "Deposit" || t === "Receive") return "bg-success/10 text-success";
-  if (t === "Withdrawal" || t === "Send") return "bg-destructive/10 text-destructive";
-  return "bg-muted text-muted-foreground";
-}
-
-// ── Detail Drawer ──────────────────────────────────────────────────────────
-
-function TransactionDetailDrawer({ tx, onClose }: { tx: Transaction | null; onClose: () => void }) {
-  if (!tx) return null;
-  const rows: { label: string; value: string; mono?: boolean }[] = [
-    { label: "Transaction ID", value: tx.txId, mono: true },
-    { label: "Type",           value: tx.type },
-    { label: "Status",         value: tx.status },
-    { label: "Amount",         value: tx.amount },
-    { label: "Fee",            value: tx.fee },
-    { label: "Net Amount",     value: tx.net },
-    { label: "Coin",           value: tx.coin },
-    ...(tx.blockchain   ? [{ label: "Blockchain",   value: tx.blockchain }]              : []),
-    ...(tx.txHash       ? [{ label: "Tx Hash",      value: tx.txHash,  mono: true }]     : []),
-    ...(tx.counterparty ? [{ label: "Counterparty", value: tx.counterparty }]             : []),
-    { label: "Date",           value: tx.date },
-    { label: "Description",    value: tx.description },
-  ];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-4xl border border-border bg-card p-6 space-y-5 shadow-2xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`grid size-8 place-items-center rounded-xl ${typeBg(tx.type)}`}>
-              {typeIcon(tx.type)}
-            </div>
-            <p className="text-sm font-semibold text-foreground">{tx.type}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge label={tx.status} tone={statusTone(tx.status)} />
-            <button
-              type="button"
-              onClick={onClose}
-              className="grid size-7 place-items-center rounded-xl bg-muted text-muted-foreground hover:bg-muted/70 outline-none transition-colors"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Amount hero */}
-        <div className="text-center py-2">
-          <p className={`text-2xl font-bold ${tx.amount.startsWith("+") ? "text-success" : "text-destructive"}`}>
-            {tx.amount}
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5">{tx.description}</p>
-        </div>
-
-        {/* Rows */}
-        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-          {rows.map((row) => (
-            <div key={row.label} className="flex items-start justify-between gap-4 text-xs">
-              <span className="text-muted-foreground shrink-0">{row.label}</span>
-              <span className={`text-right font-medium text-foreground break-all ${row.mono ? "font-mono" : ""}`}>
-                {row.value}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full rounded-2xl bg-muted py-3 text-xs font-semibold text-foreground hover:bg-muted/70 transition-colors outline-none"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Filter Bar ─────────────────────────────────────────────────────────────
-
-const TYPE_FILTERS: { label: string; value: TxType | "All" }[] = [
-  { label: "All",        value: "All" },
-  { label: "Deposits",   value: "Deposit" },
-  { label: "Withdrawals",value: "Withdrawal" },
-  { label: "Sends",      value: "Send" },
-  { label: "Receives",   value: "Receive" },
-];
-
-const STATUS_OPTIONS: { label: string; value: TxStatus | "All" }[] = [
-  { label: "All Statuses",  value: "All" },
-  { label: "Completed",     value: "Completed" },
-  { label: "Pending",       value: "Pending" },
-  { label: "Failed",        value: "Failed" },
-  { label: "Rejected",      value: "Rejected" },
-  { label: "Confirming",    value: "Confirming" },
-];
-
-// ── Main Page ──────────────────────────────────────────────────────────────
-
-const PAGE_SIZE = 5;
+/* ────────────────────────────────────────────────────────────
+   Page
+──────────────────────────────────────────────────────────── */
 
 export default function FundHistoryPage() {
-  const [typeFilter, setTypeFilter]     = useState<TxType | "All">("All");
-  const [statusFilter, setStatusFilter] = useState<TxStatus | "All">("All");
-  const [search, setSearch]             = useState("");
-  const [page, setPage]                 = useState(1);
-  const [selected, setSelected]         = useState<Transaction | null>(null);
+  const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalEntry, setModalEntry] = useState<FundTxn | null>(null);
 
   const filtered = useMemo(() => {
-    let list = ALL_TRANSACTIONS;
-    if (typeFilter !== "All")   list = list.filter((t) => t.type === typeFilter);
-    if (statusFilter !== "All") list = list.filter((t) => t.status === statusFilter);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((t) =>
-        t.txId.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        (t.txHash ?? "").toLowerCase().includes(q) ||
-        (t.counterparty ?? "").toLowerCase().includes(q),
-      );
-    }
-    return list;
-  }, [typeFilter, statusFilter, search]);
+    if (activeTab === "all") return ALL_HISTORY;
+    return ALL_HISTORY.filter((t) => t.type === activeTab);
+  }, [activeTab]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const stats = useMemo(() => {
+    const deposited = ALL_HISTORY.filter((t) => t.type === "deposit" && t.status === "approved").reduce(
+      (s, t) => s + t.amount,
+      0
+    );
+    const withdrawn = ALL_HISTORY.filter((t) => t.type === "withdrawal" && t.status === "approved").reduce(
+      (s, t) => s + t.amount,
+      0
+    );
+    const sent = ALL_HISTORY.filter((t) => t.type === "send" && t.status === "completed").reduce(
+      (s, t) => s + t.amount,
+      0
+    );
+    return { deposited, withdrawn, sent };
+  }, []);
 
-  function resetPage() { setPage(1); }
+  const counts = useMemo(() => {
+    return {
+      all: ALL_HISTORY.length,
+      deposit: ALL_HISTORY.filter((t) => t.type === "deposit").length,
+      withdrawal: ALL_HISTORY.filter((t) => t.type === "withdrawal").length,
+      send: ALL_HISTORY.filter((t) => t.type === "send").length,
+    };
+  }, []);
 
   return (
-    <UserShell active="Fund">
-      <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8 space-y-8">
-
-        {/* Heading */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">Fund</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            Fund History
-          </h1>
-        </div>
-
-        {/* Summary stats */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: "Total Deposits",     value: "$1,500.00", tone: "text-success"     },
-            { label: "Total Withdrawals",  value: "$250.00",   tone: "text-destructive" },
-            { label: "Total Sent",         value: "$130.10",   tone: "text-destructive" },
-            { label: "Total Received",     value: "$330.00",   tone: "text-success"     },
-          ].map((s) => (
-            <Card key={s.label}>
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{s.label}</p>
-              <p className={`mt-1 text-lg font-semibold ${s.tone}`}>{s.value}</p>
-            </Card>
-          ))}
-        </div>
-
-        {/* Filters */}
-        <section aria-label="Filters">
-          {/* Type tabs */}
-          <div className="mb-3 flex overflow-x-auto gap-2 pb-1 scrollbar-hide">
-            {TYPE_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => { setTypeFilter(f.value); resetPage(); }}
-                className={`shrink-0 rounded-2xl px-4 py-2 text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                  typeFilter === f.value
-                    ? "bg-primary text-white"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+    <UserShell active="Fund History">
+      <div className="relative overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
+        <div className="mx-auto max-w-2xl space-y-6">
+          {/* Header */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Transactions</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Fund History
+            </h1>
           </div>
 
-          {/* Search + status */}
-          <div className="flex gap-2">
-            <div className="flex flex-1 items-center gap-2 rounded-2xl border border-border bg-muted/40 px-4 py-3 focus-within:border-primary transition-colors">
-              <Search className="size-4 text-muted-foreground shrink-0" />
-              <input
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); resetPage(); }}
-                placeholder="Search by ID, hash, counterparty…"
-                className="flex-1 bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground outline-none"
-              />
-              {search && (
-                <button type="button" onClick={() => { setSearch(""); resetPage(); }} className="text-muted-foreground hover:text-foreground">
-                  <X className="size-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Status select */}
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value as TxStatus | "All"); resetPage(); }}
-                className="appearance-none rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm font-medium text-foreground outline-none focus:border-primary transition-colors cursor-pointer pr-9"
-              >
-                {STATUS_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            </div>
-          </div>
-        </section>
-
-        {/* Transaction list */}
-        <section aria-label="Transactions">
-          {paginated.length === 0 ? (
-            <Card className="text-center py-8 text-muted-foreground text-sm">
-              No transactions match your filters.
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {paginated.map((tx) => (
-                <button
-                  key={tx.id}
-                  type="button"
-                  onClick={() => setSelected(tx)}
-                  className="w-full flex items-center gap-4 rounded-3xl border border-border bg-card px-5 py-4 text-left hover:bg-muted/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {/* Icon */}
-                  <div className={`grid size-9 place-items-center rounded-xl shrink-0 ${typeBg(tx.type)}`}>
-                    {typeIcon(tx.type)}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-foreground">{tx.type}</p>
-                      <Badge label={tx.status} tone={statusTone(tx.status)} />
-                    </div>
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">{tx.description}</p>
-                    <p className="font-mono text-[10px] text-muted-foreground mt-0.5">{tx.txId}</p>
-                  </div>
-
-                  {/* Amount + date */}
-                  <div className="text-right shrink-0">
-                    <p className={`text-sm font-semibold ${tx.amount.startsWith("+") ? "text-success" : "text-destructive"}`}>
-                      {tx.amount}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{tx.date}</p>
-                  </div>
-
-                  <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                Page {page} of {totalPages} &mdash; {filtered.length} transactions
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                  className="rounded-2xl bg-muted px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed outline-none transition-colors"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="rounded-2xl bg-muted px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed outline-none transition-colors"
-                >
-                  Next
-                </button>
+          {/* SUMMARY CARD — dark, white text */}
+          <div className="rounded-4xl bg-black p-6 text-white">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Deposited</div>
+                <div className="mt-1.5 text-lg font-semibold tracking-tight text-white sm:text-xl">
+                  ${stats.deposited.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Withdrawn</div>
+                <div className="mt-1.5 text-lg font-semibold tracking-tight text-white sm:text-xl">
+                  ${stats.withdrawn.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Sent</div>
+                <div className="mt-1.5 text-lg font-semibold tracking-tight text-white sm:text-xl">
+                  ${stats.sent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
-          )}
-        </section>
+          </div>
 
-        <div className="h-20" />
+          {/* Filter tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {FILTER_TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={[
+                    "flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-medium transition-colors",
+                    isActive
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                  ].join(" ")}
+                >
+                  {tab.label}
+                  <span
+                    className={[
+                      "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                      isActive ? "bg-background/20 text-background" : "bg-muted text-muted-foreground",
+                    ].join(" ")}
+                  >
+                    {counts[tab.id]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Transaction list */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">
+                {FILTER_TABS.find((t) => t.id === activeTab)?.label} Records
+              </h2>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ListFilter className="size-3.5" />
+                {filtered.length} {filtered.length === 1 ? "record" : "records"}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {filtered.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
+                  No {activeTab === "all" ? "" : FILTER_TABS.find((t) => t.id === activeTab)?.label.toLowerCase() + " "}
+                  records yet.
+                </div>
+              ) : (
+                filtered.map((t) => {
+                  const meta = TYPE_META[t.type];
+                  const Icon = meta.icon;
+                  return (
+                    <div key={t.id} className="flex items-center justify-between rounded-2xl border border-border p-3.5">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted">
+                          <Icon className="size-4 text-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-foreground">{meta.label}</span>
+                            <StatusBadge status={t.status} />
+                          </div>
+                          <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {t.date} · {t.coin}
+                            {t.network ? ` · ${t.network}` : ""}
+                            {t.counterparty && <span className="ml-1">· {t.counterparty}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-sm font-semibold text-foreground">
+                          {meta.sign}${t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setModalEntry(t);
+                            setModalOpen(true);
+                          }}
+                          className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          View →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* DETAIL MODAL */}
+        {modalOpen && modalEntry && (
+          <div
+            className="fixed inset-0 z-[900] flex items-end justify-center bg-foreground/30 backdrop-blur-sm sm:items-center"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setModalOpen(false);
+            }}
+          >
+            <div className="w-full max-w-md rounded-t-4xl border border-border bg-card p-6 sm:rounded-4xl">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {TYPE_META[modalEntry.type].label}
+                  </p>
+                  <h3 className="text-lg font-semibold text-foreground">Transaction Details</h3>
+                </div>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/70"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
+                  <StatusIcon status={modalEntry.status} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-xs text-foreground">{modalEntry.id}</div>
+                  <div className="text-xs text-muted-foreground">{modalEntry.date}</div>
+                </div>
+                <StatusBadge status={modalEntry.status} />
+              </div>
+
+              <div className="mb-4 rounded-2xl border border-border p-4">
+                <div className="flex items-center justify-between border-b border-border py-2 first:pt-0">
+                  <span className="text-xs text-muted-foreground">Type</span>
+                  <span className="text-sm font-medium text-foreground">{TYPE_META[modalEntry.type].label}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-border py-2">
+                  <span className="text-xs text-muted-foreground">Amount</span>
+                  <span className="text-sm font-medium text-foreground">
+                    {modalEntry.amount.toFixed(2)} {modalEntry.coin}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-b border-border py-2">
+                  <span className="text-xs text-muted-foreground">Fee</span>
+                  <span className="text-sm font-medium text-foreground">
+                    {modalEntry.fee > 0 ? `${modalEntry.type === "deposit" ? "" : "+ "}$${modalEntry.fee.toFixed(2)}` : "Free"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-b border-border py-2">
+                  <span className="text-xs text-muted-foreground">
+                    {modalEntry.type === "deposit" ? "Amount Credited" : modalEntry.type === "withdrawal" ? "Amount Received" : "Total Deducted"}
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {modalEntry.net.toFixed(2)} {modalEntry.coin}
+                  </span>
+                </div>
+                {modalEntry.network && (
+                  <div className="flex items-center justify-between border-b border-border py-2">
+                    <span className="text-xs text-muted-foreground">Network</span>
+                    <span className="text-sm font-medium text-foreground">{modalEntry.network}</span>
+                  </div>
+                )}
+                {modalEntry.counterparty && (
+                  <div className={`flex items-center justify-between py-2 ${modalEntry.note ? "border-b border-border" : ""}`}>
+                    <span className="text-xs text-muted-foreground">
+                      {modalEntry.type === "deposit" ? "From" : modalEntry.type === "withdrawal" ? "To Wallet" : "Recipient"}
+                    </span>
+                    <span className="max-w-[200px] truncate text-right text-sm font-medium text-foreground">
+                      {modalEntry.counterparty}
+                    </span>
+                  </div>
+                )}
+                {modalEntry.note && (
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-xs text-muted-foreground">Note</span>
+                    <span className="max-w-[200px] truncate text-right text-sm font-medium italic text-foreground">
+                      {modalEntry.note}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {(modalEntry.status === "rejected" || modalEntry.status === "failed") && modalEntry.reason && (
+                <div className="mb-4 rounded-2xl border border-border bg-muted/30 p-4">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {modalEntry.status === "rejected" ? "Rejection Reason" : "Failure Reason"}
+                  </p>
+                  <p className="text-sm text-foreground">{modalEntry.reason}</p>
+                </div>
+              )}
+
+              <button
+                onClick={() => setModalOpen(false)}
+                className="w-full rounded-2xl border border-border py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Detail drawer */}
-      <TransactionDetailDrawer tx={selected} onClose={() => setSelected(null)} />
     </UserShell>
   );
 }
