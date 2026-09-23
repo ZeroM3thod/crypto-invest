@@ -112,9 +112,9 @@ function FieldLabel({ children, hint }: { children: React.ReactNode; hint?: stri
 
 function StatusBadge({ status }: { status: WdHistory["status"] }) {
   const map: Record<WdHistory["status"], string> = {
-    approved: "bg-foreground/10 text-foreground",
+    approved: "bg-success/10 text-success",
     pending: "bg-muted text-muted-foreground",
-    rejected: "bg-foreground/5 text-muted-foreground line-through",
+    rejected: "bg-destructive/10 text-destructive",
   };
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${map[status]}`}>
@@ -247,8 +247,8 @@ export default function WithdrawPage() {
       <div className="relative overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
         {/* Toast */}
         {toast.show && (
-          <div className="fixed right-6 top-6 z-[999] flex items-center gap-2 rounded-2xl border border-border bg-foreground px-4 py-3 text-sm font-medium text-background shadow-lg">
-            <Check className="size-4" />
+          <div className="fixed right-6 top-6 z-[999] flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground shadow-lg">
+            <Check className="size-4 text-success" />
             {toast.msg}
           </div>
         )}
@@ -262,22 +262,22 @@ export default function WithdrawPage() {
             </h1>
           </div>
 
-          {/* BALANCE CARD — dark, white text, matches other dark cards */}
-          <div className="rounded-4xl bg-black p-6 text-white">
+          {/* BALANCE CARD — theme dark surface, no pure black */}
+          <div className="rounded-4xl bg-foreground p-6 text-background">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/50">
+                <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-background/50">
                   Available for Withdrawal
                 </div>
-                <div className="mt-1.5 text-3xl font-semibold tracking-tight text-white">
+                <div className="mt-1.5 text-3xl font-semibold tracking-tight text-background">
                   ${availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className="mt-1 text-xs text-white/50">Main wallet balance</div>
+                <div className="mt-1 text-xs text-background/50">Main wallet balance</div>
               </div>
               <div className="text-right">
-                <div className="text-[11px] font-medium uppercase tracking-wide text-white/40">Network</div>
-                <div className="mt-1.5 text-sm text-white/70">BEP-20</div>
-                <div className="mt-0.5 text-xs text-white/40">USDT / USDC</div>
+                <div className="text-[11px] font-medium uppercase tracking-wide text-background/40">Network</div>
+                <div className="mt-1.5 text-sm text-background/70">BEP-20</div>
+                <div className="mt-0.5 text-xs text-background/40">USDT / USDC</div>
               </div>
             </div>
           </div>
@@ -423,7 +423,7 @@ export default function WithdrawPage() {
               </div>
               <div className="flex items-center justify-between pt-2">
                 <span className="text-xs text-muted-foreground">You Receive</span>
-                <span className="text-sm font-semibold text-foreground">
+                <span className="text-sm font-semibold text-success">
                   {wdAmt ? `${previewReceive.toFixed(2)} ${coin}` : "—"}
                 </span>
               </div>
@@ -632,8 +632,8 @@ export default function WithdrawPage() {
               </div>
 
               {modalEntry.status === "rejected" && modalEntry.reason && (
-                <div className="mb-4 rounded-2xl border border-border bg-muted/30 p-4">
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="mb-4 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-destructive">
                     Rejection Reason
                   </p>
                   <p className="text-sm text-foreground">{modalEntry.reason}</p>
