@@ -85,7 +85,7 @@ const ROUTES: Record<string, string> = {
   "Fund":         "/fund",
   "Deposit":      "/fund/deposit",
   "Withdraw":     "/fund/withdraw",
-  "Transfer":     "/fund/transfer",
+  "Send":     "/fund/send",
   "Fund History": "/fund/history",
   // Referral
   "Referral":           "/referral/dashboard",

@@ -6,17 +6,17 @@ import {
   CandlestickChart,
   Home,
   Landmark,
-  Moon,
-  Sun,
   Wallet,
 } from "lucide-react";
-import { useState } from "react";
+import { motion } from "motion/react";
+import { useRef, useState } from "react";
 
-import Avatar8 from "@/components/base-ui/avatar";
+import {
+  type OverflowActionItem,
+  OverflowActions,
+} from "@/components/motion/overflow-actions";
 
-import { Dock, DockItem, DockSeparator } from "@/components/motion/dock";
-
-const ITEMS = [
+const NAV_ITEMS = [
   { id: "home", icon: Home, label: "Home" },
   { id: "investment", icon: BriefcaseBusiness, label: "Investment" },
   { id: "trading", icon: CandlestickChart, label: "Trading" },
@@ -26,49 +26,53 @@ const ITEMS = [
 
 export function GlobalDock() {
   const [active, setActive] = useState("home");
-  const [isDark, setIsDark] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const constraintsRef = useRef<HTMLDivElement>(null);
 
-  const toggleTheme = () => {
-    setIsDark((prev) => !prev);
-    document.documentElement.classList.toggle("dark");
-  };
+  // All 5 nav icons live in the overflow group, and primaryActions stays
+  // empty — so collapsed state shows ONLY the 3-dot toggle button.
+  const overflowActions: OverflowActionItem[] = NAV_ITEMS.map(
+    ({ id, icon: Icon, label }) => ({
+      id,
+      label,
+      ariaLabel: label,
+      icon: (
+        <Icon
+          className={
+            active === id
+              ? "h-4 w-4 text-primary"
+              : "h-4 w-4 text-foreground"
+          }
+        />
+      ),
+      onClick: () => setActive(id),
+    }),
+  );
 
   return (
-    <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2">
-      <Dock size={42}>
-        {ITEMS.map(({ id, icon: Icon, label }) => (
-          <DockItem
-            key={id}
-            aria-label={label}
-            active={active === id}
-            onClick={() => setActive(id)}
-          >
-            <Icon className="h-5 w-5" />
-          </DockItem>
-        ))}
-
-        <DockSeparator />
-
-        <DockItem
-          aria-label={isDark ? "Day Theme" : "Night Theme"}
-          active={false}
-          onClick={toggleTheme}
-        >
-          {isDark ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-        </DockItem>
-
-        <DockItem
-          aria-label="Profile"
-          active={active === "profile"}
-          onClick={() => setActive("profile")}
-        >
-          <Avatar8 />
-        </DockItem>
-      </Dock>
+    <div
+      ref={constraintsRef}
+      className="pointer-events-none fixed inset-0 z-50"
+    >
+      <motion.div
+        drag
+        dragMomentum={false}
+        dragElastic={0.06}
+        dragConstraints={constraintsRef}
+        whileDrag={{ cursor: "grabbing" }}
+        initial={false}
+        className="pointer-events-auto absolute bottom-8 left-1/2 -translate-x-1/2 cursor-grab active:cursor-grabbing"
+      >
+        <OverflowActions
+          primaryActions={[]}
+          overflowActions={overflowActions}
+          expanded={expanded}
+          onExpandedChange={setExpanded}
+          collapseOnAction={false}
+          openLabel="Open navigation"
+          closeLabel="Close navigation"
+        />
+      </motion.div>
     </div>
   );
 }
