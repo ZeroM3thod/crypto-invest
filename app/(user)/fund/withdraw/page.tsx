@@ -2,10 +2,94 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
-import { ArrowUpRight, ChevronDown, X, AlertTriangle } from "lucide-react";
 import { useState } from "react";
+import { AlertTriangle, Check, Wallet, X } from "lucide-react";
 
-// ── Shared primitives ──────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────
+   Types
+──────────────────────────────────────────────────────────── */
+
+type Coin = "USDT" | "USDC";
+
+interface WdHistory {
+  id: string;
+  date: string;
+  amount: number;
+  fee: number;
+  receive: number;
+  coin: Coin;
+  network: string;
+  wallet: string;
+  status: "approved" | "pending" | "rejected";
+  note?: string;
+  reason?: string;
+}
+
+interface ConfirmDetails {
+  amt: number;
+  fee: number;
+  recv: number;
+  coin: Coin;
+  addr: string;
+  note: string;
+  shortAddr: string;
+}
+
+/* Placeholder data — wire these to your real API/backend later */
+const MAIN_WALLET_BALANCE = 1250.0;
+const WITHDRAW_FEE_RATE = 0.1; // 10%
+
+const COINS: { id: Coin; name: string; symbol: string }[] = [
+  { id: "USDT", name: "Tether USD", symbol: "₮" },
+  { id: "USDC", name: "USD Coin", symbol: "$" },
+];
+
+const ADDRESS_PLACEHOLDER: Record<Coin, string> = {
+  USDT: "Enter your USDT BEP-20 wallet address (e.g. 0xA73e...c0e7)",
+  USDC: "Enter your USDC BEP-20 wallet address (e.g. 0x91Cd...0a19)",
+};
+
+const INITIAL_HISTORY: WdHistory[] = [
+  {
+    id: "9F2A7C31",
+    date: "Jul 16, 2025",
+    amount: 200,
+    fee: 20,
+    receive: 180,
+    coin: "USDT",
+    network: "BEP-20",
+    wallet: "0xa73e40...c7c0e7",
+    status: "approved",
+  },
+  {
+    id: "4B8E1D02",
+    date: "Jul 11, 2025",
+    amount: 75,
+    fee: 7.5,
+    receive: 67.5,
+    coin: "USDC",
+    network: "BEP-20",
+    wallet: "0x91cd22...5f0a19",
+    status: "pending",
+    note: "Monthly cash-out",
+  },
+  {
+    id: "1C5F9A44",
+    date: "Jul 3, 2025",
+    amount: 40,
+    fee: 4,
+    receive: 36,
+    coin: "USDT",
+    network: "BEP-20",
+    wallet: "0x77ab90...2e4b31",
+    status: "rejected",
+    reason: "Wallet address did not match verified profile records.",
+  },
+];
+
+/* ────────────────────────────────────────────────────────────
+   Small UI primitives (b/w/gray)
+──────────────────────────────────────────────────────────── */
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
@@ -15,375 +99,557 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
+function FieldLabel({ children, hint }: { children: React.ReactNode; hint?: string }) {
   return (
-    <div className="mb-4">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+    <div className="mb-1.5 flex items-baseline gap-2">
+      <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        {children}
+      </span>
+      {hint && <span className="text-[11px] normal-case tracking-normal text-muted-foreground/70">{hint}</span>}
     </div>
   );
 }
 
-function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" | "warning" }) {
-  const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
-    success:     "bg-success/10 text-success",
-    destructive: "bg-destructive/10 text-destructive",
-    muted:       "bg-muted text-muted-foreground",
-    warning:     "bg-yellow-500/10 text-yellow-500",
+function StatusBadge({ status }: { status: WdHistory["status"] }) {
+  const map: Record<WdHistory["status"], string> = {
+    approved: "bg-foreground/10 text-foreground",
+    pending: "bg-muted text-muted-foreground",
+    rejected: "bg-foreground/5 text-muted-foreground line-through",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}>
-      {label}
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${map[status]}`}>
+      {status}
     </span>
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
-      {children}
-    </p>
-  );
+function calcFeeAndReceive(amount: number) {
+  const fee = +(amount * WITHDRAW_FEE_RATE).toFixed(2);
+  const receive = +(amount - fee).toFixed(2);
+  return { fee, receive };
 }
 
-function FieldInput({
-  value, onChange, placeholder, type = "text", suffix,
-}: {
-  value: string; onChange: (v: string) => void;
-  placeholder?: string; type?: string; suffix?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/40 px-4 py-3 focus-within:border-primary transition-colors">
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="flex-1 bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground outline-none"
-      />
-      {suffix}
-    </div>
-  );
-}
-
-function FieldSelect({
-  value, onChange, options,
-}: {
-  value: string; onChange: (v: string) => void;
-  options: { label: string; value: string }[];
-}) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm font-medium text-foreground outline-none focus:border-primary transition-colors cursor-pointer pr-10"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-    </div>
-  );
-}
-
-// ── Confirmation Dialog ────────────────────────────────────────────────────
-
-function WithdrawConfirmDialog({
-  open, onClose, onConfirm, data,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  data: {
-    amount: number;
-    fee: number;
-    net: number;
-    coin: string;
-    blockchain: string;
-    address: string;
-  };
-}) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-4xl border border-border bg-card p-6 space-y-5 shadow-2xl">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-foreground">Confirm Withdrawal</p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid size-7 place-items-center rounded-xl bg-muted text-muted-foreground hover:bg-muted/70 outline-none transition-colors"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          {[
-            { label: "Withdrawal Amount", value: `$${data.amount.toFixed(2)}` },
-            { label: "Withdrawal Fee (10%)", value: `-$${data.fee.toFixed(2)}`, negative: true },
-            { label: "Net Withdrawal", value: `$${data.net.toFixed(2)}`, strong: true },
-            { label: "Coin", value: data.coin },
-            { label: "Blockchain", value: data.blockchain },
-            { label: "Withdrawal Address", value: data.address, mono: true },
-            { label: "Review Time", value: "Up to 72 hours" },
-            { label: "Status", value: "Pending Review" },
-          ].map((row) => (
-            <div key={row.label} className="flex items-start justify-between gap-4 text-xs">
-              <span className="text-muted-foreground shrink-0">{row.label}</span>
-              <span className={`text-right break-all font-medium ${row.negative ? "text-destructive" : row.strong ? "text-foreground font-semibold" : "text-foreground"} ${row.mono ? "font-mono" : ""}`}>
-                {row.value}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-start gap-2 rounded-2xl bg-yellow-500/5 border border-yellow-500/20 p-3">
-          <AlertTriangle className="size-4 text-yellow-500 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-yellow-600 dark:text-yellow-400 leading-relaxed">
-            Withdrawals are reviewed within 72 hours. Funds will be reserved until processing is complete.
-          </p>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-2xl bg-muted py-3 text-xs font-semibold text-foreground hover:bg-muted/70 transition-colors outline-none"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="flex-1 rounded-2xl bg-primary py-3 text-xs font-semibold text-white hover:bg-primary/90 transition-colors outline-none"
-          >
-            Confirm Withdrawal
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Success Dialog ─────────────────────────────────────────────────────────
-
-function WithdrawSuccessDialog({ open, onClose, refId }: { open: boolean; onClose: () => void; refId: string }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-4xl border border-border bg-card p-6 space-y-5 shadow-2xl text-center">
-        <div className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary mx-auto">
-          <ArrowUpRight className="size-6" />
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-foreground">Withdrawal Submitted</p>
-          <p className="mt-1 text-xs text-muted-foreground">Your withdrawal request is pending review.</p>
-        </div>
-        <div className="rounded-2xl bg-muted/40 px-4 py-3 space-y-1">
-          <p className="text-[11px] text-muted-foreground">Reference ID</p>
-          <p className="font-mono text-xs font-semibold text-foreground">{refId}</p>
-        </div>
-        <Badge label="Pending Review" tone="warning" />
-        <p className="text-[11px] text-muted-foreground">
-          Your withdrawal may take up to 72 hours to review and process.
-        </p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full rounded-2xl bg-primary py-3 text-xs font-semibold text-white hover:bg-primary/90 transition-colors outline-none"
-        >
-          View Fund History
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Constants ──────────────────────────────────────────────────────────────
-
-const COIN_OPTIONS = [
-  { label: "USDT — Tether",   value: "USDT" },
-  { label: "USDC — USD Coin", value: "USDC" },
-];
-
-const BLOCKCHAIN_OPTIONS: Record<string, { label: string; value: string }[]> = {
-  USDT: [
-    { label: "Ethereum (ERC-20)", value: "ERC20" },
-    { label: "Tron (TRC-20)",     value: "TRC20" },
-    { label: "BNB Smart Chain",   value: "BEP20" },
-  ],
-  USDC: [
-    { label: "Ethereum (ERC-20)", value: "ERC20" },
-    { label: "BNB Smart Chain",   value: "BEP20" },
-  ],
-};
-
-const FEE_RATE = 0.10;
-const AVAILABLE_BALANCE = 1250.00; // Replace with real balance from API
-
-// ── Main Page ──────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────
+   Page
+──────────────────────────────────────────────────────────── */
 
 export default function WithdrawPage() {
-  const [amount, setAmount]         = useState("");
-  const [coin, setCoin]             = useState("USDT");
-  const [blockchain, setBlockchain] = useState("ERC20");
-  const [address, setAddress]       = useState("");
-  const [error, setError]           = useState("");
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [refId] = useState(`WD-${Date.now()}`);
+  const [coin, setCoin] = useState<Coin>("USDT");
+  const [wdAmt, setWdAmt] = useState("");
+  const [wdAddr, setWdAddr] = useState("");
+  const [wdNote, setWdNote] = useState("");
+  const [selectedChip, setSelectedChip] = useState<number | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDetails, setConfirmDetails] = useState<ConfirmDetails | null>(null);
+  const [history, setHistory] = useState<WdHistory[]>(INITIAL_HISTORY);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalEntry, setModalEntry] = useState<WdHistory | null>(null);
+  const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
+  const [submitting, setSubmitting] = useState(false);
 
-  const amountNum = parseFloat(amount) || 0;
-  const fee       = amountNum * FEE_RATE;
-  const net       = amountNum - fee;
+  const availableBalance = MAIN_WALLET_BALANCE; // Main wallet balance, shown as-is
 
-  function handleCoinChange(c: string) {
-    setCoin(c);
-    setBlockchain(BLOCKCHAIN_OPTIONS[c]?.[0]?.value ?? "ERC20");
-  }
+  const parsedAmt = parseFloat(wdAmt) || 0;
+  const { fee: previewFee, receive: previewReceive } = calcFeeAndReceive(parsedAmt);
 
-  function validate() {
-    if (!amount || isNaN(amountNum)) return "Please enter a valid amount.";
-    if (amountNum < 10)              return "Minimum withdrawal is $10.";
-    if (amountNum > AVAILABLE_BALANCE) return "Amount exceeds available balance.";
-    if (!address.trim())             return "Please enter a withdrawal address.";
-    return "";
-  }
+  const showToast = (msg: string) => {
+    setToast({ msg, show: true });
+    setTimeout(() => setToast((t) => ({ ...t, show: false })), 3000);
+  };
 
-  function handleProceed() {
-    const err = validate();
-    if (err) { setError(err); return; }
-    setError("");
-    setShowConfirm(true);
-  }
+  const onAmtChange = (v: string) => {
+    setWdAmt(v);
+    setSelectedChip(null);
+  };
 
-  function handleConfirm() {
-    setShowConfirm(false);
-    setShowSuccess(true);
-  }
+  const selectAmt = (v: number) => {
+    setSelectedChip(v);
+    setWdAmt(String(v));
+  };
 
-  const blockchainLabel = BLOCKCHAIN_OPTIONS[coin]?.find((b) => b.value === blockchain)?.label ?? blockchain;
+  const openConfirm = () => {
+    const amt = parseFloat(wdAmt);
+    const addr = wdAddr.trim();
+    const note = wdNote.trim();
+
+    if (!amt || amt < 10) {
+      showToast("Please enter a valid amount (min $10)");
+      return;
+    }
+    if (amt > availableBalance) {
+      showToast(`Amount exceeds available balance ($${availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })})`);
+      return;
+    }
+    if (!addr) {
+      showToast("Please enter your wallet address");
+      return;
+    }
+    if (addr.length < 26) {
+      showToast("Wallet address seems invalid");
+      return;
+    }
+
+    const { fee, receive } = calcFeeAndReceive(amt);
+    const shortAddr = addr.length > 20 ? addr.slice(0, 10) + "..." + addr.slice(-6) : addr;
+    setConfirmDetails({ amt, fee, recv: receive, coin, addr, note, shortAddr });
+    setConfirmOpen(true);
+  };
+
+  const submitWithdrawal = async () => {
+    if (!confirmDetails) return;
+    setSubmitting(true);
+    try {
+      // TODO: replace with your real API call, e.g.:
+      // const res = await fetch("/api/withdrawals", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({
+      //     amount: confirmDetails.amt,
+      //     fee: confirmDetails.fee,
+      //     receive: confirmDetails.recv,
+      //     coin: confirmDetails.coin,
+      //     address: confirmDetails.addr,
+      //     network: "BEP-20",
+      //     note: confirmDetails.note || null,
+      //   }),
+      // });
+      // if (!res.ok) throw new Error("Submission failed");
+
+      const newEntry: WdHistory = {
+        id: crypto.randomUUID().slice(0, 8).toUpperCase(),
+        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        amount: confirmDetails.amt,
+        fee: confirmDetails.fee,
+        receive: confirmDetails.recv,
+        coin: confirmDetails.coin,
+        network: "BEP-20",
+        wallet: confirmDetails.shortAddr,
+        status: "pending",
+        note: confirmDetails.note || undefined,
+      };
+      setHistory((prev) => [newEntry, ...prev]);
+
+      showToast("Withdrawal submitted — pending admin approval");
+      setConfirmOpen(false);
+      setWdAmt("");
+      setWdAddr("");
+      setWdNote("");
+      setSelectedChip(null);
+    } catch (err: any) {
+      showToast(`Error: ${err.message || "Submission failed"}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <UserShell active="Fund">
-      <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8 space-y-8">
+    <UserShell active="Withdraw">
+      <div className="relative overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
+        {/* Toast */}
+        {toast.show && (
+          <div className="fixed right-6 top-6 z-[999] flex items-center gap-2 rounded-2xl border border-border bg-foreground px-4 py-3 text-sm font-medium text-background shadow-lg">
+            <Check className="size-4" />
+            {toast.msg}
+          </div>
+        )}
 
-        {/* Heading */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">Fund</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            Withdraw
-          </h1>
-        </div>
+        <div className="mx-auto max-w-2xl space-y-6">
+          {/* Header */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Transactions</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Request a Withdrawal
+            </h1>
+          </div>
 
-        {/* Available Balance */}
-        <section aria-label="Available Balance">
-          <Card className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Available Balance
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-foreground">
-                ${AVAILABLE_BALANCE.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Main Wallet</p>
+          {/* BALANCE CARD — dark, white text, matches other dark cards */}
+          <div className="rounded-4xl bg-black p-6 text-white">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/50">
+                  Available for Withdrawal
+                </div>
+                <div className="mt-1.5 text-3xl font-semibold tracking-tight text-white">
+                  ${availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="mt-1 text-xs text-white/50">Main wallet balance</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-white/40">Network</div>
+                <div className="mt-1.5 text-sm text-white/70">BEP-20</div>
+                <div className="mt-0.5 text-xs text-white/40">USDT / USDC</div>
+              </div>
             </div>
-            <div className="grid size-10 place-items-center rounded-2xl bg-primary/10 text-primary">
-              <ArrowUpRight className="size-5" />
-            </div>
-          </Card>
-        </section>
+          </div>
 
-        {/* Withdraw Form */}
-        <section aria-label="Withdrawal Details">
-          <SectionHeader title="Withdrawal Details" />
-          <Card className="space-y-5">
+          {/* WITHDRAWAL FORM */}
+          <Card>
+            <FieldLabel>New Request</FieldLabel>
+            <h2 className="mb-5 text-lg font-semibold text-foreground">Withdrawal Details</h2>
 
-            {/* Amount */}
-            <div>
-              <Label>Withdrawal Amount</Label>
-              <FieldInput
-                type="number"
-                value={amount}
-                onChange={(v) => { setAmount(v); setError(""); }}
-                placeholder="Minimum $10.00"
-                suffix={<span className="text-xs font-semibold text-foreground">{coin}</span>}
-              />
-              {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
-              <p className="mt-1.5 text-[11px] text-muted-foreground">Minimum withdrawal: $10.00</p>
-            </div>
-
-            {/* Coin */}
-            <div>
-              <Label>Select Coin</Label>
-              <FieldSelect value={coin} onChange={handleCoinChange} options={COIN_OPTIONS} />
-            </div>
-
-            {/* Blockchain */}
-            <div>
-              <Label>Select Blockchain</Label>
-              <FieldSelect
-                value={blockchain}
-                onChange={setBlockchain}
-                options={BLOCKCHAIN_OPTIONS[coin] ?? []}
-              />
-            </div>
-
-            {/* Address */}
-            <div>
-              <Label>Withdrawal Address</Label>
-              <FieldInput
-                value={address}
-                onChange={(v) => { setAddress(v); setError(""); }}
-                placeholder="Enter external wallet address"
-              />
-            </div>
-
-            {/* Fee Summary */}
-            {amountNum > 0 && (
-              <div className="rounded-2xl bg-muted/40 p-4 space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Fee Summary</p>
-                {[
-                  { label: "Withdrawal Amount", value: `$${amountNum.toFixed(2)}` },
-                  { label: "Fee (10%)",          value: `-$${fee.toFixed(2)}`,       cls: "text-destructive" },
-                  { label: "Net Amount",         value: `$${net.toFixed(2)}`,        cls: "text-foreground font-semibold" },
-                ].map((row) => (
-                  <div key={row.label} className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">{row.label}</span>
-                    <span className={row.cls ?? "text-foreground font-medium"}>{row.value}</span>
-                  </div>
+            {/* Coin switch */}
+            <div className="mb-5">
+              <FieldLabel>Coin</FieldLabel>
+              <div className="grid grid-cols-2 gap-2">
+                {COINS.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setCoin(c.id);
+                      setWdAddr("");
+                    }}
+                    className={[
+                      "flex items-center gap-3 rounded-2xl border p-3 text-left transition-colors",
+                      coin === c.id
+                        ? "border-foreground bg-foreground/5"
+                        : "border-border hover:border-foreground/40",
+                    ].join(" ")}
+                  >
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground">
+                      {c.symbol}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-foreground">{c.id}</div>
+                      <div className="truncate text-xs text-muted-foreground">{c.name}</div>
+                    </div>
+                    {coin === c.id && <Check className="ml-auto size-4 shrink-0 text-foreground" />}
+                  </button>
                 ))}
               </div>
-            )}
+            </div>
+
+            {/* Amount */}
+            <div className="mb-5">
+              <FieldLabel>Withdrawal Amount ({coin})</FieldLabel>
+              <div className="mb-2.5 flex flex-wrap gap-2">
+                {[100, 250, 500, 1000].map((v) => {
+                  const disabled = v > availableBalance;
+                  return (
+                    <button
+                      key={v}
+                      onClick={() => selectAmt(v)}
+                      disabled={disabled}
+                      className={[
+                        "rounded-xl border px-4 py-2 text-sm font-medium transition-colors",
+                        disabled
+                          ? "cursor-not-allowed border-border text-muted-foreground opacity-40"
+                          : selectedChip === v
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border text-foreground hover:border-foreground/40",
+                      ].join(" ")}
+                    >
+                      ${v.toLocaleString()}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                type="number"
+                min={10}
+                placeholder="Enter amount e.g. 300"
+                value={wdAmt}
+                onChange={(e) => onAmtChange(e.target.value)}
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
+              />
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>Minimum: $10</span>
+                <span>
+                  Available:{" "}
+                  <strong className="font-semibold text-foreground">
+                    ${availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </strong>
+                </span>
+                <span>Fee: <strong className="font-semibold text-foreground">10%</strong></span>
+              </div>
+            </div>
+
+            {/* Wallet address */}
+            <div className="mb-5">
+              <FieldLabel>Receiving Wallet Address</FieldLabel>
+              <input
+                type="text"
+                placeholder={ADDRESS_PLACEHOLDER[coin]}
+                value={wdAddr}
+                onChange={(e) => setWdAddr(e.target.value)}
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Only {coin} on BNB Smart Chain (BEP-20) is supported.
+              </p>
+            </div>
+
+            {/* Network info */}
+            <div className="mb-5">
+              <FieldLabel>Network</FieldLabel>
+              <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                  <Wallet className="size-4 text-foreground" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground">BNB Smart Chain — BEP-20</div>
+                  <div className="text-xs text-muted-foreground">Fee: 10% · Time: 24–72 hours</div>
+                </div>
+                <span className="shrink-0 rounded-full bg-foreground/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground">
+                  {coin}
+                </span>
+              </div>
+            </div>
+
+            {/* Note */}
+            <div className="mb-5">
+              <FieldLabel hint="(optional — visible to admin)">Note</FieldLabel>
+              <textarea
+                placeholder="Any note for this withdrawal (e.g. reason, reference)"
+                value={wdNote}
+                onChange={(e) => setWdNote(e.target.value)}
+                rows={3}
+                className="w-full resize-y rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
+              />
+            </div>
+
+            {/* Summary */}
+            <div className="mb-5 rounded-2xl border border-border p-4">
+              <div className="flex items-center justify-between border-b border-border py-2 first:pt-0">
+                <span className="text-xs text-muted-foreground">You Request</span>
+                <span className="text-sm font-medium text-foreground">
+                  {wdAmt ? `${parsedAmt.toFixed(2)} ${coin}` : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-b border-border py-2">
+                <span className="text-xs text-muted-foreground">Withdrawal Fee (10%)</span>
+                <span className="text-sm font-medium text-foreground">
+                  {wdAmt ? `− ${previewFee.toFixed(2)} ${coin}` : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-xs text-muted-foreground">You Receive</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {wdAmt ? `${previewReceive.toFixed(2)} ${coin}` : "—"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mb-5 flex items-start gap-2 rounded-2xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                A 10% withdrawal fee applies to all requests. Processing typically takes{" "}
+                <strong className="text-foreground">24–72 hours</strong> after approval. Please double-check
+                your wallet address before submitting — requests cannot be cancelled once approved.
+              </span>
+            </div>
 
             <button
-              type="button"
-              onClick={handleProceed}
-              className="w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={openConfirm}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-foreground py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90"
             >
-              Review Withdrawal
+              Request Withdrawal →
             </button>
           </Card>
-        </section>
 
-        <div className="h-20" />
+          {/* WITHDRAWAL HISTORY */}
+          <div>
+            <h2 className="mb-4 text-sm font-semibold text-foreground">Withdrawal History</h2>
+            <div className="flex flex-col gap-2">
+              {history.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
+                  No withdrawal records yet.
+                </div>
+              ) : (
+                history.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between rounded-2xl border border-border p-3.5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted">
+                        <Wallet className="size-4 text-foreground" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs text-foreground">{d.id}</span>
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                            {d.coin}
+                          </span>
+                          <StatusBadge status={d.status} />
+                        </div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {d.date} · {d.wallet}
+                          {d.note && <span className="ml-1.5 italic text-muted-foreground/80">· "{d.note}"</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-semibold text-foreground">
+                        −${d.amount.toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        recv. ${d.receive.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setModalEntry(d);
+                          setModalOpen(true);
+                        }}
+                        className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        View →
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* CONFIRM MODAL */}
+        {confirmOpen && (
+          <div
+            className="fixed inset-0 z-[900] flex items-end justify-center bg-foreground/30 backdrop-blur-sm sm:items-center"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setConfirmOpen(false);
+            }}
+          >
+            <div className="w-full max-w-md rounded-t-4xl border border-border bg-card p-6 sm:rounded-4xl">
+              <div className="mb-5">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Review</p>
+                <h3 className="text-lg font-semibold text-foreground">Confirm Withdrawal</h3>
+              </div>
+
+              {confirmDetails && (
+                <div className="mb-4 rounded-2xl border border-border p-4">
+                  <div className="flex items-center justify-between border-b border-border py-2 first:pt-0">
+                    <span className="text-xs text-muted-foreground">Amount</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {confirmDetails.amt.toFixed(2)} {confirmDetails.coin}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-border py-2">
+                    <span className="text-xs text-muted-foreground">Fee (10%)</span>
+                    <span className="text-sm font-medium text-foreground">
+                      − {confirmDetails.fee.toFixed(2)} {confirmDetails.coin}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-border py-2">
+                    <span className="text-xs text-muted-foreground">You Receive</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {confirmDetails.recv.toFixed(2)} {confirmDetails.coin}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-border py-2">
+                    <span className="text-xs text-muted-foreground">To Wallet</span>
+                    <span className="text-sm font-medium text-foreground">{confirmDetails.shortAddr}</span>
+                  </div>
+                  <div className={`flex items-center justify-between py-2 ${confirmDetails.note ? "border-b border-border" : ""}`}>
+                    <span className="text-xs text-muted-foreground">Network</span>
+                    <span className="text-sm font-medium text-foreground">BNB Smart Chain</span>
+                  </div>
+                  {confirmDetails.note && (
+                    <div className="flex items-center justify-between py-2">
+                      <span className="text-xs text-muted-foreground">Note</span>
+                      <span className="max-w-[200px] truncate text-right text-sm font-medium text-foreground">
+                        {confirmDetails.note}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mb-5 flex items-start gap-2 rounded-2xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  Once submitted, this request cannot be cancelled. Funds will be sent to your provided wallet
+                  address within 24–72 hours after admin approval.
+                </span>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmOpen(false)}
+                  className="flex-1 rounded-2xl border border-border py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitWithdrawal}
+                  disabled={submitting}
+                  className="flex-1 rounded-2xl bg-foreground py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {submitting ? "Submitting…" : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DETAIL MODAL */}
+        {modalOpen && modalEntry && (
+          <div
+            className="fixed inset-0 z-[900] flex items-end justify-center bg-foreground/30 backdrop-blur-sm sm:items-center"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setModalOpen(false);
+            }}
+          >
+            <div className="w-full max-w-md rounded-t-4xl border border-border bg-card p-6 sm:rounded-4xl">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Transaction</p>
+                  <h3 className="text-lg font-semibold text-foreground">Withdrawal Details</h3>
+                </div>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/70"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              <div className="mb-4 rounded-2xl border border-border p-4">
+                {[
+                  ["Transaction ID", modalEntry.id],
+                  ["Date", modalEntry.date],
+                  ["Coin", modalEntry.coin],
+                  ["Amount Requested", `${modalEntry.amount.toFixed(2)} ${modalEntry.coin}`],
+                  ["Withdrawal Fee (10%)", `− ${modalEntry.fee.toFixed(2)} ${modalEntry.coin}`],
+                  ["Amount to Receive", `${modalEntry.receive.toFixed(2)} ${modalEntry.coin}`],
+                  ["Network", modalEntry.network],
+                  ["Wallet", modalEntry.wallet],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between border-b border-border py-2 last:border-none">
+                    <span className="text-xs text-muted-foreground">{k}</span>
+                    <span className="max-w-[200px] truncate text-right text-sm font-medium text-foreground">{v}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  <StatusBadge status={modalEntry.status} />
+                </div>
+                {modalEntry.note && (
+                  <div className="flex items-center justify-between border-t border-border pt-2">
+                    <span className="text-xs text-muted-foreground">Note</span>
+                    <span className="max-w-[200px] truncate text-right text-sm font-medium italic text-foreground">
+                      {modalEntry.note}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {modalEntry.status === "rejected" && modalEntry.reason && (
+                <div className="mb-4 rounded-2xl border border-border bg-muted/30 p-4">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Rejection Reason
+                  </p>
+                  <p className="text-sm text-foreground">{modalEntry.reason}</p>
+                </div>
+              )}
+
+              <button
+                onClick={() => setModalOpen(false)}
+                className="w-full rounded-2xl border border-border py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Dialogs */}
-      <WithdrawConfirmDialog
-        open={showConfirm}
-        onClose={() => setShowConfirm(false)}
-        onConfirm={handleConfirm}
-        data={{ amount: amountNum, fee, net, coin, blockchain: blockchainLabel, address }}
-      />
-      <WithdrawSuccessDialog
-        open={showSuccess}
-        onClose={() => setShowSuccess(false)}
-        refId={refId}
-      />
     </UserShell>
   );
 }
