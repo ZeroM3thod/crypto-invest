@@ -1,1055 +1,281 @@
-## 4. Manual Trading page — `app/(user)/manual-trading/page.tsx`
+Looking at the uploaded file, let me check what's actually there first.This is a Next.js app with an `(user)/dashboard/page.tsx` — a specific dashboard, not a general site page. To add the 404 page from your doc, it goes in a Next.js `not-found.tsx` file (the App Router convention), not inside this dashboard page. Here's everything you need, ready to paste in.
 
-This is your `design.xml` layout (chart + prediction/order panel) adapted to sit inside `UserShell`, tightened up so it doesn't fight the sidebar for space, and recolored to strictly green/red/dark/light. It needs 3 new component files plus the page itself.
-
-### 4a. `components/motion/action-swap.tsx`
-
-Copied as-is from your design — no color changes needed, it's just a tiny animated icon swapper.
+## 1. `lib/ease.ts` — add these tokens (skip any that already exist in your file)
 
 ```tsx
-// components/motion/action-swap.tsx
+export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+export const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
+export const EASE_DRAWER = [0.32, 0.72, 0, 1] as const;
+
+export const EASE_OUT_CSS = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+export const SPRING_PRESS = {
+  type: "spring",
+  stiffness: 500,
+  damping: 30,
+  mass: 0.6,
+} as const;
+
+export const SPRING_MOUSE = {
+  stiffness: 200,
+  damping: 15,
+  mass: 0.3,
+} as const;
+```
+
+## 2. `lib/hooks/use-hover-capable.ts` — new file
+
+```tsx
 "use client";
 
+import { useEffect, useState } from "react";
+
+export function useHoverCapable() {
+  const [canHover, setCanHover] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const update = () => setCanHover(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
+
+  return canHover;
+}
+```
+
+## 3. `components/motion/magnetic.tsx` — new file
+
+```tsx
+"use client";
+
+import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
+import { useRef, type ReactNode } from "react";
+import { SPRING_MOUSE } from "@/lib/ease";
+import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
 import { cn } from "@/lib/utils";
-import { AnimatePresence, motion } from "motion/react";
-import type { ReactNode } from "react";
 
-type Props = {
-  showA: boolean;
-  a: ReactNode;
-  b: ReactNode;
+export interface MagneticProps {
+  children: ReactNode;
+  strength?: number;
   className?: string;
-};
+}
 
-export function ActionSwap({ showA, a, b, className }: Props) {
+export function Magnetic({ children, strength = 0.35, className }: MagneticProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
+  const canHover = useHoverCapable();
+  const enabled = !reduce && canHover;
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const sx = useSpring(x, SPRING_MOUSE);
+  const sy = useSpring(y, SPRING_MOUSE);
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    const rect = el.getBoundingClientRect();
+    x.set((e.clientX - rect.left - rect.width / 2) * strength);
+    y.set((e.clientY - rect.top - rect.height / 2) * strength);
+  };
+
+  const onLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
   return (
-    <span
-      className={cn(
-        "relative inline-flex size-5 items-center justify-center overflow-hidden",
-        className,
-      )}
+    <motion.div
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      style={{ x: sx, y: sy }}
+      className={cn("inline-block", className)}
     >
-      <AnimatePresence mode="wait" initial={false}>
-        {showA ? (
-          <motion.span
-            key="a"
-            initial={{ y: 12, opacity: 0, rotate: -45 }}
-            animate={{ y: 0, opacity: 1, rotate: 0 }}
-            exit={{ y: -12, opacity: 0, rotate: 45 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            {a}
-          </motion.span>
-        ) : (
-          <motion.span
-            key="b"
-            initial={{ y: 12, opacity: 0, rotate: -45 }}
-            animate={{ y: 0, opacity: 1, rotate: 0 }}
-            exit={{ y: -12, opacity: 0, rotate: 45 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            {b}
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </span>
+      {children}
+    </motion.div>
   );
 }
 ```
 
-If your project already has `components/button/stateful.tsx` and `components/button/base.tsx` (they're standard shadcn-style button primitives from your design.xml dump), you don't need to re-add those — they already avoid blue/yellow (they use `primary`/`destructive` tokens, which we're pointing at green/red below).
-
-### 4b. `components/motion/order-panel.tsx` (renamed from "prediction-market" → "order panel", tightened + recolored)
-
-Same component, but: (1) `EMERALD`/`RED` hex constants replaced with your CSS `--success`/`--destructive` tokens so it truly stays dark/light/green/red and follows your theme instead of hardcoded hex, (2) padding/max-width trimmed so it sits flush in the shell's content column instead of floating as a centered 400px card, (3) renamed "Prediction market" label to "Manual Order" and the default `title` to something trading-appropriate.
+## 4. `components/motion/not-found/shared.tsx` — new file
 
 ```tsx
-// components/motion/order-panel.tsx
 "use client";
 
-import { ActionSwap } from "@/components/motion/action-swap";
-import { StatefulButton } from "@/components/button/stateful";
+import { motion, useReducedMotion } from "motion/react";
+import { SPRING_PRESS } from "@/lib/ease";
+import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
 import { cn } from "@/lib/utils";
-import {
-  ArrowDownUp,
-  Check,
-  Clock,
-  Coins,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-export type OrderMode = "buy" | "sell";
-
-export type OrderValue = {
-  mode: OrderMode;
-  amount: string;
-  expiryId: string;
-};
-
-export type OrderExpiryOption = {
-  id: string;
-  label: string;
-  seconds: number;
-};
-
-export const DEFAULT_EXPIRY_OPTIONS: OrderExpiryOption[] = [
-  { id: "5m", label: "5m", seconds: 5 * 60 },
-  { id: "15m", label: "15m", seconds: 15 * 60 },
-  { id: "1h", label: "1H", seconds: 60 * 60 },
-  { id: "4h", label: "4H", seconds: 4 * 60 * 60 },
-  { id: "1d", label: "1D", seconds: 24 * 60 * 60 },
-];
-
-type Props = {
-  /** Price of one unit, expressed as a fraction 0–1 (e.g. 0.167 = 16.7¢). */
-  price: number;
-  value: OrderValue;
-  onValueChange: (value: OrderValue) => void;
-  balance: number;
-  holding: number;
-  expiryOptions?: OrderExpiryOption[];
-  quickAmounts?: number[];
-  title?: string;
-  subtitle?: ReactNode;
+export interface NotFoundProps {
   className?: string;
-};
-
-// Green/red only — pulled from CSS vars so the panel follows your theme
-// instead of hardcoded hex. Fall back to Tailwind's emerald/red if the
-// vars aren't defined on :root.
-const SUCCESS = "var(--success, #10b981)";
-const DESTRUCTIVE = "var(--destructive, #ef4444)";
-
-function useNow(intervalMs = 1000) {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    const first = window.setTimeout(() => setNow(Date.now()), 0);
-    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => {
-      window.clearTimeout(first);
-      window.clearInterval(id);
-    };
-  }, [intervalMs]);
-  return now;
+  code?: string;
+  title?: string;
+  description?: string;
+  homeHref?: string;
+  homeLabel?: string;
+  browseHref?: string;
+  browseLabel?: string;
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
+export const NOT_FOUND_DEFAULTS = {
+  code: "404",
+  title: "Page not found",
+  description:
+    "The page you are looking for moved, vanished, or never existed.",
+  homeHref: "/",
+  homeLabel: "Back home",
+  browseHref: "/dashboard",
+  browseLabel: "Back to dashboard",
+} as const;
 
-function formatRemaining(ms: number) {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-}
+type ActionsProps = Pick
+  NotFoundProps,
+  "homeHref" | "homeLabel" | "browseHref" | "browseLabel" | "className"
+>;
 
-export function OrderPanel({
-  price,
-  value,
-  onValueChange,
-  balance,
-  holding,
-  expiryOptions = DEFAULT_EXPIRY_OPTIONS,
-  quickAmounts = [1, 5, 10, 100],
-  title = "Manual Order",
-  subtitle,
+export function NotFoundActions({
+  homeHref = NOT_FOUND_DEFAULTS.homeHref,
+  homeLabel = NOT_FOUND_DEFAULTS.homeLabel,
+  browseHref = NOT_FOUND_DEFAULTS.browseHref,
+  browseLabel = NOT_FOUND_DEFAULTS.browseLabel,
   className,
-}: Props) {
-  const [touched, setTouched] = useState(false);
-  const now = useNow();
-
-  const amount = Math.max(0, Number(value.amount) || 0);
-  const shares = price > 0 ? amount / price : 0;
-  const payout = shares * 1;
-  const potentialProfit = payout - amount;
-  const isBuy = value.mode === "buy";
-  const canSubmit = amount > 0 && amount <= (isBuy ? balance : holding);
-
-  const expiry =
-    expiryOptions.find((o) => o.id === value.expiryId) ?? expiryOptions[0];
-  const periodMs = (expiry?.seconds ?? 0) * 1000;
-  const closesAtMs =
-    now !== null && periodMs > 0
-      ? (Math.floor(now / periodMs) + 1) * periodMs
-      : null;
-  const remaining = closesAtMs !== null && now !== null ? closesAtMs - now : null;
-  const closesLabel =
-    closesAtMs === null
-      ? "—"
-      : new Date(closesAtMs).toLocaleString(
-          "en-US",
-          periodMs >= 86_400_000
-            ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
-            : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
-        );
-
-  const patch = (partial: Partial<OrderValue>) =>
-    onValueChange({ ...value, ...partial });
-
-  const setAmountFromString = (raw: string) => {
-    const cleaned = raw.replace(/[^0-9.]/g, "");
-    const parts = cleaned.split(".");
-    const normalized =
-      parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
-    patch({ amount: normalized });
-  };
-
-  const priceLabel = useMemo(() => `${(price * 100).toFixed(1)}¢`, [price]);
-
-  const headerIcon = isBuy ? (
-    <TrendingUp className="size-4" />
-  ) : (
-    <TrendingDown className="size-4" />
-  );
+}: ActionsProps) {
+  const reduce = useReducedMotion();
+  const canHover = useHoverCapable();
+  const whileTap = reduce ? undefined : { scale: 0.96 };
+  const whileHover = reduce || !canHover ? undefined : { scale: 1.02 };
 
   return (
     <div
       className={cn(
-        "w-full overflow-hidden rounded-3xl border border-border bg-background",
-        "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)]",
+        "flex flex-wrap items-center justify-center gap-3",
         className,
       )}
     >
-      {/* Header */}
-      <div className="border-b border-border/80 px-4 pt-4">
-        <div className="flex items-start justify-between gap-3 pb-3">
-          <div className="min-w-0">
-            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              <Coins className="size-3.5" />
-              Manual trading
-            </div>
-            <h3 className="text-base font-semibold leading-snug tracking-tight text-foreground sm:text-lg">
-              {title}
-            </h3>
-            {subtitle ? (
-              <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Mode toggle */}
-        <div role="tablist" aria-label="Order side" className="relative flex gap-1 rounded-full bg-card p-1">
-          {(["buy", "sell"] as const).map((mode) => {
-            const active = value.mode === mode;
-            return (
-              <button
-                key={mode}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => patch({ mode })}
-                className={cn(
-                  "relative flex-1 rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
-                  active ? "text-white" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="op-mode-pill"
-                    transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
-                    className="absolute inset-0 rounded-full"
-                    style={{ background: mode === "buy" ? SUCCESS : DESTRUCTIVE }}
-                  />
-                )}
-                <span className="relative z-10">{mode}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Trade expiry */}
-      <div className="px-3 pt-3">
-        <div className="rounded-2xl border border-border bg-card p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-              <Clock className="size-3.5" />
-              Trade expires
-            </span>
-            <span aria-live="off" className="text-sm font-semibold tabular-nums text-foreground">
-              {remaining !== null ? formatRemaining(remaining) : "--:--"}
-            </span>
-          </div>
-
-          <div role="radiogroup" aria-label="Trade expiry" className="mt-2 flex gap-1 rounded-full bg-background p-1">
-            {expiryOptions.map((o) => {
-              const active = o.id === expiry?.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => patch({ expiryId: o.id })}
-                  className={cn(
-                    "relative flex-1 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors",
-                    active ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="op-expiry-pill"
-                      transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
-                      className="absolute inset-0 rounded-full bg-foreground"
-                    />
-                  )}
-                  <span className="relative z-10">{o.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Closes at <span className="font-semibold text-foreground tabular-nums">{closesLabel}</span>
-          </p>
-        </div>
-      </div>
-
-      {/* Amount */}
-      <div className="px-3 pt-3">
-        <div className="rounded-2xl border border-border bg-card p-3">
-          <div className="flex items-center justify-between gap-2">
-            <label htmlFor="op-amount" className="text-[11px] font-medium text-muted-foreground">
-              Amount (USDT)
-            </label>
-            <span className="text-[11px] text-muted-foreground">
-              {isBuy ? "Balance" : "Holding"}:{" "}
-              <span className="font-semibold text-foreground tabular-nums">
-                {isBuy ? balance.toFixed(2) : holding.toFixed(2)}
-              </span>
-            </span>
-          </div>
-
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-lg font-semibold text-muted-foreground">$</span>
-            <input
-              id="op-amount"
-              inputMode="decimal"
-              autoComplete="off"
-              value={value.amount}
-              onChange={(e) => setAmountFromString(e.target.value)}
-              onBlur={() => setTouched(true)}
-              placeholder="0.00"
-              className={cn(
-                "w-full min-w-0 bg-transparent text-2xl font-semibold tabular-nums text-foreground outline-none placeholder:text-muted-foreground/50",
-                touched && !canSubmit && amount > 0 && "text-destructive",
-              )}
-            />
-            <div className="flex shrink-0 gap-1">
-              {quickAmounts.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => patch({ amount: String(q) })}
-                  className="rounded-full border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary */}
-      <div className="space-y-1.5 px-4 pt-3 text-xs">
-        <SummaryRow
-          label="Avg. price"
-          value={priceLabel}
-          icon={<ActionSwap showA={isBuy} a={<span>·</span>} b={<span>·</span>} />}
-        />
-        <SummaryRow label="Units" value={shares.toLocaleString("en-US", { maximumFractionDigits: 2 })} />
-        <SummaryRow label={isBuy ? "Cost" : "Est. proceeds"} value={`$${amount.toFixed(2)}`} />
-        <SummaryRow
-          label="Potential profit"
-          value={`${potentialProfit >= 0 ? "+" : "-"}$${Math.abs(potentialProfit).toFixed(2)}`}
-          tone={potentialProfit >= 0 ? SUCCESS : DESTRUCTIVE}
-          bold
-        />
-        <SummaryRow label="Payout if correct" value={`$${payout.toFixed(2)}`} />
-        <SummaryRow label="Expires" value={closesLabel} />
-      </div>
-
-      {/* Submit */}
-      <div className="p-4">
-        <StatefulButton
-          className="h-12 w-full text-sm"
-          variant={isBuy ? "primary" : "destructive"}
-          disabled={!canSubmit}
-          onAction={async () => { await new Promise((r) => setTimeout(r, 900)); }}
-          style={{ "--btn-bg": isBuy ? SUCCESS : DESTRUCTIVE } as React.CSSProperties}
-        >
-          <span className="inline-flex items-center gap-2">
-            {headerIcon}
-            {isBuy ? `Buy · $${amount.toFixed(2)}` : `Sell · $${amount.toFixed(2)}`}
-            <Check className="hidden size-4" />
-            <ArrowDownUp className="size-4 opacity-60" />
-          </span>
-        </StatefulButton>
-
-        <AnimatePresence>
-          {touched && amount > (isBuy ? balance : holding) && (
-            <motion.p
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              className="mt-2 text-center text-[11px] text-destructive"
-            >
-              {isBuy ? "Insufficient balance" : "Insufficient units"}
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </div>
+      <motion.a
+        href={homeHref}
+        whileTap={whileTap}
+        whileHover={whileHover}
+        transition={SPRING_PRESS}
+        className="inline-flex h-11 select-none items-center justify-center rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        {homeLabel}
+      </motion.a>
+      <motion.a
+        href={browseHref}
+        whileTap={whileTap}
+        whileHover={whileHover}
+        transition={SPRING_PRESS}
+        className="inline-flex h-11 select-none items-center justify-center rounded-full border border-border bg-card px-6 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
+      >
+        {browseLabel}
+      </motion.a>
     </div>
   );
 }
 
-function SummaryRow({ label, value, tone, bold, icon }: {
-  label: string;
-  value: string;
-  tone?: string;
-  bold?: boolean;
-  icon?: ReactNode;
+export function NotFoundStage({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="inline-flex items-center gap-1 text-muted-foreground">
-        {icon}
-        {label}
-      </span>
-      <span className={cn("tabular-nums", bold ? "font-semibold" : "font-medium")} style={tone ? { color: tone } : undefined}>
-        {value}
-      </span>
-    </div>
-  );
-}
-```
-
-### 4c. `components/motion/trading-chart.tsx` (renamed from `btc-chart.tsx`, recolored, height trimmed to fit the shell)
-
-Same engine (lightweight-charts, live ticking, asset picker, interval tabs), but the standalone `UP`/`DOWN` hex constants now read from your theme's `--success`/`--destructive` CSS vars, and chart height is trimmed from `380/480/580px` → `320/400/460px` so the chart + order panel fit side-by-side inside the shell without scroll fighting.
-
-```tsx
-// components/motion/trading-chart.tsx
-"use client";
-
-import {
-  ColorType,
-  CrosshairMode,
-  createChart,
-  type IChartApi,
-  type ISeriesApi,
-  type UTCTimestamp,
-} from "lightweight-charts";
-import { Check, ChevronDown } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-
-type Candle = {
-  time: UTCTimestamp;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-};
-
-const FOUR_H = 4 * 3600;
-
-const ASSETS = [
-  { id: "BTCUSDT", symbol: "BTC/USDT", name: "Bitcoin", glyph: "₿", base: 52000, seed: 11 },
-  { id: "ETHUSDT", symbol: "ETH/USDT", name: "Ethereum", glyph: "Ξ", base: 3000, seed: 22 },
-  { id: "SOLUSDT", symbol: "SOL/USDT", name: "Solana", glyph: "◎", base: 150, seed: 33 },
-  { id: "BNBUSDT", symbol: "BNB/USDT", name: "BNB", glyph: "◆", base: 580, seed: 44 },
-] as const;
-type Asset = (typeof ASSETS)[number];
-type AssetId = Asset["id"];
-const BTC_BASE = 52000;
-
-function mulberry32(seed: number) {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function genHistory(count: number, scale: number, seed: number): Candle[] {
-  const rand = mulberry32(seed);
-  const phases = [
-    { start: 52000 * scale, end: 73000 * scale, bars: 90 },
-    { start: 73000 * scale, end: 56000 * scale, bars: 60 },
-    { start: 56000 * scale, end: 68000 * scale, bars: 50 },
-    { start: 68000 * scale, end: 61000 * scale, bars: 40 },
-    { start: 61000 * scale, end: 67000 * scale, bars: 29 },
-  ];
-  const candles: Candle[] = [];
-  let price = BTC_BASE * scale;
-  let ts = Math.floor(new Date("2024-03-01").getTime() / 1000);
-  let pi = 0;
-  let pb = 0;
-  for (let i = 0; i < count; i++) {
-    const ph = phases[Math.min(pi, phases.length - 1)];
-    const trend = (ph.end - ph.start) / ph.bars;
-    const vol = price * 0.012;
-    const open = price;
-    const move = trend + (rand() - 0.42) * vol;
-    const close = open + move;
-    const wick = Math.abs(move) * (0.5 + rand());
-    const high = Math.max(open, close) + rand() * wick * 0.6;
-    const low = Math.min(open, close) - rand() * wick * 0.6;
-    const volume = 800 + rand() * 3000 + Math.abs(move / price) * 80000;
-    candles.push({
-      time: ts as UTCTimestamp,
-      open: +open.toFixed(2),
-      high: +high.toFixed(2),
-      low: +low.toFixed(2),
-      close: +close.toFixed(2),
-      volume: +volume.toFixed(0),
-    });
-    price = close;
-    ts += FOUR_H;
-    pb++;
-    if (pb >= ph.bars) {
-      pi++;
-      pb = 0;
-    }
-  }
-  return candles;
-}
-
-const fmt = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtVol = (n: number) =>
-  n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : n.toFixed(0);
-
-function rgba(hex: string, a: number) {
-  const h = hex.replace("#", "");
-  const n = parseInt(
-    h.length === 3 ? h.split("").map((x) => x + x).join("") : h,
-    16,
-  );
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-}
-
-// Green/red only.
-const UP = "#10b981";
-const DOWN = "#ef4444";
-
-const INTERVALS = ["1m", "5m", "15m", "1H", "4H", "1D", "1W", "1M"] as const;
-type ChartType = "candle" | "line" | "area";
-
-function readVar(el: HTMLElement, name: string, fallback: string) {
-  const v = getComputedStyle(el).getPropertyValue(name).trim();
-  return v || fallback;
-}
-
-export function TradingChart() {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const hostRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const lineRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const areaRef = useRef<ISeriesApi<"Area"> | null>(null);
-  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const resetViewRef = useRef<(() => void) | null>(null);
-
-  const [assetId, setAssetId] = useState<AssetId>("BTCUSDT");
-  const asset: Asset = ASSETS.find((a) => a.id === assetId) ?? ASSETS[0];
-  const scale = asset.base / BTC_BASE;
-
-  const history = useMemo(() => genHistory(269, scale, asset.seed), [scale, asset.seed]);
-  const [interval, setIntervalValue] = useState<(typeof INTERVALS)[number]>("4H");
-  const [type, setType] = useState<ChartType>("candle");
-  const [ohlc, setOhlc] = useState<Candle>(history[history.length - 1]);
-
-  const [ohlcAssetId, setOhlcAssetId] = useState<AssetId>(assetId);
-  if (ohlcAssetId !== assetId) {
-    setOhlcAssetId(assetId);
-    setOhlc(history[history.length - 1]);
-  }
-  const hoverRef = useRef<number | null>(null);
-  const liveRef = useRef<Candle>(history[history.length - 1]);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    const root = rootRef.current;
-    if (!host || !root) return;
-
-    liveRef.current = history[history.length - 1];
-    hoverRef.current = null;
-
-    const bg = readVar(root, "--chart-bg", "#ffffff");
-    const fg = readVar(root, "--chart-fg", "#71717a");
-    const grid = readVar(root, "--chart-grid", "rgba(0,0,0,0.06)");
-
-    const chart = createChart(host, {
-      width: host.clientWidth,
-      height: host.clientHeight,
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: fg,
-        fontSize: 11,
-        fontFamily: "var(--font-sans), system-ui, sans-serif",
-      },
-      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-        vertLine: { color: fg, width: 1, style: 3, labelBackgroundColor: bg },
-        horzLine: { color: fg, width: 1, style: 3, labelBackgroundColor: bg },
-      },
-      rightPriceScale: { borderColor: grid, scaleMargins: { top: 0.08, bottom: 0.22 } },
-      timeScale: { borderColor: grid, timeVisible: true, secondsVisible: false, rightOffset: 4 },
-      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
-      handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: { time: true, price: true } },
-    });
-    chartRef.current = chart;
-
-    const candle = chart.addCandlestickSeries({
-      upColor: UP, downColor: DOWN, borderUpColor: UP, borderDownColor: DOWN, wickUpColor: UP, wickDownColor: DOWN,
-    });
-    candle.setData(history);
-    candleRef.current = candle;
-
-    const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
-    volume.setData(
-      history.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? rgba(UP, 0.35) : rgba(DOWN, 0.3) })),
-    );
-    chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, borderVisible: false });
-    volumeRef.current = volume;
-
-    chart.timeScale().fitContent();
-
-    const byTime = new Map(history.map((c) => [c.time as number, c]));
-    chart.subscribeCrosshairMove((param) => {
-      if (!param.time) {
-        hoverRef.current = null;
-        setOhlc(liveRef.current);
-        return;
-      }
-      hoverRef.current = param.time as number;
-      const c = liveRef.current.time === (param.time as number) ? liveRef.current : byTime.get(param.time as number);
-      if (c) setOhlc(c);
-    });
-
-    let last: Candle = { ...history[history.length - 1] };
-    let live: Candle | null = null;
-    let tickCount = 0;
-    let price = last.close;
-    let trend = (Math.random() - 0.5) * 60 * scale;
-    const TICKS_PER_CANDLE = 80;
-
-    const tick = window.setInterval(() => {
-      const volatility = price * 0.0015;
-      price = Math.max(price + trend * 0.01 + (Math.random() - 0.48) * volatility, asset.base * 0.02);
-      if (Math.random() < 0.05) trend = (Math.random() - 0.5) * 120 * scale;
-
-      if (!live) {
-        live = { time: (last.time + FOUR_H) as UTCTimestamp, open: price, high: price, low: price, close: price, volume: 0 };
-      }
-      live.close = +price.toFixed(2);
-      live.high = +Math.max(live.high, price).toFixed(2);
-      live.low = +Math.min(live.low, price).toFixed(2);
-      live.volume += 20 + Math.random() * 80;
-
-      candle.update(live);
-      volume.update({ time: live.time, value: live.volume, color: live.close >= live.open ? rgba(UP, 0.35) : rgba(DOWN, 0.3) });
-      lineRef.current?.update({ time: live.time, value: live.close });
-      areaRef.current?.update({ time: live.time, value: live.close });
-
-      liveRef.current = { ...live };
-      if (hoverRef.current === null || hoverRef.current === live.time) setOhlc({ ...live });
-
-      tickCount++;
-      if (tickCount >= TICKS_PER_CANDLE) {
-        last = { ...live };
-        live = null;
-        tickCount = 0;
-        price = last.close;
-      }
-    }, 800);
-
-    let vZoom: { min: number; max: number } | null = null;
-    candle.applyOptions({
-      autoscaleInfoProvider: (original: () => unknown) => {
-        const res = original() as { priceRange: { minValue: number; maxValue: number } | null; margins?: { above: number; below: number } } | null;
-        if (!vZoom) return res;
-        return { priceRange: { minValue: vZoom.min, maxValue: vZoom.max }, margins: res?.margins };
-      },
-    });
-
-    const timeH = () => chart.timeScale().height();
-    const priceW = () => chart.priceScale("right").width();
-    const currentRange = () => {
-      const h = host.clientHeight - timeH();
-      const max = candle.coordinateToPrice(0);
-      const min = candle.coordinateToPrice(h);
-      return max != null && min != null ? { min: Number(min), max: Number(max) } : null;
-    };
-    const onWheel = (e: WheelEvent) => {
-      const rect = host.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const overPrice = x > rect.width - priceW();
-      const overTime = y > rect.height - timeH();
-      e.preventDefault();
-      const step = Math.min(Math.abs(e.deltaY), 120) / 120;
-      const zoomIn = e.deltaY < 0;
-      if (overPrice && !overTime) {
-        const factor = zoomIn ? Math.pow(0.85, step) : Math.pow(1 / 0.85, step);
-        const r = vZoom ?? currentRange();
-        if (!r) return;
-        const plotH = host.clientHeight - timeH();
-        const anchor = candle.coordinateToPrice(Math.min(Math.max(y, 0), plotH));
-        if (anchor == null) return;
-        const a = Number(anchor);
-        const min = a - (a - r.min) * factor;
-        const max = a + (r.max - a) * factor;
-        if (max - min < Math.max(scale, 0.02)) return;
-        vZoom = { min, max };
-        chart.priceScale("right").applyOptions({ autoScale: true });
-      } else {
-        const ts = chart.timeScale();
-        const cur = ts.options().barSpacing;
-        const next = cur * (zoomIn ? Math.pow(1.12, step) : Math.pow(1 / 1.12, step));
-        ts.applyOptions({ barSpacing: Math.min(Math.max(next, 0.5), 60) });
-      }
-    };
-    const onDbl = (e: MouseEvent) => {
-      const rect = host.getBoundingClientRect();
-      if (e.clientX - rect.left > rect.width - priceW()) {
-        vZoom = null;
-        chart.priceScale("right").applyOptions({ autoScale: true });
-      }
-    };
-    host.addEventListener("wheel", onWheel, { passive: false });
-    host.addEventListener("dblclick", onDbl);
-
-    resetViewRef.current = () => {
-      vZoom = null;
-      chart.priceScale("right").applyOptions({ autoScale: true });
-      chart.timeScale().fitContent();
-    };
-
-    const ro = new ResizeObserver(() => {
-      chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
-    });
-    ro.observe(host);
-
-    return () => {
-      window.clearInterval(tick);
-      ro.disconnect();
-      host.removeEventListener("wheel", onWheel);
-      host.removeEventListener("dblclick", onDbl);
-      chart.remove();
-      chartRef.current = null;
-      candleRef.current = null;
-      lineRef.current = null;
-      areaRef.current = null;
-      volumeRef.current = null;
-      resetViewRef.current = null;
-    };
-  }, [history, asset.base, scale]);
-
-  useEffect(() => {
-    const chart = chartRef.current;
-    const candle = candleRef.current;
-    if (!chart || !candle) return;
-    const data = history.map((c) => ({ time: c.time, value: c.close }));
-
-    if (type === "line" && !lineRef.current) {
-      lineRef.current = chart.addLineSeries({ color: UP, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
-      lineRef.current.setData(data);
-    }
-    if (type === "area" && !areaRef.current) {
-      areaRef.current = chart.addAreaSeries({
-        topColor: rgba(UP, 0.3), bottomColor: rgba(UP, 0), lineColor: UP, lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
-      });
-      areaRef.current.setData(data);
-    }
-    candle.applyOptions({ visible: type === "candle" });
-    lineRef.current?.applyOptions({ visible: type === "line" });
-    areaRef.current?.applyOptions({ visible: type === "area" });
-  }, [type, history]);
-
-  const diff = ohlc.close - ohlc.open;
-  const pct = (diff / ohlc.open) * 100;
-  const positive = diff >= 0;
-
-  return (
-    <div ref={rootRef} className="trading-chart w-full overflow-hidden rounded-3xl border border-border bg-background">
-      {/* Header */}
-      <div className="border-b border-border/80 px-4 pt-4">
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 pb-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-base font-semibold text-foreground">
-              {asset.glyph}
-            </div>
-            <div className="min-w-0">
-              <AssetPicker assets={ASSETS} value={asset} onChange={setAssetId} />
-              <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                <span>BINANCE · {interval}</span>
-                <span className="inline-flex items-center gap-1.5 text-success">
-                  <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-current" />
-                  Live
-                </span>
-              </p>
-            </div>
-          </div>
-
-          <div className="ml-auto text-right">
-            <div className="text-xl font-semibold leading-none tracking-tight text-foreground tabular-nums sm:text-2xl">
-              {fmt(ohlc.close)}
-            </div>
-            <div className={`mt-1 text-sm font-medium tabular-nums ${positive ? "text-success" : "text-destructive"}`}>
-              {positive ? "+" : ""}{diff.toFixed(2)} ({positive ? "+" : ""}{pct.toFixed(2)}%)
-            </div>
-          </div>
-        </div>
-
-        {/* Interval tabs + chart type */}
-        <div className="flex items-center justify-between gap-3 pb-3">
-          <div role="tablist" aria-label="Interval" className="flex min-w-0 gap-1 overflow-x-auto rounded-full bg-card p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {INTERVALS.map((iv) => {
-              const active = iv === interval;
-              return (
-                <button
-                  key={iv}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setIntervalValue(iv)}
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                    active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {iv}
-                </button>
-              );
-            })}
-          </div>
-
-          <div role="group" aria-label="Chart type" className="flex shrink-0 gap-1 rounded-full bg-card p-1">
-            {([["candle", "Candles"], ["line", "Line"], ["area", "Area"]] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={type === id}
-                aria-label={label}
-                title={label}
-                onClick={() => setType(id)}
-                className={`flex size-8 items-center justify-center rounded-full transition-colors ${
-                  type === id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <ChartTypeIcon type={id} />
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* OHLC strip */}
-      <div className="grid grid-cols-3 gap-2 px-3 pt-3 sm:grid-cols-6">
-        {([
-          ["Open", fmt(ohlc.open), ""],
-          ["High", fmt(ohlc.high), "text-success"],
-          ["Low", fmt(ohlc.low), "text-destructive"],
-          ["Close", fmt(ohlc.close), ""],
-          ["Volume", fmtVol(ohlc.volume), ""],
-          ["Change", `${positive ? "+" : ""}${pct.toFixed(2)}%`, positive ? "text-success" : "text-destructive"],
-        ] as const).map(([label, value, tone]) => (
-          <div key={label} className="min-w-0 rounded-2xl bg-card px-3 py-2">
-            <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-            <p className={`truncate text-sm font-semibold tabular-nums text-foreground ${tone}`}>{value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Chart — trimmed heights so it fits inside the shell alongside the order panel */}
-      <div className="p-3">
-        <div className="relative rounded-3xl bg-card p-2 sm:p-3">
-          <div ref={hostRef} className="h-[320px] w-full touch-pan-y sm:h-[400px] lg:h-[460px]" />
-          <button
-            type="button"
-            title="Auto — reset chart to the default view"
-            aria-label="Auto: reset chart to the default view"
-            onClick={() => resetViewRef.current?.()}
-            className="absolute bottom-[11px] right-3 z-10 h-5 rounded-md border border-border bg-background px-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:bottom-[15px] sm:right-4"
-          >
-            Auto
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AssetPicker({ assets, value, onChange }: { assets: readonly Asset[]; value: Asset; onChange: (id: AssetId) => void }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  return (
-    <div ref={wrapRef} className="relative min-w-0">
-      <h2 className="min-w-0 text-lg font-semibold leading-tight tracking-tight text-foreground sm:text-xl">
-        <button
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label={`Select chart, current ${value.symbol}`}
-          onClick={() => setOpen((o) => !o)}
-          className="-mx-1.5 flex max-w-full items-center gap-1.5 rounded-xl px-1.5 py-0.5 transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span className="truncate">{value.symbol}</span>
-          <ChevronDown aria-hidden className={`size-5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
-      </h2>
-
-      {open && (
-        <div role="menu" aria-label="Select chart" className="absolute left-0 top-full z-30 mt-2 w-60 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-border bg-background p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.25)]">
-          {assets.map((a) => {
-            const active = a.id === value.id;
-            return (
-              <button
-                key={a.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                onClick={() => { onChange(a.id); setOpen(false); }}
-                className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors ${active ? "bg-card" : "hover:bg-card"}`}
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-sm font-semibold text-foreground">
-                  {a.glyph}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-foreground">{a.symbol}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{a.name}</span>
-                </span>
-                {active && <Check className="size-4 shrink-0 text-success" />}
-              </button>
-            );
-          })}
-        </div>
+    <div
+      className={cn(
+        "flex min-h-[420px] w-full flex-col items-center justify-center gap-8 px-4 text-center",
+        className,
       )}
+    >
+      {children}
     </div>
   );
 }
-
-function ChartTypeIcon({ type }: { type: ChartType }) {
-  if (type === "candle") {
-    return (
-      <svg width="15" height="15" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-        <rect x="2" y="4" width="3" height="6" rx=".5" />
-        <line x1="3.5" y1="2" x2="3.5" y2="4" stroke="currentColor" strokeWidth="1.2" />
-        <line x1="3.5" y1="10" x2="3.5" y2="12" stroke="currentColor" strokeWidth="1.2" />
-        <rect x="8" y="2" width="3" height="6" rx=".5" />
-        <line x1="9.5" y1="1" x2="9.5" y2="2" stroke="currentColor" strokeWidth="1.2" />
-        <line x1="9.5" y1="8" x2="9.5" y2="13" stroke="currentColor" strokeWidth="1.2" />
-      </svg>
-    );
-  }
-  if (type === "line") {
-    return (
-      <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-        <polyline points="1,11 5,6 8,8 13,3" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M1 11 L5 6 L8 8 L13 3 L13 12 L1 12 Z" fill="currentColor" opacity=".3" stroke="none" />
-      <polyline points="1,11 5,6 8,8 13,3" />
-    </svg>
-  );
-}
 ```
 
-**Dependency check:** this needs `lightweight-charts` and `motion` installed:
-```bash
-npm install lightweight-charts motion
-```
-
-### 4d. The page itself — `app/(user)/manual-trading/page.tsx`
-
-Tight 2-column grid (chart takes the wide column, order panel is a narrower sticky sidebar) sitting inside `UserShell`, so it doesn't fight your app's own sidebar for space.
+## 5. `components/motion/not-found/magnetic.tsx` — new file
 
 ```tsx
-// app/(user)/manual-trading/page.tsx
 "use client";
 
-import { UserShell } from "@/app/(user)/_components/user-shell";
-import { TradingChart } from "@/components/motion/trading-chart";
-import { OrderPanel, type OrderValue } from "@/components/motion/order-panel";
-import { useState } from "react";
+import { Magnetic } from "@/components/motion/magnetic";
+import { cn } from "@/lib/utils";
+import {
+  NOT_FOUND_DEFAULTS,
+  NotFoundActions,
+  NotFoundStage,
+  type NotFoundProps,
+} from "./shared";
 
-export default function ManualTradingPage() {
-  const [order, setOrder] = useState<OrderValue>({
-    mode: "buy",
-    amount: "115",
-    expiryId: "15m",
-  });
+export function NotFoundMagnetic({
+  className,
+  code = NOT_FOUND_DEFAULTS.code,
+  title = NOT_FOUND_DEFAULTS.title,
+  description = NOT_FOUND_DEFAULTS.description,
+  homeHref,
+  homeLabel,
+  browseHref,
+  browseLabel,
+}: NotFoundProps) {
+  const chars = code.split("");
 
   return (
-    <UserShell active="Manual Trading">
-      <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
-        <div className="mb-6">
-          <p className="text-xs font-medium text-muted-foreground">Live market</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            Manual Trading
-          </h1>
-        </div>
+    <NotFoundStage className={className}>
+      <h1
+        aria-label={code}
+        className="flex select-none items-center justify-center font-bold leading-none tracking-tighter text-foreground [font-size:clamp(5rem,18vw,12rem)]"
+      >
+        {chars.map((ch, i) => (
+          <Magnetic
+            key={i}
+            strength={0.6}
+            className={cn(i > 0 && "-ml-2")}
+          >
+            <span aria-hidden className="inline-block px-1 tabular-nums">
+              {ch}
+            </span>
+          </Magnetic>
+        ))}
+      </h1>
 
-        <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-5">
-          <section className="min-w-0" aria-label="Chart">
-            <TradingChart />
-          </section>
-
-          <aside className="w-full min-w-0 lg:sticky lg:top-6" aria-label="Order panel">
-            <OrderPanel
-              price={0.167}
-              value={order}
-              onValueChange={setOrder}
-              balance={500}
-              holding={125}
-              quickAmounts={[1, 5, 10, 100]}
-              className="max-w-none"
-            />
-          </aside>
-        </div>
-
-        <div className="h-20" />
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-lg font-semibold text-foreground">{title}</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
       </div>
-    </UserShell>
+
+      <NotFoundActions
+        homeHref={homeHref}
+        homeLabel={homeLabel}
+        browseHref={browseHref}
+        browseLabel={browseLabel}
+      />
+    </NotFoundStage>
   );
 }
 ```
 
-**Guide:**
-1. Save `action-swap.tsx`, `order-panel.tsx`, `trading-chart.tsx` under `components/motion/`.
-2. Save the page under `app/(user)/manual-trading/page.tsx`.
-3. `npm install lightweight-charts motion clsx tailwind-merge` if any are missing.
-4. Compared to your `design.xml`, the panel went from a fixed centered `max-w-[400px]` card to a `360px` sticky sidebar column — that's the "tighter fit" adjustment you asked for. If you'd rather it stay full 400px, just bump the grid template to `lg:grid-cols-[minmax(0,1fr)_400px]`.
+## 6. `app/not-found.tsx` — this wires it into the site (Next.js renders this automatically for any unmatched route)
 
+```tsx
+import { NotFoundMagnetic } from "@/components/motion/not-found/magnetic";
+
+export default function NotFound() {
+  return (
+    <div className="flex min-h-screen w-full items-center justify-center bg-background">
+      <NotFoundMagnetic />
+    </div>
+  );
+}
+```
+
+**Also run:**
+```
+npm i clsx motion tailwind-merge
+```
+
+That's it — no changes needed to your `dashboard/page.tsx`. Next.js will automatically show `app/not-found.tsx` for any route that doesn't match, or you can trigger it manually anywhere by calling `notFound()` from `next/navigation`.
