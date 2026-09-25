@@ -67,12 +67,12 @@ const ROUTES: Record<string, string> = {
   "Daily Profit": "/investment/daily-profit",
   "Cloud Mining": "/investment/cloud-mining",
   // Trading
+  "Trade Overview":         "/trading/overview",
   "Trading":          "/trading",
   "AI Trading":       "/trading/ai-trading",
   "Manual Trading":   "/trading/manual-trading",
-  "Open Orders":      "/trading/open-orders",
   "Trade History":    "/trading/trade-history",
-  "Trading Portfolio":"/trading/portfolio",
+  
   // Wallet
   "Wallet":            "/wallet",
   "Main Wallet":       "/wallet/main",
@@ -113,7 +113,7 @@ const destinations = [
   {
     label: "Trading",
     icon: CandlestickChart,
-    children: [ "Overview" , "AI Trading", "Manual Trading",  "Trade History"],
+    children: [ "Trade Overview" , "AI Trading", "Manual Trading",  "Trade History"],
   },
   {
     label: "Wallet",
