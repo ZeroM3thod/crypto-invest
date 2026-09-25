@@ -18,7 +18,13 @@ import { EASE_OUT, SPRING_PRESS } from "@/lib/ease";
 import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
 import { cn } from "@/lib/utils";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "outline"
+  | "success"
+  | "destructive";
 export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 export interface ButtonProps extends Omit<
@@ -51,6 +57,8 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
   ghost: "text-muted-foreground hover:text-foreground hover:bg-primary/5",
   outline:
     "border border-border bg-transparent text-foreground hover:bg-primary/5",
+  success: "bg-success text-background hover:bg-success/90",
+  destructive: "bg-destructive text-background hover:bg-destructive/90",
 };
 
 const SIZE_CLASS: Record<ButtonSize, string> = {

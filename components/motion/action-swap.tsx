@@ -338,3 +338,48 @@ export function ActionSwapButton({
     </motion.button>
   );
 }
+
+type ActionSwapPairProps = {
+  showA: boolean;
+  a: ReactNode;
+  b: ReactNode;
+  className?: string;
+};
+
+/** Crossfades between two contents with a small rotate-in/rotate-out flip. */
+export function ActionSwap({ showA, a, b, className }: ActionSwapPairProps) {
+  return (
+    <span
+      className={cn(
+        "relative inline-flex size-5 items-center justify-center overflow-hidden",
+        className,
+      )}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        {showA ? (
+          <motion.span
+            key="a"
+            initial={{ y: 12, opacity: 0, rotate: -45 }}
+            animate={{ y: 0, opacity: 1, rotate: 0 }}
+            exit={{ y: -12, opacity: 0, rotate: 45 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            {a}
+          </motion.span>
+        ) : (
+          <motion.span
+            key="b"
+            initial={{ y: 12, opacity: 0, rotate: -45 }}
+            animate={{ y: 0, opacity: 1, rotate: 0 }}
+            exit={{ y: -12, opacity: 0, rotate: 45 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            {b}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </span>
+  );
+}
