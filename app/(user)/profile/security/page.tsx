@@ -2,6 +2,7 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
+import { OTPInput, type OTPStatus } from "@/components/motion/otp-input";
 import {
   Check,
   ChevronRight,
@@ -252,6 +253,7 @@ function TwoFAModal({
   );
   const [code, setCode] = useState("");
   const [codeErr, setCodeErr] = useState(false);
+  const [otpStatus, setOtpStatus] = useState<OTPStatus>("idle");
   const [saving, setSaving] = useState(false);
   const [backupCopied, setBackupCopied] = useState(false);
 
@@ -262,11 +264,13 @@ function TwoFAModal({
   const verify = async () => {
     if (code.length !== 6 || !/^\d{6}$/.test(code)) {
       setCodeErr(true);
+      setOtpStatus("error");
       return;
     }
     setSaving(true);
     await new Promise((r) => setTimeout(r, 500));
     setSaving(false);
+    setOtpStatus("success");
     onToggle();
     onClose();
   };
@@ -397,20 +401,21 @@ function TwoFAModal({
             <p className="mb-5 text-sm text-muted-foreground">
               Enter the 6-digit code from your authenticator app to complete setup.
             </p>
-            <div className="mb-5">
-              <Label>Verification Code</Label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
+            <div className="mb-5 flex flex-col items-center">
+              <OTPInput
+                label="Verification code"
+                hint="Enter the 6-digit code from your authenticator app."
+                successMessage="Verified."
+                errorMessage="Enter a valid 6-digit code."
                 value={code}
-                onChange={(e) => { setCode(e.target.value.replace(/\D/g, "")); setCodeErr(false); }}
-                placeholder="000000"
-                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-center text-xl font-mono font-semibold tracking-[0.5em] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
+                status={otpStatus}
+                autoFocus
+                onChange={(v) => {
+                  setCode(v);
+                  setCodeErr(false);
+                  if (otpStatus !== "idle") setOtpStatus("idle");
+                }}
               />
-              {codeErr && (
-                <p className="mt-1.5 text-xs text-destructive">Enter a valid 6-digit code.</p>
-              )}
             </div>
 
             {/* Backup codes */}
