@@ -249,7 +249,7 @@ export function DobField({
                     onValueChange(draft);
                     setOpen(false);
                   }}
-                  className="h-10 flex-1 rounded-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  className="h-10 flex-1 rounded-full bg-black border border-border text-sm font-medium text-white hover:bg-black/90"
                 >
                   Done
                 </button>

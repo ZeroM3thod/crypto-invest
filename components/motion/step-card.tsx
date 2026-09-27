@@ -1,9 +1,3 @@
-Two edits to `step-card.tsx`:
-
-1. Title/description → white
-2. Next button background → white, with the button's text ("Next") → black
-
-```tsx
 "use client";
 
 import { ArrowRight } from "lucide-react";
@@ -52,12 +46,13 @@ export function StepCard({
           <button
             type="button"
             onClick={onBack}
-            className="text-sm font-medium text-black underline-offset-4 transition-colors hover:underline"
+            className="text-sm font-medium text-white underline-offset-4 transition-colors hover:underline"
           >
             Back
           </button>
         ) : null}
 
+        {/* Exact same invocation as ButtonStatefulPreview's "ok" button */}
         <StatefulButton
           state={nextState}
           variant="primary"
@@ -78,10 +73,3 @@ export function StepCard({
     </div>
   );
 }
-```
-
-Only two lines changed from the previous version:
-- `text-black` → `text-white` on the `<h2>` (title) and `<p>` (description)
-- `className="ml-auto"` → `className="ml-auto bg-white text-black hover:bg-white/90"` on `StatefulButton` — since `cn`/`twMerge` lets these later classes win over the `primary` variant's `bg-primary text-primary-foreground`, this overrides just the button's colors while keeping the icon animation, cascade-text effect, and spring physics from the preview untouched.
-
-Note: the loading spinner (`Loader2`) and check/X icons inside the button inherit `currentColor`, so with `text-black` on the button they'll render black too — consistent with the "Next" label. Left the Back link and footer as black since you only mentioned the title/description and the button — say if those should flip too.

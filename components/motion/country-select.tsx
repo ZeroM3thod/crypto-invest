@@ -109,7 +109,7 @@ export function CountrySelect({
           className={cn(
             "relative flex h-11 w-full items-center gap-2 rounded-full border pl-3.5 pr-3.5 text-left transition-colors duration-200",
             "border-border",
-            open && !hasError && "border-foreground/40 ring-2 ring-ring/40",
+            open && !hasError && "border-foreground/40 ring-2 ring-foreground/15",
             hasError && "border-destructive ring-2 ring-destructive/25",
             disabled && "cursor-not-allowed opacity-60",
           )}
