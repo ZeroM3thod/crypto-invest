@@ -32,11 +32,11 @@ function Badge({
   tone?: "default" | "success" | "destructive" | "muted" | "warning";
 }) {
   const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
+    default:     "bg-foreground/10 text-foreground",
     success:     "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
     muted:       "bg-muted text-muted-foreground",
-    warning:     "bg-warning/10 text-warning",
+    warning:     "bg-destructive/10 text-destructive",
   };
   return (
     <span
@@ -102,7 +102,7 @@ function SectionHeader({
         <button
           type="button"
           onClick={action}
-          className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          className="text-xs font-medium text-muted-foreground transition-opacity hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
         >
           {actionLabel}
         </button>
@@ -145,7 +145,7 @@ function ProgressBar({ value }: { value: number }) {
   return (
     <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
       <div
-        className="h-full rounded-full bg-primary transition-all"
+        className="h-full rounded-full bg-foreground/40 transition-all"
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
       />
     </div>
@@ -273,7 +273,7 @@ function ActivePlanCard({ plan }: { plan: ActivePlan }) {
           </div>
           <Badge label={plan.status} tone={statusTone(plan.status)} />
         </div>
-        <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary shrink-0">
+        <div className="grid size-8 place-items-center rounded-xl bg-muted text-muted-foreground shrink-0">
           <TrendingUp className="size-4" />
         </div>
       </div>

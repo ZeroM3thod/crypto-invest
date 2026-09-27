@@ -36,7 +36,7 @@ function Badge({
     success:     "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
     muted:       "bg-muted text-muted-foreground",
-    warning:     "bg-warning/10 text-warning",
+    warning:     "bg-foreground/10 text-foreground",
   };
   return (
     <span
@@ -399,10 +399,10 @@ function ContractCard({ contract }: { contract: MiningContract }) {
 
 // ── Mining Plan Purchase Card ─────────────────────────────────────────────────
 
-const tierTone = (t: MiningPlan["tier"]): "default" | "success" | "warning" => {
-  if (t === "Starter") return "default";
+const tierTone = (t: MiningPlan["tier"]): "default" | "success" | "muted" => {
+  if (t === "Starter") return "muted";
   if (t === "Pro")     return "success";
-  return "warning";
+  return "default";
 };
 
 function PlanPurchaseCard({
