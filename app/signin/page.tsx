@@ -2,57 +2,172 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SignInForm } from "@/components/motion/signin-form";
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { StatefulButton, type ButtonState } from "@/components/motion/button";
+import { Checkbox } from "@/components/motion/checkbox";
+import { Input } from "@/components/motion/input";
+import { WizardShell } from "@/components/motion/wizard-shell";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignInPage() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [revealPassword, setRevealPassword] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [status, setStatus] = useState<ButtonState>("idle");
   const [formError, setFormError] = useState<string>();
 
+  const touch = (key: string) =>
+    setTouched((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+
+  const errors = {
+    email: !email.trim()
+      ? "Enter your email."
+      : !EMAIL_PATTERN.test(email)
+        ? "That doesn't look like an email address."
+        : undefined,
+    password: !password ? "Enter your password." : undefined,
+  };
+
+  const shownError = (key: keyof typeof errors) => (touched[key] ? errors[key] : undefined);
+
+  const handleSubmit = async () => {
+    setTouched({ email: true, password: true });
+    if (errors.email || errors.password) return;
+
+    setFormError(undefined);
+    setStatus("loading");
+
+    try {
+      const res = await fetch("/api/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, remember }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setFormError(data?.message ?? "Invalid email or password.");
+        setStatus("error");
+        setTimeout(() => setStatus("idle"), 1800);
+        return;
+      }
+
+      setStatus("success");
+      setTimeout(() => router.push("/dashboard"), 900);
+    } catch {
+      setFormError("Network error. Please try again.");
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 1800);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-background px-4 py-10">
-      <SignInForm
-        title="Welcome back"
-        description="Sign in to continue."
-        errorMessage={formError}
-        secondaryAction={
+    <WizardShell shaderSide="right" stepKey="signin">
+      <div className="flex w-full flex-col gap-5">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-semibold tracking-tight text-white">Welcome back</h2>
+          <p className="text-sm text-white">Sign in to continue.</p>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            leftIcon={<Mail />}
+            disabled={status === "loading"}
+            value={email}
+            onChange={setEmail}
+            onBlur={() => touch("email")}
+            error={shownError("email")}
+            reserveErrorLine
+            success={touched.email && !errors.email && Boolean(email)}
+          />
+
+          <Input
+            label="Password"
+            type={revealPassword ? "text" : "password"}
+            autoComplete="current-password"
+            placeholder="Your password"
+            leftIcon={<Lock />}
+            rightIcon={
+              <button
+                type="button"
+                disabled={status === "loading"}
+                onClick={() => setRevealPassword((p) => !p)}
+                aria-label={revealPassword ? "Hide password" : "Show password"}
+                className="text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground"
+              >
+                {revealPassword ? <EyeOff /> : <Eye />}
+              </button>
+            }
+            disabled={status === "loading"}
+            value={password}
+            onChange={setPassword}
+            onBlur={() => touch("password")}
+            error={shownError("password")}
+            reserveErrorLine
+          />
+        </div>
+
+        <div className="flex items-center justify-between px-1">
+          <Checkbox
+            checked={remember}
+            disabled={status === "loading"}
+            onCheckedChange={setRemember}
+            label="Remember me"
+          />
           <button
             type="button"
             onClick={() => router.push("/forgot-password")}
-            className="text-sm font-medium text-foreground underline underline-offset-4"
+            className="text-sm font-medium text-white underline-offset-4 hover:underline"
           >
             Forgot password?
           </button>
-        }
-        onSubmit={async (values) => {
-          setFormError(undefined);
+        </div>
 
-          const res = await fetch("/api/signin", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(values),
-          });
+        {formError ? (
+          <p
+            role="alert"
+            className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          >
+            {formError}
+          </p>
+        ) : null}
 
-          if (!res.ok) {
-            const data = await res.json().catch(() => null);
-            setFormError(data?.message ?? "Invalid email or password.");
-            throw new Error("Sign-in failed");
-          }
+        <div className="flex items-center gap-4">
+          <StatefulButton
+            state={status}
+            variant="primary"
+            size="md"
+            onClick={handleSubmit}
+            loadingText="Signing in"
+            successText="Signed in"
+            errorText="Try again"
+            icon={<ArrowRight className="h-4 w-4" />}
+            className="ml-auto bg-white text-black hover:bg-white/90"
+          >
+            Sign in
+          </StatefulButton>
+        </div>
 
-          router.push("/dashboard");
-        }}
-        footer={
-          <>
-            Don&apos;t have an account?{" "}
-            <button
-              type="button"
-              onClick={() => router.push("/signup")}
-              className="font-medium text-foreground underline underline-offset-4"
-            >
-              Sign up
-            </button>
-          </>
-        }
-      />
-    </div>
+        <div className="text-center text-sm text-white">
+          Don&apos;t have an account?{" "}
+          <button
+            type="button"
+            onClick={() => router.push("/signup")}
+            className="font-medium text-white underline underline-offset-4"
+          >
+            Sign up
+          </button>
+        </div>
+      </div>
+    </WizardShell>
   );
 }
