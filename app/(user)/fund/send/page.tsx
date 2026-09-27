@@ -327,22 +327,22 @@ export default function SendPage() {
             </h1>
           </div>
 
-          {/* BALANCE CARD — dark, white text */}
-          <div className="rounded-4xl bg-black p-6 text-white">
+          {/* BALANCE CARD */}
+          <div className="rounded-4xl border border-border bg-card p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/50">
+                <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   Main Wallet Balance
                 </div>
-                <div className="mt-1.5 text-3xl font-semibold tracking-tight text-white">
+                <div className="mt-1.5 text-3xl font-semibold tracking-tight text-foreground">
                   ${availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className="mt-1 text-xs text-white/50">Available to send</div>
+                <div className="mt-1 text-xs text-muted-foreground">Available to send</div>
               </div>
               <div className="text-right">
-                <div className="text-[11px] font-medium uppercase tracking-wide text-white/40">Fee</div>
-                <div className="mt-1.5 text-sm text-white/70">${SEND_FEE.toFixed(2)} flat</div>
-                <div className="mt-0.5 text-xs text-white/40">Per transaction</div>
+                <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Fee</div>
+                <div className="mt-1.5 text-sm text-foreground">${SEND_FEE.toFixed(2)} flat</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">Per transaction</div>
               </div>
             </div>
           </div>

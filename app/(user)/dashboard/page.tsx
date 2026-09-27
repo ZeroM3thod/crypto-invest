@@ -223,7 +223,7 @@ const TRADE_COLUMNS = [
 // ── Shared panel button style ───────────────────────────────────────────────
 // Single source of truth — used by every panel button so they're all identical.
 const PANEL_BTN =
-  "flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-white transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex-1 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 // ── Activity Overview tab content ───────────────────────────────────────────
 

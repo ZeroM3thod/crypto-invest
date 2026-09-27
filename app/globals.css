@@ -12,6 +12,7 @@
   --card: #1c1c1c;
   --destructive: #ef4444;
   --success: #4ade80;
+  --warning: #f59e0b;
   --chart-bg: #1c1c1c;
   --chart-fg: #71717a;
   --chart-grid: rgba(255, 255, 255, 0.06);
@@ -29,6 +30,7 @@
     --card: #1c1c1c;
     --destructive: #ef4444;
     --success: #4ade80;
+    --warning: #f59e0b;
     --chart-bg: #1c1c1c;
     --chart-fg: #71717a;
     --chart-grid: rgba(255, 255, 255, 0.06);
@@ -46,6 +48,7 @@
   --color-card: var(--card);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --color-warning: var(--warning);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

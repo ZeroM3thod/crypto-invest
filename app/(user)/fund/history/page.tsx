@@ -241,24 +241,24 @@ export default function FundHistoryPage() {
             </h1>
           </div>
 
-          {/* SUMMARY CARD — dark, white text */}
-          <div className="rounded-4xl bg-black p-6 text-white">
+          {/* SUMMARY CARD */}
+          <div className="rounded-4xl border border-border bg-card p-6">
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Deposited</div>
-                <div className="mt-1.5 text-lg font-semibold tracking-tight text-white sm:text-xl">
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Deposited</div>
+                <div className="mt-1.5 text-lg font-semibold tracking-tight text-success sm:text-xl">
                   ${stats.deposited.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Withdrawn</div>
-                <div className="mt-1.5 text-lg font-semibold tracking-tight text-white sm:text-xl">
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Withdrawn</div>
+                <div className="mt-1.5 text-lg font-semibold tracking-tight text-destructive sm:text-xl">
                   ${stats.withdrawn.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Sent</div>
-                <div className="mt-1.5 text-lg font-semibold tracking-tight text-white sm:text-xl">
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Sent</div>
+                <div className="mt-1.5 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
                   ${stats.sent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
               </div>

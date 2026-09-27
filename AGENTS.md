@@ -1,599 +1,156 @@
-Understood — the site is **always dark** (single theme, `#151515` background, no light mode toggle). I mistakenly used light-mode-first `zinc-50`/`bg-white` classes. Let me rewrite the Profile page to use the site's actual design tokens (`bg-background`, `bg-card`, `border-border`, `text-foreground`, `text-muted-foreground`) like your other real pages (`dashboard/page.tsx`) — no light/dark toggle logic needed, just the site's own dark theme, with `zinc` used only as accents where a neutral gray (not blue `primary`) is wanted for badges/icons.The `Button` `default` variant I built earlier is hard-coded to `bg-black`/`bg-white`, which won't match this dark-only site. Let me check and fix it to use the site's `--primary` token instead, and fix `Card`/`Badge`/`Dialog` similarly so everything is consistent with the real theme.Right — this was written for a separate light/dark toggling black&white app, not this always-dark site. Since this site uses `--foreground` (`#ededed`, near-white) on `--background` (`#151515`, dark), I'll rewrite `default`/`destructive` variants to use `bg-foreground text-background` (which resolves correctly on this dark site — a light button on dark background), and drop all `dark:` prefixes since there's no light mode here.Now `Card` and `Badge` need the same fix (drop light/dark split, use site tokens).And the `Avatar` fallback, plus `CopyButton`/`InfoRow` in the page — let me update the avatar fallback to use `bg-muted`/`text-foreground` too (it already does in v2 page, but the shared component file needs updating).Let's balance-check all the v2 files before delivering.All balanced. Only `text-white` hit is on the destructive button (white text on red — correct for readability, not page chrome). Here's everything, matching your site's real dark background (`#151515`) via its own tokens, not a separate light/dark toggle.
+Good, I now have both files completely. Let me identify every blue/yellow occurrence:
 
-## Updated `components/ui/button.tsx` (replace existing)
+**Investment Overview (`investment/overview/page.tsx`):**
+- `bg-primary/10 text-primary` → default Badge tone (blue, used for tier badges like "Pro", "Starter", "Elite")
+- `bg-primary` → ProgressBar fill (blue bar)
+- `text-primary` → SectionHeader action button + ActivePlanCard icon
 
+**Cloud Mining (`investment/cloud-mining/page.tsx`):**
+- `bg-yellow-500/10 text-yellow-600` → warning Badge tone (used for "Elite" tier)
+- `tierTone` returns `"warning"` for Elite tier
+
+Here are the exact changes:
+
+---
+
+## `app/(user)/investment/overview/page.tsx`
+
+**3 spots to change:**
+
+**① Badge `default` tone — remove blue:**
+
+Find:
 ```tsx
-// components/ui/button.tsx
-import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
-import { cva, type VariantProps } from "class-variance-authority";
-
-import { cn } from "@/lib/utils";
-
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:pointer-events-none [&_svg]:shrink-0",
-  {
-    variants: {
-      variant: {
-        default: "bg-foreground text-background hover:bg-foreground/85",
-        outline:
-          "border border-border bg-transparent text-foreground hover:bg-muted",
-        ghost: "bg-transparent text-foreground hover:bg-muted",
-        secondary: "bg-muted text-foreground hover:bg-muted/70",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/85",
-        link: "text-foreground underline-offset-4 hover:underline",
-      },
-      size: {
-        default: "h-9 px-4 py-2 [&_svg]:size-4",
-        sm: "h-8 rounded-md px-3 text-xs [&_svg]:size-3.5",
-        lg: "h-10 rounded-md px-6 [&_svg]:size-4",
-        icon: "size-9 [&_svg]:size-4",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  },
-);
-
-function Button({
-  className,
-  variant,
-  size,
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot : "button";
-  return (
-    <Comp
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  );
-}
-
-export { Button, buttonVariants };
-```
-
-## Updated `components/ui/card.tsx` (replace existing)
-
-```tsx
-// components/ui/card.tsx
-import * as React from "react";
-
-import { cn } from "@/lib/utils";
-
-function Card({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card"
-      className={cn(
-        "rounded-xl border border-border bg-card text-foreground",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-header"
-      className={cn("flex flex-col gap-1 border-b border-border p-5", className)}
-      {...props}
-    />
-  );
-}
-
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-title"
-      className={cn("text-sm font-semibold leading-none", className)}
-      {...props}
-    />
-  );
-}
-
-function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-description"
-      className={cn("text-xs text-muted-foreground", className)}
-      {...props}
-    />
-  );
-}
-
-function CardContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div data-slot="card-content" className={cn("p-5", className)} {...props} />
-  );
-}
-
-function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-footer"
-      className={cn("flex items-center border-t border-border p-5", className)}
-      {...props}
-    />
-  );
-}
-
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter };
-```
-
-## Updated `components/ui/badge.tsx` (replace existing)
-
-```tsx
-// components/ui/badge.tsx
-import * as React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
-
-import { cn } from "@/lib/utils";
-
-const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide w-fit whitespace-nowrap",
-  {
-    variants: {
-      variant: {
-        default: "border-foreground bg-foreground text-background",
-        outline: "border-border text-muted-foreground",
-        secondary: "border-transparent bg-muted text-foreground",
-        muted: "border-border bg-muted/50 text-muted-foreground",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  },
-);
-
-function Badge({
-  className,
-  variant,
-  ...props
-}: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return (
-    <span
-      data-slot="badge"
-      className={cn(badgeVariants({ variant, className }))}
-      {...props}
-    />
-  );
-}
-
-export { Badge, badgeVariants };
-```
-
-## Updated `components/ui/avatar.tsx` (replace existing)
-
-```tsx
-// components/ui/avatar.tsx
-"use client";
-
-import * as React from "react";
-
-import { cn } from "@/lib/utils";
-
-function Avatar({ className, ...props }: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="avatar"
-      className={cn(
-        "relative flex size-full shrink-0 overflow-hidden rounded-full",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function AvatarImage({ className, ...props }: React.ComponentProps<"img">) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      data-slot="avatar-image"
-      className={cn("aspect-square size-full object-cover", className)}
-      {...props}
-    />
-  );
-}
-
-function AvatarFallback({ className, ...props }: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="avatar-fallback"
-      className={cn(
-        "flex size-full items-center justify-center rounded-full bg-muted text-foreground",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export { Avatar, AvatarImage, AvatarFallback };
-```
-
-## `app/(user)/profile/page.tsx`
-
-```tsx
-// app/(user)/profile/page.tsx
-"use client";
-
-import { useState } from "react";
-import { UserShell } from "@/app/(user)/_components/user-shell";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  BadgeCheck,
-  Camera,
-  Check,
-  Copy,
-  Pencil,
-  ShieldCheck,
-  ShieldOff,
-  Wallet,
-  X,
-} from "lucide-react";
-
-// ── Mock data ────────────────────────────────────────────────────────────
-
-const COUNTRIES = [
-  "United States",
-  "United Kingdom",
-  "Canada",
-  "Australia",
-  "Germany",
-  "France",
-  "Bangladesh",
-  "India",
-  "United Arab Emirates",
-  "Singapore",
-];
-
-interface UserProfile {
-  fullName: string;
-  userId: string;
-  email: string;
-  dob: string; // yyyy-mm-dd
-  walletAddress: string;
-  country: string;
-  kycVerified: boolean;
-  twoFaEnabled: boolean;
-  avatarUrl?: string;
-}
-
-const INITIAL_PROFILE: UserProfile = {
-  fullName: "Ava Thompson",
-  userId: "USR-4821093",
-  email: "ava.thompson@example.com",
-  dob: "1994-06-12",
-  walletAddress: "0x9F3a1C2b4E5d6F7a8B9c0D1e2F3a4B5c6D7e8F90",
-  country: "United States",
-  kycVerified: true,
-  twoFaEnabled: false,
+const colors: Record<string, string> = {
+  default:     "bg-primary/10 text-primary",
+  success:     "bg-success/10 text-success",
+  destructive: "bg-destructive/10 text-destructive",
+  muted:       "bg-muted text-muted-foreground",
+  warning:     "bg-yellow-500/10 text-yellow-600",
 };
+```
 
-// ── Helpers ──────────────────────────────────────────────────────────────
+Replace with:
+```tsx
+const colors: Record<string, string> = {
+  default:     "bg-foreground/10 text-foreground",
+  success:     "bg-success/10 text-success",
+  destructive: "bg-destructive/10 text-destructive",
+  muted:       "bg-muted text-muted-foreground",
+  warning:     "bg-destructive/10 text-destructive",
+};
+```
 
-function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-}
+**② ProgressBar fill — remove blue:**
 
-function truncateMiddle(str: string, head = 8, tail = 6) {
-  if (str.length <= head + tail + 3) return str;
-  return `${str.slice(0, head)}…${str.slice(-tail)}`;
-}
-
-function initialsOf(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
-
-// ── Small building blocks ────────────────────────────────────────────────
-
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const doCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // clipboard unavailable — fail silently
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  };
-
+Find:
+```tsx
+function ProgressBar({ value }: { value: number }) {
   return (
-    <button
-      type="button"
-      onClick={doCopy}
-      aria-label="Copy to clipboard"
-      className="grid size-7 shrink-0 place-items-center rounded-md border border-border text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-    </button>
-  );
-}
-
-function InfoRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1 border-b border-border py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <div className="flex items-center gap-2">{children}</div>
+    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+      <div
+        className="h-full rounded-full bg-primary transition-all"
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      />
     </div>
   );
 }
+```
 
-// ── Page ─────────────────────────────────────────────────────────────────
-
-export default function ProfilePage() {
-  const [profile, setProfile] = useState<UserProfile>(INITIAL_PROFILE);
-
-  const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(profile.fullName);
-  const [draftDob, setDraftDob] = useState(profile.dob);
-  const [draftCountry, setDraftCountry] = useState(profile.country);
-  const [nameErr, setNameErr] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const startEditing = () => {
-    setDraftName(profile.fullName);
-    setDraftDob(profile.dob);
-    setDraftCountry(profile.country);
-    setNameErr(false);
-    setEditing(true);
-  };
-
-  const cancelEditing = () => setEditing(false);
-
-  const saveEditing = async () => {
-    if (!draftName.trim()) {
-      setNameErr(true);
-      return;
-    }
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 450));
-    setProfile((p) => ({
-      ...p,
-      fullName: draftName.trim(),
-      dob: draftDob,
-      country: draftCountry,
-    }));
-    setSaving(false);
-    setEditing(false);
-  };
-
+Replace with:
+```tsx
+function ProgressBar({ value }: { value: number }) {
   return (
-    <UserShell active="Profile">
-      <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
-        <div className="mx-auto w-full max-w-2xl space-y-6">
-
-          {/* ── Header ────────────────────────────────── */}
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Account
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-              Profile
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              View your account details and manage your personal information.
-            </p>
-          </div>
-
-          {/* ── Avatar + identity card ───────────────────── */}
-          <Card>
-            <CardContent className="flex flex-col items-center gap-4 py-8 text-center sm:flex-row sm:items-center sm:text-left">
-              <div className="relative shrink-0">
-                <Avatar className="size-20 border border-border">
-                  {profile.avatarUrl ? (
-                    <AvatarImage src={profile.avatarUrl} alt={profile.fullName} />
-                  ) : (
-                    <AvatarFallback className="bg-muted text-lg font-semibold text-foreground">
-                      {initialsOf(profile.fullName)}
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-                <button
-                  type="button"
-                  aria-label="Change avatar"
-                  className="absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <Camera className="size-3.5" />
-                </button>
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-lg font-semibold text-foreground">
-                  {profile.fullName}
-                </h2>
-                <p className="truncate text-sm text-muted-foreground">{profile.email}</p>
-                <div className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
-                  {profile.kycVerified ? (
-                    <Badge className="border-foreground bg-foreground text-background">
-                      <BadgeCheck className="size-3" /> KYC Verified
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">KYC Not Verified</Badge>
-                  )}
-                  {profile.twoFaEnabled ? (
-                    <Badge variant="secondary">
-                      <ShieldCheck className="size-3" /> 2FA Enabled
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">
-                      <ShieldOff className="size-3" /> 2FA Disabled
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* ── Account details ──────────────────────────── */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Account Details</CardTitle>
-                {!editing && (
-                  <Button variant="outline" size="sm" onClick={startEditing}>
-                    <Pencil className="size-3.5" /> Edit
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="px-5 py-0">
-
-              {/* User ID */}
-              <InfoRow label="User ID">
-                <span className="font-mono text-sm text-foreground">{profile.userId}</span>
-                <CopyButton value={profile.userId} />
-              </InfoRow>
-
-              {/* Full name */}
-              <InfoRow label="Full Name">
-                {editing ? (
-                  <div className="w-full sm:w-64">
-                    <Input
-                      value={draftName}
-                      onChange={(e) => { setDraftName(e.target.value); setNameErr(false); }}
-                      aria-invalid={nameErr}
-                      placeholder="Your full name"
-                    />
-                    {nameErr && <p className="mt-1 text-xs text-destructive">Name is required.</p>}
-                  </div>
-                ) : (
-                  <span className="text-sm text-foreground">{profile.fullName}</span>
-                )}
-              </InfoRow>
-
-              {/* Email */}
-              <InfoRow label="Email Address">
-                <span className="truncate text-sm text-foreground">{profile.email}</span>
-              </InfoRow>
-
-              {/* DOB */}
-              <InfoRow label="Date of Birth">
-                {editing ? (
-                  <Input
-                    type="date"
-                    value={draftDob}
-                    onChange={(e) => setDraftDob(e.target.value)}
-                    className="w-full sm:w-64"
-                  />
-                ) : (
-                  <span className="text-sm text-foreground">{formatDate(profile.dob)}</span>
-                )}
-              </InfoRow>
-
-              {/* Country */}
-              <InfoRow label="Country">
-                {editing ? (
-                  <Select value={draftCountry} onValueChange={setDraftCountry}>
-                    <SelectTrigger className="w-full sm:w-64">
-                      <SelectValue placeholder="Select a country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRIES.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <span className="text-sm text-foreground">{profile.country}</span>
-                )}
-              </InfoRow>
-
-              {/* Wallet address */}
-              <InfoRow label="Main Wallet Address">
-                <span className="flex items-center gap-1.5 font-mono text-sm text-foreground">
-                  <Wallet className="size-3.5 text-muted-foreground" />
-                  <span className="hidden sm:inline">{truncateMiddle(profile.walletAddress, 10, 8)}</span>
-                  <span className="sm:hidden">{truncateMiddle(profile.walletAddress, 6, 4)}</span>
-                </span>
-                <CopyButton value={profile.walletAddress} />
-              </InfoRow>
-
-            </CardContent>
-
-            {editing && (
-              <div className="flex items-center justify-end gap-2 border-t border-border p-5">
-                <Button variant="ghost" onClick={cancelEditing} disabled={saving}>
-                  <X className="size-3.5" /> Cancel
-                </Button>
-                <Button onClick={saveEditing} disabled={saving}>
-                  <Check className="size-3.5" /> {saving ? "Saving…" : "Save Changes"}
-                </Button>
-              </div>
-            )}
-          </Card>
-
-          {/* ── Security ─────────────────────────────────── */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Security</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-                  {profile.twoFaEnabled ? <ShieldCheck className="size-4" /> : <ShieldOff className="size-4" />}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Two-Factor Authentication</p>
-                  <p className="text-xs text-muted-foreground">
-                    {profile.twoFaEnabled ? "Your account is protected with 2FA." : "Add an extra layer of security to your account."}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant={profile.twoFaEnabled ? "outline" : "default"}
-                size="sm"
-                onClick={() => setProfile((p) => ({ ...p, twoFaEnabled: !p.twoFaEnabled }))}
-              >
-                {profile.twoFaEnabled ? "Disable 2FA" : "Enable 2FA"}
-              </Button>
-            </CardContent>
-          </Card>
-
-        </div>
-
-        <div className="h-10" />
-      </div>
-    </UserShell>
+    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+      <div
+        className="h-full rounded-full bg-foreground/40 transition-all"
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      />
+    </div>
   );
 }
 ```
 
-**What changed:** removed every `zinc`/`black`/`white`/`dark:` class. Everything now reads from your site's real theme variables — `bg-background` (`#151515`), `bg-card` (`#1c1c1c`), `border-border` (`#2a2a2a`), `text-foreground` (`#ededed`), `text-muted-foreground` (`#71717a`) — so it renders correctly on your actual dark background instead of a separate gray/black-white scheme. This also means `Button`, `Card`, `Badge`, `Avatar` are now consistent for **every** page built earlier (Create Ticket, My Tickets, Community Chat) — replace those three shared component files project-wide and all pages will pick up the same real theme automatically.
+**③ ActivePlanCard icon + SectionHeader action — remove blue:**
+
+Find:
+```tsx
+className="text-xs font-medium text-primary transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+```
+
+Replace with:
+```tsx
+className="text-xs font-medium text-muted-foreground transition-opacity hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+```
+
+Find:
+```tsx
+<div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary shrink-0">
+  <TrendingUp className="size-4" />
+</div>
+```
+
+Replace with:
+```tsx
+<div className="grid size-8 place-items-center rounded-xl bg-muted text-muted-foreground shrink-0">
+  <TrendingUp className="size-4" />
+</div>
+```
+
+---
+
+## `app/(user)/investment/cloud-mining/page.tsx`
+
+**2 spots to change:**
+
+**① Badge `warning` tone — remove yellow:**
+
+Find:
+```tsx
+const colors: Record<string, string> = {
+  default:     "bg-foreground/10 text-foreground",
+  success:     "bg-success/10 text-success",
+  destructive: "bg-destructive/10 text-destructive",
+  muted:       "bg-muted text-muted-foreground",
+  warning:     "bg-yellow-500/10 text-yellow-600",
+};
+```
+
+Replace with:
+```tsx
+const colors: Record<string, string> = {
+  default:     "bg-foreground/10 text-foreground",
+  success:     "bg-success/10 text-success",
+  destructive: "bg-destructive/10 text-destructive",
+  muted:       "bg-muted text-muted-foreground",
+  warning:     "bg-foreground/10 text-foreground",
+};
+```
+
+**② `tierTone` function — map "Elite" away from warning:**
+
+Find:
+```tsx
+const tierTone = (t: MiningPlan["tier"]): "default" | "success" | "warning" => {
+  if (t === "Starter") return "default";
+  if (t === "Pro")     return "success";
+  return "warning";
+};
+```
+
+Replace with:
+```tsx
+const tierTone = (t: MiningPlan["tier"]): "default" | "success" | "muted" => {
+  if (t === "Starter") return "muted";
+  if (t === "Pro")     return "success";
+  return "default";
+};
+```
+
+---
+
+That's it — just those 6 targeted swaps across the two files. No layout or logic touched at all. After these changes:
+- **Tier badges** (Pro, Starter, Elite) → neutral `bg-foreground/10 text-foreground` or `bg-muted`
+- **Progress bars** → subtle `bg-foreground/40` (dark-theme neutral grey-white)
+- **Action links** → `text-muted-foreground` hovering to `text-foreground`
+- **Yellow** completely gone from both pages

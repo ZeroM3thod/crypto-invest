@@ -97,7 +97,7 @@ const PROFANITY = ["badword1", "badword2"];
 
 function AvatarGlyph({ letter }: { letter: string }) {
   return (
-    <span className="grid size-full place-items-center rounded-full border border-black/15 text-[11px] font-semibold dark:border-white/20">
+    <span className="grid size-full place-items-center rounded-full border border-border text-[11px] font-semibold">
       {letter.toUpperCase()}
     </span>
   );
@@ -105,13 +105,13 @@ function AvatarGlyph({ letter }: { letter: string }) {
 
 function PinnedMessage({ msg }: { msg: ChatMessageData }) {
   return (
-    <div className="mx-4 mb-2 flex items-start gap-2 rounded-xl border border-black/10 bg-black/[0.02] px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
-      <Pin className="mt-0.5 size-3.5 shrink-0" />
+    <div className="mx-4 mb-2 flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3">
+      <Pin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
-        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-black/50 dark:text-white/50">
+        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Pinned — Admin
         </p>
-        <p className="text-xs leading-relaxed">{msg.text}</p>
+        <p className="text-xs leading-relaxed text-foreground">{msg.text}</p>
       </div>
     </div>
   );
@@ -124,20 +124,20 @@ function RulesBanner() {
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="flex w-full items-center justify-between px-4 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-black dark:focus-visible:ring-white"
+        className="flex w-full items-center justify-between px-4 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="text-[11px] font-semibold">Community Rules</span>
+        <span className="text-[11px] font-semibold text-foreground">Community Rules</span>
         {open ? (
-          <ChevronUp className="size-3.5 text-black/40 dark:text-white/40" />
+          <ChevronUp className="size-3.5 text-muted-foreground" />
         ) : (
-          <ChevronDown className="size-3.5 text-black/40 dark:text-white/40" />
+          <ChevronDown className="size-3.5 text-muted-foreground" />
         )}
       </button>
       {open && (
-        <div className="space-y-1.5 border-t border-black/10 px-4 pb-3 pt-2 dark:border-white/10">
+        <div className="space-y-1.5 border-t border-border px-4 pb-3 pt-2">
           {COMMUNITY_RULES.map((rule, i) => (
-            <p key={rule} className="text-xs text-black/60 dark:text-white/60">
-              <span className="font-semibold text-black dark:text-white">{i + 1}.</span> {rule}
+            <p key={rule} className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">{i + 1}.</span> {rule}
             </p>
           ))}
         </div>
@@ -158,14 +158,14 @@ function OnlineSidebar({
   const list = (
     <div className="flex-1 overflow-y-auto py-2">
       {users.map((u) => (
-        <div key={u.id} className="flex items-center gap-2 px-4 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.05]">
+        <div key={u.id} className="flex items-center gap-2 px-4 py-2 transition-colors hover:bg-muted/50">
           <div className="relative size-7 shrink-0">
             <AvatarGlyph letter={u.avatar} />
-            <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-white bg-black dark:border-black dark:bg-white" />
+            <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full border border-background bg-foreground" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[11px] font-medium">{u.username}</p>
-            <p className="text-[10px] text-black/40 dark:text-white/40">{u.lang}</p>
+            <p className="text-[10px] text-muted-foreground">{u.lang}</p>
           </div>
         </div>
       ))}
@@ -174,8 +174,8 @@ function OnlineSidebar({
 
   return (
     <>
-      <aside className="hidden h-full w-56 shrink-0 flex-col border-l border-black/10 bg-white dark:border-white/10 dark:bg-black lg:flex">
-        <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 dark:border-white/10">
+      <aside className="hidden h-full w-56 shrink-0 flex-col border-l border-border bg-card lg:flex">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <p className="flex items-center gap-1.5 text-[11px] font-semibold">
             <Users className="size-3.5" /> Online
           </p>
@@ -186,9 +186,9 @@ function OnlineSidebar({
 
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-          <aside className="absolute right-0 top-0 flex h-full w-56 flex-col border-l border-black/10 bg-white dark:border-white/10 dark:bg-black">
-            <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 dark:border-white/10">
+          <div className="absolute inset-0 bg-foreground/30" onClick={onClose} />
+          <aside className="absolute right-0 top-0 flex h-full w-56 flex-col border-l border-border bg-card">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <p className="flex items-center gap-1.5 text-[11px] font-semibold">
                 <Users className="size-3.5" /> Online
               </p>
@@ -197,7 +197,7 @@ function OnlineSidebar({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="text-black/40 outline-none hover:text-black dark:text-white/40 dark:hover:text-white"
+                  className="text-muted-foreground outline-none hover:text-foreground"
                 >
                   <X className="size-4" />
                 </button>
@@ -229,7 +229,7 @@ function EmojiPicker({
               onSelect(e);
               onClose();
             }}
-            className="grid size-8 place-items-center rounded-md text-base transition-colors outline-none hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-black dark:hover:bg-white/10 dark:focus-visible:ring-white"
+            className="grid size-8 place-items-center rounded-md text-base transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
           >
             {e}
           </button>
@@ -246,8 +246,8 @@ function MessageBubble({ msg }: { msg: ChatMessageData }) {
         <AvatarGlyph letter={msg.avatar} />
       </div>
       <div className={msg.own ? "text-right" : ""}>
-        <div className={`mb-1 flex items-center gap-1.5 text-[10px] text-black/40 dark:text-white/40 ${msg.own ? "justify-end" : ""}`}>
-          <span className="font-medium text-black/60 dark:text-white/60">{msg.own ? "You" : msg.username}</span>
+        <div className={`mb-1 flex items-center gap-1.5 text-[10px] text-muted-foreground ${msg.own ? "justify-end" : ""}`}>
+          <span className="font-medium text-muted-foreground">{msg.own ? "You" : msg.username}</span>
           {msg.lang && (
             <span className="inline-flex items-center gap-0.5">
               <Globe className="size-2.5" />
@@ -259,8 +259,8 @@ function MessageBubble({ msg }: { msg: ChatMessageData }) {
         <div
           className={`inline-block rounded-lg px-3 py-2 text-sm leading-relaxed ${
             msg.own
-              ? "rounded-br-sm bg-black text-white dark:bg-white dark:text-black"
-              : "rounded-bl-sm border border-black/15 dark:border-white/20"
+              ? "rounded-br-sm bg-foreground text-background"
+              : "rounded-bl-sm border border-border"
           }`}
         >
           {msg.text}
@@ -331,13 +331,13 @@ export default function CommunityChat() {
         className="flex h-[calc(100dvh-var(--shell-offset,0px))] max-h-full min-h-0 w-full overflow-hidden"
         style={{ "--shell-offset": "64px" } as CSSProperties}
       >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-black/10 bg-white dark:border-white/10 dark:bg-black">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-border bg-card">
 
           {/* ── Header ────────────────────────────────── */}
-          <header className="flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4 dark:border-white/10">
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">International Chat</p>
-              <p className="truncate text-[11px] text-black/40 dark:text-white/40">
+              <p className="truncate text-[11px] text-muted-foreground">
                 {ONLINE_USERS.length} members online
               </p>
             </div>
@@ -347,20 +347,20 @@ export default function CommunityChat() {
               className="rounded-full lg:hidden"
               onClick={() => setSidebarOpen(true)}
             >
-              <span className="inline-block size-1.5 rounded-full bg-black dark:bg-white" />
+              <span className="inline-block size-1.5 rounded-full bg-foreground" />
               {ONLINE_USERS.length} Online
             </Button>
           </header>
 
           {/* ── Rules + Pinned ───────────────────────────── */}
-          <div className="shrink-0 border-b border-black/10 pb-1 pt-3 dark:border-white/10">
+          <div className="shrink-0 border-b border-border pb-1 pt-3">
             <RulesBanner />
             <PinnedMessage msg={PINNED_MESSAGE} />
           </div>
 
           {/* ── Moderation notice ─────────────────────────── */}
           {modNotice && (
-            <div className="mx-4 mt-2 flex shrink-0 items-center gap-2 rounded-lg border border-black/70 px-4 py-2 dark:border-white/70">
+            <div className="mx-4 mt-2 flex shrink-0 items-center gap-2 rounded-lg border border-border px-4 py-2">
               <span className="text-xs font-semibold">{modNotice}</span>
             </div>
           )}
@@ -375,7 +375,7 @@ export default function CommunityChat() {
           </div>
 
           {/* ── Input ─────────────────────────────────────── */}
-          <div className="shrink-0 border-t border-black/10 p-3 dark:border-white/10">
+          <div className="shrink-0 border-t border-border p-3">
             <div className="relative mx-auto flex max-w-3xl items-center gap-2">
               {emojiOpen && (
                 <EmojiPicker
@@ -387,7 +387,7 @@ export default function CommunityChat() {
                 type="button"
                 onClick={() => setEmojiOpen((p) => !p)}
                 aria-label="Add emoji"
-                className="grid size-9 shrink-0 place-items-center rounded-full text-black/40 outline-none transition-colors hover:bg-black/5 hover:text-black focus-visible:ring-2 focus-visible:ring-black dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-white dark:focus-visible:ring-white"
+                className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Smile className="size-4" />
               </button>

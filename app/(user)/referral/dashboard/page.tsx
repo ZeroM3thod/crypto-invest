@@ -205,24 +205,24 @@ export default function ReferralDashboardPage() {
             </h1>
           </div>
 
-          {/* SUMMARY CARD — dark, white text, always visible above tabs */}
-          <div className="rounded-4xl bg-black p-6 text-white">
+          {/* SUMMARY CARD */}
+          <div className="rounded-4xl border border-border bg-card p-6">
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Total Referred</div>
-                <div className="mt-1.5 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Total Referred</div>
+                <div className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                   {totalReferred}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Active Referred</div>
-                <div className="mt-1.5 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Active Referred</div>
+                <div className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                   {totalActive}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/50">Total Profit</div>
-                <div className="mt-1.5 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Total Profit</div>
+                <div className="mt-1.5 text-2xl font-semibold tracking-tight text-success sm:text-3xl">
                   ${totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
               </div>

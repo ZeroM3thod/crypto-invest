@@ -36,7 +36,7 @@ function Badge({
     success:     "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
     muted:       "bg-muted text-muted-foreground",
-    warning:     "bg-yellow-500/10 text-yellow-600",
+    warning:     "bg-warning/10 text-warning",
   };
   return (
     <span

@@ -259,8 +259,8 @@ function PlanCard({
           <span
             className={`inline-block rounded-t-xl px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
               plan.id === "elite"
-                ? "bg-amber-500 text-white"
-                : "bg-primary text-primary-foreground"
+                ? "bg-primary/20 text-primary"
+                : "bg-foreground text-background"
             }`}
           >
             {plan.ribbon}
@@ -479,7 +479,7 @@ function InvestModal({
   const now = new Date();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/20 backdrop-blur-sm sm:items-center">
       <div className="w-full max-w-md rounded-t-4xl rounded-b-none border border-border bg-card p-6 sm:rounded-4xl">
         <div className="mb-4 flex items-start justify-between">
           <div>
@@ -587,11 +587,11 @@ function CancelModal({
   const totalReturn = plan.invested + totalEarned;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/20 backdrop-blur-sm sm:items-center">
       <div className="w-full max-w-md rounded-t-4xl rounded-b-none border border-border bg-card p-6 sm:rounded-4xl">
         <div className="mb-4 flex flex-col items-center text-center">
-          <div className="mb-2.5 flex size-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
-            <AlertTriangle className="size-5 text-amber-500" />
+          <div className="mb-2.5 flex size-12 items-center justify-center rounded-full bg-destructive/10">
+            <AlertTriangle className="size-5 text-destructive" />
           </div>
           <h2 className="text-base font-semibold text-foreground">Cancel this plan?</h2>
           <p className="mt-1 text-xs text-muted-foreground">

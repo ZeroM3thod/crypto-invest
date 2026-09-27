@@ -13,7 +13,7 @@ const ITEMS = [
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center min-h-screen bg-zinc-50 font-sans dark:bg-black">
+    <div className="flex flex-col flex-1 items-center justify-center min-h-screen bg-background font-sans">
       <h1 className="text-2xl font-semibold text-foreground">Home Page</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         The dock is now fixed at the bottom on every page.

@@ -134,7 +134,7 @@ function Modal({ open, onClose, title, children, maxWidth = "max-w-sm" }: {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center px-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative w-full ${maxWidth} rounded-4xl border border-border bg-card p-6 shadow-xl`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
