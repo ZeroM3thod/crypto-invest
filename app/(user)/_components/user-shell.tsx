@@ -93,10 +93,11 @@ const ROUTES: Record<string, string> = {
   "Leaderboard":       "/referral/leaderboard",
 
   // Support
-  "Support":       "/support",
+  "Support":        "/support/create-ticket",
+  "Create Ticket":  "/support/create-ticket",
+  "My Tickets":     "/support/my-tickets",
   
-  "My Tickets":    "/support/my-tickets",
-  "Create Ticket": "/support/create-ticket",
+
   // Community
   "Community":           "/community",
   "International Chat":  "/community/chat",
@@ -143,7 +144,7 @@ const destinations = [
   {
     label: "Support",
     icon: HeadsetIcon,
-    children: [ "Create Tickets" , "My Tickets" ],
+    children: ["Create Ticket", "My Tickets"],
   },
   {
     label: "Community",
@@ -300,7 +301,7 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
               <ContextMenuLabel>Profile</ContextMenuLabel>
               <ContextMenuItem
                 textValue="Personal Information"
-                onSelect={() => { setActive("Personal Information"); router.push("/profile/personal-info"); }}
+                onSelect={() => { setActive("Personal Information"); router.push("/profile"); }}
               >
                 <User aria-hidden="true" className="h-4 w-4" />
                 Personal Information

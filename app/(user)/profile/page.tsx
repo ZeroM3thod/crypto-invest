@@ -1,236 +1,9 @@
-Understood — the site is **always dark** (single theme, `#151515` background, no light mode toggle). I mistakenly used light-mode-first `zinc-50`/`bg-white` classes. Let me rewrite the Profile page to use the site's actual design tokens (`bg-background`, `bg-card`, `border-border`, `text-foreground`, `text-muted-foreground`) like your other real pages (`dashboard/page.tsx`) — no light/dark toggle logic needed, just the site's own dark theme, with `zinc` used only as accents where a neutral gray (not blue `primary`) is wanted for badges/icons.The `Button` `default` variant I built earlier is hard-coded to `bg-black`/`bg-white`, which won't match this dark-only site. Let me check and fix it to use the site's `--primary` token instead, and fix `Card`/`Badge`/`Dialog` similarly so everything is consistent with the real theme.Right — this was written for a separate light/dark toggling black&white app, not this always-dark site. Since this site uses `--foreground` (`#ededed`, near-white) on `--background` (`#151515`, dark), I'll rewrite `default`/`destructive` variants to use `bg-foreground text-background` (which resolves correctly on this dark site — a light button on dark background), and drop all `dark:` prefixes since there's no light mode here.Now `Card` and `Badge` need the same fix (drop light/dark split, use site tokens).And the `Avatar` fallback, plus `CopyButton`/`InfoRow` in the page — let me update the avatar fallback to use `bg-muted`/`text-foreground` too (it already does in v2 page, but the shared component file needs updating).Let's balance-check all the v2 files before delivering.All balanced. Only `text-white` hit is on the destructive button (white text on red — correct for readability, not page chrome). Here's everything, matching your site's real dark background (`#151515`) via its own tokens, not a separate light/dark toggle.
-
-## Updated `components/ui/button.tsx` (replace existing)
-
-```tsx
-// components/ui/button.tsx
-import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
-import { cva, type VariantProps } from "class-variance-authority";
-
-import { cn } from "@/lib/utils";
-
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:pointer-events-none [&_svg]:shrink-0",
-  {
-    variants: {
-      variant: {
-        default: "bg-foreground text-background hover:bg-foreground/85",
-        outline:
-          "border border-border bg-transparent text-foreground hover:bg-muted",
-        ghost: "bg-transparent text-foreground hover:bg-muted",
-        secondary: "bg-muted text-foreground hover:bg-muted/70",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/85",
-        link: "text-foreground underline-offset-4 hover:underline",
-      },
-      size: {
-        default: "h-9 px-4 py-2 [&_svg]:size-4",
-        sm: "h-8 rounded-md px-3 text-xs [&_svg]:size-3.5",
-        lg: "h-10 rounded-md px-6 [&_svg]:size-4",
-        icon: "size-9 [&_svg]:size-4",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  },
-);
-
-function Button({
-  className,
-  variant,
-  size,
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot : "button";
-  return (
-    <Comp
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  );
-}
-
-export { Button, buttonVariants };
-```
-
-## Updated `components/ui/card.tsx` (replace existing)
-
-```tsx
-// components/ui/card.tsx
-import * as React from "react";
-
-import { cn } from "@/lib/utils";
-
-function Card({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card"
-      className={cn(
-        "rounded-xl border border-border bg-card text-foreground",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-header"
-      className={cn("flex flex-col gap-1 border-b border-border p-5", className)}
-      {...props}
-    />
-  );
-}
-
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-title"
-      className={cn("text-sm font-semibold leading-none", className)}
-      {...props}
-    />
-  );
-}
-
-function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-description"
-      className={cn("text-xs text-muted-foreground", className)}
-      {...props}
-    />
-  );
-}
-
-function CardContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div data-slot="card-content" className={cn("p-5", className)} {...props} />
-  );
-}
-
-function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-footer"
-      className={cn("flex items-center border-t border-border p-5", className)}
-      {...props}
-    />
-  );
-}
-
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter };
-```
-
-## Updated `components/ui/badge.tsx` (replace existing)
-
-```tsx
-// components/ui/badge.tsx
-import * as React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
-
-import { cn } from "@/lib/utils";
-
-const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide w-fit whitespace-nowrap",
-  {
-    variants: {
-      variant: {
-        default: "border-foreground bg-foreground text-background",
-        outline: "border-border text-muted-foreground",
-        secondary: "border-transparent bg-muted text-foreground",
-        muted: "border-border bg-muted/50 text-muted-foreground",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  },
-);
-
-function Badge({
-  className,
-  variant,
-  ...props
-}: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return (
-    <span
-      data-slot="badge"
-      className={cn(badgeVariants({ variant, className }))}
-      {...props}
-    />
-  );
-}
-
-export { Badge, badgeVariants };
-```
-
-## Updated `components/ui/avatar.tsx` (replace existing)
-
-```tsx
-// components/ui/avatar.tsx
-"use client";
-
-import * as React from "react";
-
-import { cn } from "@/lib/utils";
-
-function Avatar({ className, ...props }: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="avatar"
-      className={cn(
-        "relative flex size-full shrink-0 overflow-hidden rounded-full",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function AvatarImage({ className, ...props }: React.ComponentProps<"img">) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      data-slot="avatar-image"
-      className={cn("aspect-square size-full object-cover", className)}
-      {...props}
-    />
-  );
-}
-
-function AvatarFallback({ className, ...props }: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="avatar-fallback"
-      className={cn(
-        "flex size-full items-center justify-center rounded-full bg-muted text-foreground",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export { Avatar, AvatarImage, AvatarFallback };
-```
-
-## `app/(user)/profile/page.tsx`
-
-```tsx
 // app/(user)/profile/page.tsx
 "use client";
 
 import { useState } from "react";
 import { UserShell } from "@/app/(user)/_components/user-shell";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -242,9 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   BadgeCheck,
-  Camera,
   Check,
   Copy,
   Pencil,
@@ -417,7 +190,12 @@ export default function ProfilePage() {
           <Card>
             <CardContent className="flex flex-col items-center gap-4 py-8 text-center sm:flex-row sm:items-center sm:text-left">
               <div className="relative shrink-0">
-                <Avatar className="size-20 border border-border">
+                <Avatar
+                  className={cn(
+                    "size-20 ring-offset-2 ring-offset-background",
+                    profile.kycVerified ? "ring-2 ring-emerald-500" : "border border-border",
+                  )}
+                >
                   {profile.avatarUrl ? (
                     <AvatarImage src={profile.avatarUrl} alt={profile.fullName} />
                   ) : (
@@ -425,14 +203,12 @@ export default function ProfilePage() {
                       {initialsOf(profile.fullName)}
                     </AvatarFallback>
                   )}
+                  {profile.kycVerified && (
+                    <AvatarBadge className="bg-emerald-500 text-white">
+                      <Check className="size-2.5" />
+                    </AvatarBadge>
+                  )}
                 </Avatar>
-                <button
-                  type="button"
-                  aria-label="Change avatar"
-                  className="absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <Camera className="size-3.5" />
-                </button>
               </div>
 
               <div className="min-w-0 flex-1">
@@ -594,6 +370,3 @@ export default function ProfilePage() {
     </UserShell>
   );
 }
-```
-
-**What changed:** removed every `zinc`/`black`/`white`/`dark:` class. Everything now reads from your site's real theme variables — `bg-background` (`#151515`), `bg-card` (`#1c1c1c`), `border-border` (`#2a2a2a`), `text-foreground` (`#ededed`), `text-muted-foreground` (`#71717a`) — so it renders correctly on your actual dark background instead of a separate gray/black-white scheme. This also means `Button`, `Card`, `Badge`, `Avatar` are now consistent for **every** page built earlier (Create Ticket, My Tickets, Community Chat) — replace those three shared component files project-wide and all pages will pick up the same real theme automatically.

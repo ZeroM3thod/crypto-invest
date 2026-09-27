@@ -82,6 +82,16 @@ app/
         page.tsx
       leaderboard/
         page.tsx
+    support/
+      page.tsx
+      support.css
+    trading/
+      ai-trading/
+        page.tsx
+      manual-trading/
+        page.tsx
+      overview/
+        page.tsx
     wallet/
       history/
         page.tsx
@@ -99,9 +109,9 @@ app/
   favicon.ico
   globals.css
   layout.tsx
+  not-found.tsx
 components/
   app/
-    global-dock.tsx
     icons.tsx
   base-ui/
     avatar.tsx
@@ -131,6 +141,9 @@ components/
       magnetic.tsx
       metallic.tsx
       stateful.tsx
+    not-found/
+      magnetic.tsx
+      shared.tsx
     table/
       editable-cell.tsx
       index.tsx
@@ -161,14 +174,15 @@ components/
     bouncy-accordion.tsx
     checkbox.tsx
     context-menu.tsx
-    dock.tsx
     magnetic.tsx
     morphing-tabs.tsx
     number-ticker.tsx
+    order-panel.tsx
     overflow-actions.tsx
     shared-layout-bg.tsx
     tooltip-surface.tsx
     tooltip.tsx
+    trading-chart.tsx
   previews/
     motion/
       table-async.preview.tsx
@@ -206,6 +220,869 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="app/(user)/support/page.tsx">
+'use client';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import './support.css';
+
+interface Ticket {
+  id: string;
+  ticket_id: string;
+  subject: string;
+  category: string;
+  priority: string;
+  created_at: string;
+  status: 'open' | 'pending' | 'closed' | 'resolved';
+  messages?: any[];
+}
+
+const FAQS = [
+  { cat: 'account', q: 'How do I update my profile information?', a: 'Go to <strong>Settings → Account</strong> and edit your name, email, or contact details. Changes to your email require a confirmation link.' },
+  { cat: 'account', q: 'How do I reset my password?', a: 'Click <strong>Forgot Password</strong> on the login screen, or go to <strong>Settings → Security</strong> while logged in to set a new password directly.' },
+  { cat: 'billing', q: 'Where can I see my invoices?', a: 'All invoices are available under <strong>Billing → History</strong>. You can download each as a PDF or resend it to your billing email.' },
+  { cat: 'billing', q: 'How do I update my payment method?', a: 'Navigate to <strong>Billing → Payment Methods</strong> to add a new card or change your default payment option. Changes apply to your next billing cycle.' },
+  { cat: 'usage', q: 'How is my usage calculated?', a: 'Usage is measured per billing cycle and shown in real time on your <strong>Dashboard → Usage</strong> tab. It resets at the start of each cycle.' },
+  { cat: 'usage', q: 'What happens if I exceed my plan limit?', a: 'You will receive a notification at 80% and 100% usage. You can upgrade your plan anytime from <strong>Billing → Plans</strong> to avoid service interruption.' },
+  { cat: 'team', q: 'How do I invite team members?', a: 'Go to <strong>Team → Members</strong> and click Invite. Enter their email and choose a role — Admin, Editor, or Viewer.' },
+  { cat: 'team', q: 'Can I change a member\'s role?', a: 'Yes. Open <strong>Team → Members</strong>, select the member, and choose a new role from the dropdown. Changes apply immediately.' },
+  { cat: 'security', q: 'How do I enable two-factor authentication (2FA)?', a: 'Go to <strong>Settings → Security</strong> and click Enable 2FA. Scan the QR code with an authenticator app and confirm with the 6-digit code.' },
+  { cat: 'security', q: 'What if I suspect unauthorised access?', a: 'Immediately change your password, revoke active sessions under <strong>Settings → Sessions</strong>, and contact support so we can review your account activity.' },
+  { cat: 'api', q: 'Where do I find my API key?', a: 'API keys are managed under <strong>Developer → API Keys</strong>. You can generate, rotate, or revoke keys at any time.' },
+  { cat: 'api', q: 'What are the API rate limits?', a: 'Rate limits depend on your plan tier and are listed under <strong>Developer → Rate Limits</strong>. Contact us if you need a temporary increase.' },
+];
+
+const CAT_LABELS: Record<string, string> = { account: 'Account', billing: 'Billing', usage: 'Usage', team: 'Team', security: 'Security', api: 'API' };
+
+const NAV_ITEMS = [
+  { label: 'Overview', icon: 'M3 12l2-2 4 4 8-8 2 2-10 10z' },
+  { label: 'Analytics', icon: 'M3 3v18h18M7 15l4-4 4 4 5-6' },
+  { label: 'Team', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z' },
+  { label: 'Billing', icon: 'M2 7h20M2 11h20v9a2 2 0 01-2 2H4a2 2 0 01-2-2z' },
+  { label: 'Settings', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z' },
+  { label: 'Support', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', active: true },
+];
+
+const MOCK_TICKETS: Ticket[] = [
+  {
+    id: 't1', ticket_id: 'TCK-10231', subject: 'Unable to update billing address', category: 'Billing',
+    priority: 'medium', created_at: '2026-09-20T10:12:00Z', status: 'open',
+    messages: [
+      { id: 'm1', message: 'Hi, I tried updating my billing address but it keeps failing.', created_at: '2026-09-20T10:12:00Z', sender: { first_name: 'You', last_name: '', role: 'user' } },
+      { id: 'm2', message: 'Thanks for reaching out — could you tell us which browser you\'re using?', created_at: '2026-09-20T11:03:00Z', sender: { first_name: 'Maya', last_name: 'R.', role: 'admin' } },
+    ],
+  },
+  {
+    id: 't2', ticket_id: 'TCK-10184', subject: 'API key not working after rotation', category: 'API',
+    priority: 'high', created_at: '2026-09-15T08:40:00Z', status: 'pending',
+    messages: [
+      { id: 'm3', message: 'Rotated my key but requests are still returning 401.', created_at: '2026-09-15T08:40:00Z', sender: { first_name: 'You', last_name: '', role: 'user' } },
+    ],
+  },
+  {
+    id: 't3', ticket_id: 'TCK-10022', subject: 'Question about team seat pricing', category: 'Team',
+    priority: 'low', created_at: '2026-09-02T14:20:00Z', status: 'resolved',
+    messages: [
+      { id: 'm4', message: 'Do unused seats roll over to next month?', created_at: '2026-09-02T14:20:00Z', sender: { first_name: 'You', last_name: '', role: 'user' } },
+      { id: 'm5', message: 'Unused seats don\'t roll over, but you can downgrade seat count anytime before renewal.', created_at: '2026-09-02T16:05:00Z', sender: { first_name: 'Jordan', last_name: 'K.', role: 'admin' } },
+    ],
+  },
+];
+
+export default function SupportPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [toastMsg, setToastMsg] = useState('');
+  const [toastCls, setToastCls] = useState('');
+  const [toastShow, setToastShow] = useState(false);
+  const [faqCat, setFaqCat] = useState('all');
+  const [faqSearch, setFaqSearch] = useState('');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [tickets, setTickets] = useState<Ticket[]>(MOCK_TICKETS);
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const [chatInput, setChatInput] = useState('');
+
+  const [fCategory, setFCategory] = useState('');
+  const [catErr, setCatErr] = useState(false);
+  const [fSubject, setFSubject] = useState('');
+  const [subErr, setSubErr] = useState(false);
+  const [fPriority, setFPriority] = useState('low');
+  const [fMessage, setFMessage] = useState('');
+  const [msgErr, setMsgErr] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formSuccess, setFormSuccess] = useState(false);
+  const [newTicketId, setNewTicketId] = useState('');
+
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ticketRef = useRef<HTMLDivElement>(null);
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
+
+  const activeTicket = tickets.find(t => t.id === activeTicketId) || null;
+
+  const showToast = useCallback((msg: string, cls = '') => {
+    setToastMsg(msg); setToastCls(cls); setToastShow(true);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastShow(false), 2800);
+  }, []);
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('vis'); });
+    }, { threshold: 0.06 });
+    document.querySelectorAll<HTMLElement>('.sp-reveal').forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, [tickets]);
+
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen || !!activeTicketId ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [sidebarOpen, activeTicketId]);
+
+  useEffect(() => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    }
+  }, [activeTicket?.messages]);
+
+  const visibleFaqs = FAQS.filter(f => {
+    const catMatch = faqCat === 'all' || f.cat === faqCat;
+    const q = faqSearch.toLowerCase();
+    return catMatch && (!q || f.q.toLowerCase().includes(q) || f.a.toLowerCase().includes(q));
+  });
+
+  const resetForm = () => {
+    setFCategory(''); setCatErr(false);
+    setFSubject(''); setSubErr(false);
+    setFPriority('low');
+    setFMessage(''); setMsgErr(false);
+    setFormSuccess(false); setNewTicketId('');
+  };
+
+  const submitForm = async () => {
+    let hasErr = false;
+    if (!fCategory) { setCatErr(true); hasErr = true; }
+    if (!fSubject.trim()) { setSubErr(true); hasErr = true; }
+    if (fMessage.trim().length < 20) { setMsgErr(true); hasErr = true; }
+    if (hasErr) return;
+
+    setSubmitting(true);
+    await new Promise(r => setTimeout(r, 600));
+
+    const newId = `TCK-${Math.floor(10000 + Math.random() * 89999)}`;
+    const newTicket: Ticket = {
+      id: 'local-' + Date.now(),
+      ticket_id: newId,
+      subject: fSubject,
+      category: fCategory,
+      priority: fPriority,
+      created_at: new Date().toISOString(),
+      status: 'open',
+      messages: [{ id: 'm-' + Date.now(), message: fMessage, created_at: new Date().toISOString(), sender: { first_name: 'You', last_name: '', role: 'user' } }],
+    };
+
+    setTickets(prev => [newTicket, ...prev]);
+    setNewTicketId(newId);
+    setFormSuccess(true);
+    setSubmitting(false);
+    showToast('✓ Ticket submitted successfully.', 'ok');
+  };
+
+  const sendChat = () => {
+    if (!chatInput.trim() || !activeTicketId || !activeTicket) return;
+    if (activeTicket.status === 'closed') { showToast('This ticket is closed.', 'err'); return; }
+
+    const msgText = chatInput;
+    setChatInput('');
+
+    setTickets(prev => prev.map(t => t.id === activeTicketId
+      ? { ...t, messages: [...(t.messages || []), { id: 'm-' + Date.now(), message: msgText, created_at: new Date().toISOString(), sender: { first_name: 'You', last_name: '', role: 'user' } }] }
+      : t
+    ));
+  };
+
+  const statusCls = (s: string) => s === 'open' ? 'sp-b-open' : s === 'resolved' ? 'sp-b-resolved' : s === 'closed' ? 'sp-b-closed' : 'sp-b-pending';
+  const statusDotCls = (s: string) => s === 'open' ? 'sp-dot-open' : s === 'resolved' ? 'sp-dot-resolved' : s === 'closed' ? 'sp-dot-closed' : 'sp-dot-pending';
+  const prioCls = (p: string) => p === 'high' ? 'sp-b-high' : p === 'low' ? 'sp-b-low' : 'sp-b-medium';
+  const formatDate = (s: string) => new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formatTime = (s: string) => new Date(s).toLocaleString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+
+  return (
+    <div data-theme={theme}>
+      <div className={`sp-toast${toastShow ? ' show' : ''}${toastCls ? ' ' + toastCls : ''}`}>{toastMsg}</div>
+
+      {sidebarOpen && <div className={`sp-sb-overlay show`} onClick={() => setSidebarOpen(false)} />}
+
+      <div className="sp-layout">
+
+        {/* DASHBOARD SHELL — SIDEBAR */}
+        <aside className={`sp-sidebar${sidebarOpen ? ' open' : ''}`}>
+          <div className="sp-sidebar-logo">
+            <div className="sp-logo-mark" />
+            <span className="sp-logo-text">Nimbus<span>HQ</span></span>
+          </div>
+          <nav className="sp-sidebar-nav">
+            {NAV_ITEMS.map(item => (
+              <button key={item.label} className={`sp-nav-item${item.active ? ' active' : ''}`}>
+                <svg viewBox="0 0 24 24"><path d={item.icon} /></svg>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <div className="sp-sidebar-footer">
+            <div className="sp-user-row">
+              <div className="sp-avatar">JD</div>
+              <div>
+                <div className="sp-user-name">Jamie Doe</div>
+                <div className="sp-user-tag">Pro Plan</div>
+              </div>
+            </div>
+            <button className="sp-theme-toggle" onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}>
+              {theme === 'light' ? (
+                <><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>Dark Mode</>
+              ) : (
+                <><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>Light Mode</>
+              )}
+            </button>
+          </div>
+        </aside>
+
+        {/* MOBILE TOPBAR */}
+        <div className="sp-topbar">
+          <button className="sp-ham" onClick={() => setSidebarOpen(o => !o)}>
+            <span /><span /><span />
+          </button>
+          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="sp-logo-mark" style={{ width: 24, height: 24 }} />
+            <span className="sp-logo-text" style={{ fontSize: '1rem' }}>Nimbus<span>HQ</span></span>
+          </div>
+          <div className="sp-mob-avatar">JD</div>
+        </div>
+
+        <main className="sp-main">
+          <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+
+            {/* PAGE HEADER */}
+            <div className="sp-reveal" style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+              <div>
+                <span className="sp-sec-label">Help Center</span>
+                <h1 className="sp-sec-title">Support</h1>
+                <p className="sp-sec-sub">Find answers instantly or get in touch with our team.</p>
+              </div>
+            </div>
+
+            {/* SEARCH */}
+            <div className="sp-reveal" style={{ marginBottom: 24 }}>
+              <div className="sp-search-wrap">
+                <div className="sp-search-icon">
+                  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                </div>
+                <input className="sp-search" type="text"
+                  placeholder="Search FAQs — billing, API keys, team roles…"
+                  value={faqSearch} onChange={e => setFaqSearch(e.target.value)} />
+              </div>
+            </div>
+
+            {/* CONTACT OPTIONS */}
+            <div className="sp-reveal" style={{ marginBottom: 24 }}>
+              <div style={{ marginBottom: 12 }}>
+                <span className="sp-sec-label" style={{ marginBottom: 2 }}>Quick Access</span>
+                <div style={{ fontFamily: "var(--font-head)", fontSize: '1.02rem', fontWeight: 700, color: 'var(--ink)' }}>Contact Options</div>
+              </div>
+              <div className="sp-support-grid">
+                <div className="sp-support-opt" onClick={() => {
+                  ticketRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  showToast('Scrolling to Get Help...');
+                }}>
+                  <div className="sp-support-opt-icon" style={{ background: 'rgba(79,107,237,.09)' }}>
+                    <svg viewBox="0 0 24 24" style={{ stroke: 'var(--accent)' }}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
+                  </div>
+                  <div>
+                    <div className="sp-support-opt-title">Live Chat</div>
+                    <div className="sp-support-opt-desc">Chat with our support team in real time.</div>
+                  </div>
+                  <span className="sp-support-opt-badge"><span className="sp-live-dot" />Available</span>
+                </div>
+
+                <div className="sp-support-opt" onClick={() => { showToast('📧 Opening email client…'); window.location.href = 'mailto:support@nimbushq.com?subject=Support%20Request'; }}>
+                  <div className="sp-support-opt-icon" style={{ background: 'rgba(79,107,237,.09)' }}>
+                    <svg viewBox="0 0 24 24" style={{ stroke: 'var(--accent)' }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
+                  </div>
+                  <div>
+                    <div className="sp-support-opt-title">Email Support</div>
+                    <div className="sp-support-opt-desc">support@nimbushq.com</div>
+                  </div>
+                  <span className="sp-support-opt-badge"><span className="sp-live-dot" />Available</span>
+                </div>
+
+                <div className="sp-support-opt" onClick={() => { window.open('https://t.me/nimbushqsupport', '_blank'); showToast('📤 Opening Telegram…'); }}>
+                  <div className="sp-support-opt-icon" style={{ background: 'rgba(79,107,237,.09)' }}>
+                    <svg viewBox="0 0 24 24" style={{ stroke: 'var(--accent)' }}><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                  </div>
+                  <div>
+                    <div className="sp-support-opt-title">Telegram Support</div>
+                    <div className="sp-support-opt-desc">Reach us on our official channel.</div>
+                  </div>
+                  <span className="sp-support-opt-badge"><span className="sp-live-dot" />Active</span>
+                </div>
+
+                <div className="sp-support-opt" onClick={() => ticketRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                  <div className="sp-support-opt-icon" style={{ background: 'rgba(100,116,139,.1)' }}>
+                    <svg viewBox="0 0 24 24" style={{ stroke: 'var(--charcoal)' }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                  </div>
+                  <div>
+                    <div className="sp-support-opt-title">Ticket History</div>
+                    <div className="sp-support-opt-desc">View all your past support tickets.</div>
+                  </div>
+                  <span className="sp-support-opt-badge" style={{ background: 'rgba(79,107,237,.1)', color: 'var(--accent)', borderColor: 'var(--border)' }}>{tickets.length} Tickets</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="sp-divider sp-reveal" />
+
+            {/* FAQ + FORM */}
+            <div className="sp-two-col">
+
+              {/* FAQ */}
+              <div className="sp-reveal">
+                <div style={{ marginBottom: 16 }}>
+                  <span className="sp-sec-label" style={{ marginBottom: 2 }}>Self-Service</span>
+                  <div style={{ fontFamily: "var(--font-head)", fontSize: '1.1rem', fontWeight: 700, color: 'var(--ink)', marginBottom: 10 }}>Frequently Asked Questions</div>
+                  <div className="sp-faq-filter-row">
+                    {[['all', 'All'], ['account', 'Account'], ['billing', 'Billing'], ['usage', 'Usage'], ['team', 'Team'], ['security', 'Security'], ['api', 'API']].map(([c, l]) => (
+                      <button key={c} className={`sp-faq-pill${faqCat === c ? ' active' : ''}`} onClick={() => { setFaqCat(c); setOpenFaq(null); }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="sp-card" style={{ overflow: 'visible' }}>
+                  <div className="sp-faq-list">
+                    {visibleFaqs.length === 0 ? (
+                      <div className="sp-faq-empty">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        No results found. Try a different search or category.
+                      </div>
+                    ) : visibleFaqs.map((f, i) => (
+                      <div key={i} className="sp-faq-item">
+                        <button className={`sp-faq-trigger${openFaq === i ? ' open' : ''}`} onClick={() => setOpenFaq(openFaq === i ? null : i)}>
+                          <span className="sp-faq-q-text">{f.q}</span>
+                          <span className="sp-faq-cat-tag">{CAT_LABELS[f.cat] || f.cat}</span>
+                          <svg className="sp-faq-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                        </button>
+                        <div className={`sp-faq-body${openFaq === i ? ' open' : ''}`}>
+                          <div className="sp-faq-answer" dangerouslySetInnerHTML={{ __html: f.a }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* CONTACT FORM */}
+              <div className="sp-reveal">
+                <div style={{ marginBottom: 16 }}>
+                  <span className="sp-sec-label" style={{ marginBottom: 2 }}>Get Help</span>
+                  <div style={{ fontFamily: "var(--font-head)", fontSize: '1.1rem', fontWeight: 700, color: 'var(--ink)' }}>Submit a Support Ticket</div>
+                </div>
+                <div className="sp-card">
+                  {!formSuccess ? (
+                    <div className="sp-card-body">
+                      <div className="sp-form-grid">
+                        <div className="sp-form-group">
+                          <label className="sp-form-label">Category <span>*</span></label>
+                          <select className={`sp-form-select${catErr ? ' invalid' : ''}`} value={fCategory} onChange={e => { setFCategory(e.target.value); setCatErr(false); }}>
+                            <option value="" disabled>Select a category…</option>
+                            <option value="Billing">Billing Issue</option>
+                            <option value="Usage">Usage / Limits</option>
+                            <option value="Team">Team &amp; Roles</option>
+                            <option value="API">API &amp; Integrations</option>
+                            <option value="Account">Account &amp; Security</option>
+                            <option value="Technical">Technical Problem</option>
+                            <option value="Other">Other</option>
+                          </select>
+                          {catErr && <div className="sp-form-error show">Please select a category.</div>}
+                        </div>
+                        <div className="sp-form-group">
+                          <label className="sp-form-label">Subject <span>*</span></label>
+                          <input className={`sp-form-input${subErr ? ' invalid' : ''}`} type="text" placeholder="Brief description…" maxLength={120}
+                            value={fSubject} onChange={e => { setFSubject(e.target.value); setSubErr(false); }} />
+                          {subErr && <div className="sp-form-error show">Subject is required.</div>}
+                        </div>
+                        <div className="sp-form-group">
+                          <label className="sp-form-label">Priority</label>
+                          <div className="sp-priority-row">
+                            {[['low', 'var(--success)'], ['medium', 'var(--accent)'], ['high', '#d9534f'], ['urgent', '#b03330']].map(([v, c]) => (
+                              <label key={v} className="sp-priority-opt">
+                                <input type="radio" name="sp-priority" value={v} checked={fPriority === v} onChange={() => setFPriority(v)} />
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span className="sp-priority-dot" style={{ background: c }} />
+                                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="sp-form-group">
+                          <label className="sp-form-label">Message <span>*</span></label>
+                          <textarea className={`sp-form-textarea${msgErr ? ' invalid' : ''}`} placeholder="Describe your issue in detail…" maxLength={2000}
+                            value={fMessage} onChange={e => { setFMessage(e.target.value); setMsgErr(false); }} />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                            {msgErr && <div className="sp-form-error show">Min 20 characters required.</div>}
+                            <div className="sp-form-hint" style={{ marginLeft: 'auto' }}>{fMessage.length} / 2000</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <button className="sp-btn-submit" onClick={submitForm} disabled={submitting}>
+                            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                            {submitting ? 'Sending…' : 'Submit Ticket'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="sp-form-success show">
+                      <div className="sp-form-success-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg></div>
+                      <div className="sp-form-success-title">Ticket Submitted</div>
+                      <div className="sp-ticket-id">{newTicketId}</div>
+                      <p style={{ fontSize: '.74rem', color: 'var(--text-sec)', marginBottom: 16 }}>Our team will get back to you shortly.</p>
+                      <button className="sp-btn-ghost" onClick={() => { setActiveTicketId(tickets[0]?.id || null); resetForm(); }}>View Ticket</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="sp-divider sp-reveal" />
+
+            {/* TICKET HISTORY */}
+            <div ref={ticketRef} className="sp-reveal">
+              <div style={{ marginBottom: 16 }}>
+                <span className="sp-sec-label" style={{ marginBottom: 2 }}>My Requests</span>
+                <div style={{ fontFamily: "var(--font-head)", fontSize: '1.1rem', fontWeight: 700, color: 'var(--ink)' }}>Ticket History</div>
+              </div>
+
+              {tickets.length === 0 ? (
+                <div className="sp-card">
+                  <div className="sp-empty-state">
+                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                    <p>No tickets yet. Submit a request above.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="sp-ticket-list">
+                  {tickets.map(t => (
+                    <div key={t.id} className="sp-ticket-row" onClick={() => setActiveTicketId(t.id)}>
+                      <div className="sp-ticket-row-left">
+                        <div className="sp-ticket-row-icon">
+                          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="sp-ticket-row-subject">{t.subject}</div>
+                          <div className="sp-ticket-row-meta">
+                            <span className="sp-mono">{t.ticket_id}</span>
+                            <span>·</span>
+                            <span>{t.category}</span>
+                            <span>·</span>
+                            <span>{formatDate(t.created_at)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="sp-ticket-row-right">
+                        <span className={`sp-badge ${prioCls(t.priority)}`}>{t.priority}</span>
+                        <span className={`sp-badge ${statusCls(t.status)}`}>
+                          <span className={`sp-dot ${statusDotCls(t.status)}`} />
+                          {t.status}
+                        </span>
+                        <span className="sp-ticket-arrow">→</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </main>
+      </div>
+
+      {/* TICKET DETAIL MODAL */}
+      {activeTicketId && activeTicket && (
+        <div className="sp-modal-overlay" onClick={e => e.target === e.currentTarget && setActiveTicketId(null)}>
+          <div className="sp-modal-box">
+
+            {/* Modal Header */}
+            <div className="sp-modal-header">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="sp-modal-title">{activeTicket.subject}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                  <span className="sp-mono" style={{ fontSize: '.66rem', color: 'var(--text-sec)' }}>{activeTicket.ticket_id}</span>
+                  <span className={`sp-badge ${statusCls(activeTicket.status)}`}>
+                    <span className={`sp-dot ${statusDotCls(activeTicket.status)}`} />{activeTicket.status}
+                  </span>
+                  <span className={`sp-badge ${prioCls(activeTicket.priority)}`}>{activeTicket.priority} priority</span>
+                </div>
+              </div>
+              <button className="sp-modal-close" onClick={() => setActiveTicketId(null)}>
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+
+            <div className="sp-modal-body">
+
+              {/* Ticket Details */}
+              <div className="sp-modal-section">
+                <div className="sp-modal-section-title">Ticket Details</div>
+                <div className="sp-modal-detail-grid">
+                  <div className="sp-modal-field"><div className="sp-modal-field-label">Ticket ID</div><div className="sp-modal-field-value sp-mono">{activeTicket.ticket_id}</div></div>
+                  <div className="sp-modal-field"><div className="sp-modal-field-label">Category</div><div className="sp-modal-field-value">{activeTicket.category}</div></div>
+                  <div className="sp-modal-field"><div className="sp-modal-field-label">Priority</div><div className="sp-modal-field-value">{activeTicket.priority}</div></div>
+                  <div className="sp-modal-field"><div className="sp-modal-field-label">Submitted</div><div className="sp-modal-field-value">{formatDate(activeTicket.created_at)}</div></div>
+                </div>
+              </div>
+
+              {/* Chat */}
+              <div className="sp-modal-section">
+                <div className="sp-modal-section-title">Your Messages</div>
+                <div className="sp-chat-wrap">
+                  <div className="sp-chat-messages" ref={chatMessagesRef}>
+                    {activeTicket.messages?.map((m: any, i: number) => {
+                      const isAdmin = m.sender?.role !== 'user';
+                      const initials = ((m.sender?.first_name?.[0] || '') + (m.sender?.last_name?.[0] || '')).toUpperCase() || '?';
+                      return (
+                        <div className={`sp-bubble-wrap ${isAdmin ? 'user' : 'admin'}`} key={m.id || i}>
+                          <div className={`sp-bubble-av ${isAdmin ? 'sp-av-admin' : 'sp-av-user'}`}>{initials}</div>
+                          <div>
+                            <div className={`sp-bubble ${isAdmin ? 'user' : 'admin'}`}>{m.message}</div>
+                            <div className="sp-bubble-time">{formatTime(m.created_at)}{isAdmin ? ` · ${m.sender?.first_name} ${m.sender?.last_name}` : ''}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {(!activeTicket.messages || activeTicket.messages.length === 0) && (
+                      <div style={{ textAlign: 'center', padding: '24px 16px', fontSize: '.76rem', color: 'var(--text-sec)' }}>
+                        No messages yet.
+                      </div>
+                    )}
+                  </div>
+                  <div className="sp-chat-footer">
+                    <input
+                      className="sp-chat-input"
+                      type="text"
+                      placeholder={activeTicket.status === 'closed' ? 'Ticket is closed — contact us via email or Telegram.' : 'Type a message…'}
+                      disabled={activeTicket.status === 'closed'}
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && sendChat()}
+                    />
+                    <button className="sp-chat-send" disabled={activeTicket.status === 'closed'} onClick={sendChat}>
+                      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="app/(user)/support/support.css">
+/* ── Dashboard Support Page Styles ── */
+:root{
+  --ink:#0f172a;--bg:#f4f6fb;--panel-bg:#eef1f7;
+  --accent:#4f6bed;--accent-l:#7d94f2;--accent-d:#3a52c4;
+  --success:#3a9a6d;--success-l:#5fbf8f;--charcoal:#1e293b;
+  --surface:#ffffff;--border:rgba(79,107,237,0.14);--border-h:rgba(79,107,237,0.32);
+  --text-sec:#64748b;--error:#d9534f;--radius:8px;
+  --font-head:'Inter',-apple-system,sans-serif;--font-body:'Inter',-apple-system,sans-serif;
+}
+:root[data-theme="dark"]{
+  --ink:#e9edf7;--bg:#0b0f1a;--panel-bg:#121729;
+  --accent:#6d85f5;--accent-l:#8fa1f7;--accent-d:#4f6bed;
+  --success:#4cbf8e;--success-l:#6fd8a8;--charcoal:#e9edf7;
+  --surface:#151b2e;--border:rgba(109,133,245,0.16);--border-h:rgba(109,133,245,0.35);
+  --text-sec:#8a93ab;--error:#f0726e;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-body);background:var(--bg);color:var(--ink);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;transition:background .25s ease,color .25s ease}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--panel-bg)}
+::-webkit-scrollbar-thumb{background:var(--accent);border-radius:10px}
+
+/* ── LAYOUT ── */
+.sp-layout{display:flex;min-height:100vh;position:relative;z-index:1}
+
+/* ── DASHBOARD SHELL (sidebar) ── */
+.sp-sidebar{width:224px;flex-shrink:0;background:var(--panel-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 0 20px;position:fixed;top:0;left:0;bottom:0;z-index:300;transition:transform .3s ease,background .25s ease;overflow-y:auto;overflow-x:hidden}
+.sp-sidebar-logo{padding:0 20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;cursor:pointer}
+.sp-logo-mark{width:28px;height:28px;background:var(--accent);border-radius:7px;display:inline-flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
+.sp-logo-mark::after{content:'';position:absolute;inset:0;border-radius:7px;background:linear-gradient(135deg,rgba(255,255,255,.35),transparent 60%)}
+.sp-logo-text{font-family:var(--font-head);font-size:1.05rem;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.sp-logo-text span{color:var(--accent)}
+.sp-sidebar-nav{flex:1;padding:16px 0;display:flex;flex-direction:column;gap:2px}
+.sp-nav-item{display:flex;align-items:center;gap:11px;padding:10px 20px;color:var(--text-sec);font-size:.8rem;font-weight:500;letter-spacing:.01em;transition:all .2s;cursor:pointer;border:none;background:none;font-family:var(--font-body);position:relative;width:100%;text-align:left;-webkit-tap-highlight-color:transparent}
+.sp-nav-item::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:0;background:var(--accent);border-radius:0 3px 3px 0;transition:height .25s}
+.sp-nav-item svg{width:16px;height:16px;flex-shrink:0;opacity:.7;transition:opacity .2s;stroke:currentColor;fill:none;stroke-width:1.8}
+.sp-nav-item:hover{color:var(--ink);background:rgba(79,107,237,.06)}
+.sp-nav-item:hover svg,.sp-nav-item.active svg{opacity:1}
+.sp-nav-item.active{color:var(--ink);background:rgba(79,107,237,.09);font-weight:600}
+.sp-nav-item.active::before{height:18px}
+.sp-sidebar-footer{padding:16px 20px 0;border-top:1px solid var(--border)}
+.sp-user-row{display:flex;align-items:center;gap:10px}
+.sp-avatar{width:32px;height:32px;border-radius:50%;background:var(--surface);border:1.5px solid var(--border-h);display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:.78rem;font-weight:700;color:var(--accent);flex-shrink:0}
+.sp-user-name{font-size:.79rem;font-weight:600;color:var(--ink)}
+.sp-user-tag{font-size:.66rem;color:var(--text-sec)}
+.sp-theme-toggle{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:12px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-sec);font-size:.68rem;font-weight:600;letter-spacing:.03em;cursor:pointer;transition:all .2s}
+.sp-theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.sp-theme-toggle svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
+
+/* ── SIDEBAR OVERLAY ── */
+.sp-sb-overlay{display:none;position:fixed;inset:0;background:rgba(10,14,26,.5);z-index:299}
+.sp-sb-overlay.show{display:block}
+
+/* ── MAIN ── */
+.sp-main{flex:1;margin-left:224px;padding:26px 24px 60px;max-width:100%;position:relative;z-index:2}
+
+/* ── TOPBAR (mobile only) ── */
+.sp-topbar{display:none;align-items:center;justify-content:space-between;padding:0 16px;height:54px;background:var(--panel-bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:600}
+.sp-ham{display:flex;flex-direction:column;gap:4px;cursor:pointer;padding:8px;background:none;border:none;-webkit-tap-highlight-color:transparent}
+.sp-ham span{display:block;width:18px;height:1.6px;background:var(--ink);transition:all .3s;border-radius:2px}
+.sp-mob-avatar{width:30px;height:30px;border-radius:50%;background:var(--surface);border:1.5px solid var(--border-h);display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:.74rem;font-weight:700;color:var(--accent);flex-shrink:0;cursor:pointer}
+
+/* ── LABELS & DIVIDER ── */
+.sp-sec-label{font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:6px;font-weight:600}
+.sp-sec-title{font-family:var(--font-head);font-size:clamp(1.35rem,3vw,1.85rem);font-weight:700;letter-spacing:-.01em;line-height:1.15;color:var(--ink)}
+.sp-sec-sub{font-size:.8rem;color:var(--text-sec);font-weight:400;margin-top:4px}
+.sp-divider{height:1px;background:var(--border);margin:26px 0}
+
+/* ── CARD ── */
+.sp-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;position:relative}
+.sp-card-body{padding:20px}
+
+/* ── SEARCH ── */
+.sp-search-wrap{position:relative;max-width:520px}
+.sp-search{width:100%;padding:12px 16px 12px 40px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-body);font-size:.84rem;color:var(--ink);outline:none;transition:border-color .2s}
+.sp-search:focus{border-color:var(--accent)}
+.sp-search::placeholder{color:var(--text-sec);opacity:.6}
+.sp-search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none}
+.sp-search-icon svg{width:15px;height:15px;stroke:var(--text-sec);fill:none;stroke-width:1.8}
+
+/* ── SUPPORT OPTIONS ── */
+.sp-support-grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.sp-support-opt{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 16px;display:flex;flex-direction:column;align-items:flex-start;gap:10px;cursor:pointer;text-decoration:none;transition:all .25s;position:relative;overflow:hidden}
+.sp-support-opt::before{content:'';position:absolute;top:0;left:0;width:3px;height:0;background:var(--accent);transition:height .35s}
+.sp-support-opt:hover{border-color:var(--border-h);transform:translateY(-2px);box-shadow:0 8px 24px rgba(79,107,237,.1)}
+.sp-support-opt:hover::before{height:100%}
+.sp-support-opt-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sp-support-opt-icon svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}
+.sp-support-opt-title{font-family:var(--font-head);font-size:.92rem;font-weight:600;color:var(--ink);line-height:1.2}
+.sp-support-opt-desc{font-size:.68rem;color:var(--text-sec);line-height:1.5}
+.sp-support-opt-badge{font-size:.55rem;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:100px;background:rgba(58,154,109,.1);color:var(--success);border:1px solid rgba(58,154,109,.22);font-weight:600}
+.sp-live-dot{width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;margin-right:4px;animation:spBlink 1.8s ease-in-out infinite;vertical-align:middle}
+@keyframes spBlink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── FAQ ── */
+.sp-faq-list{display:flex;flex-direction:column;gap:0}
+.sp-faq-item{border-bottom:1px solid var(--border);overflow:hidden}
+.sp-faq-item:first-child{border-top:1px solid var(--border)}
+.sp-faq-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;background:transparent;border:none;font-family:var(--font-body);font-size:.82rem;font-weight:500;color:var(--ink);text-align:left;cursor:pointer;transition:background .2s,color .2s}
+.sp-faq-trigger:hover{background:rgba(79,107,237,.05);color:var(--accent)}
+.sp-faq-trigger.open{color:var(--accent);background:rgba(79,107,237,.05)}
+.sp-faq-q-text{flex:1;line-height:1.4}
+.sp-faq-cat-tag{font-size:.55rem;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:100px;white-space:nowrap;flex-shrink:0;background:rgba(79,107,237,.08);color:var(--accent-d);border:1px solid var(--border);display:none;font-weight:600}
+@media(min-width:600px){.sp-faq-cat-tag{display:inline-block}}
+.sp-faq-chevron{width:17px;height:17px;flex-shrink:0;stroke:var(--text-sec);fill:none;stroke-width:2;transition:transform .32s cubic-bezier(.16,1,.3,1),stroke .2s}
+.sp-faq-trigger.open .sp-faq-chevron{transform:rotate(180deg);stroke:var(--accent)}
+.sp-faq-body{max-height:0;overflow:hidden;transition:max-height .38s cubic-bezier(.16,1,.3,1)}
+.sp-faq-body.open{max-height:600px}
+.sp-faq-answer{padding:0 18px 16px;font-size:.79rem;color:var(--text-sec);line-height:1.75;border-left:2px solid var(--accent);margin:0 18px 16px;padding-left:14px}
+.sp-faq-answer a,.sp-faq-answer strong{color:var(--ink)}
+.sp-faq-filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.sp-faq-pill{padding:5px 12px;background:var(--surface);border:1px solid var(--border);border-radius:100px;font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--text-sec);cursor:pointer;transition:all .2s;white-space:nowrap;font-weight:600}
+.sp-faq-pill:hover{border-color:var(--accent);color:var(--accent)}
+.sp-faq-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sp-faq-empty{padding:32px 18px;text-align:center;font-size:.79rem;color:var(--text-sec)}
+.sp-faq-empty svg{width:26px;height:26px;stroke:var(--accent);fill:none;stroke-width:1.4;margin:0 auto 10px;display:block}
+
+/* ── FORM ── */
+.sp-form-grid{display:grid;gap:14px}
+.sp-form-group{display:flex;flex-direction:column;gap:5px}
+.sp-form-label{font-size:.67rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-sec);font-weight:600}
+.sp-form-label span{color:var(--accent);margin-left:1px}
+.sp-form-input,.sp-form-select,.sp-form-textarea{padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-body);font-size:.82rem;color:var(--ink);outline:none;transition:border-color .22s;width:100%}
+.sp-form-input:focus,.sp-form-select:focus,.sp-form-textarea:focus{border-color:var(--accent)}
+.sp-form-input::placeholder,.sp-form-textarea::placeholder{color:var(--text-sec);opacity:.55}
+.sp-form-input.invalid,.sp-form-select.invalid,.sp-form-textarea.invalid{border-color:var(--error)}
+.sp-form-select{-webkit-appearance:none;appearance:none;background-repeat:no-repeat;background-position:right 12px center;background-size:15px;padding-right:34px;cursor:pointer}
+:root:not([data-theme="dark"]) .sp-form-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")}
+:root[data-theme="dark"] .sp-form-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a93ab' stroke-width='1.8'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")}
+.sp-form-textarea{resize:vertical;min-height:110px;line-height:1.6}
+.sp-form-hint{font-size:.63rem;color:var(--text-sec)}
+.sp-form-error{font-size:.67rem;color:var(--error);margin-top:2px;display:none}
+.sp-form-error.show{display:block}
+.sp-priority-row{display:flex;gap:10px;flex-wrap:wrap}
+.sp-priority-opt{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.75rem;color:var(--text-sec)}
+.sp-priority-opt input[type=radio]{accent-color:var(--accent);width:13px;height:13px}
+.sp-priority-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.sp-btn-submit{display:flex;align-items:center;gap:7px;padding:11px 22px;background:var(--accent);color:#fff;border:none;font-family:var(--font-body);font-size:.74rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:var(--radius);transition:background .2s}
+.sp-btn-submit:hover{background:var(--accent-d)}
+.sp-btn-submit:disabled{opacity:.6;cursor:not-allowed}
+.sp-btn-submit svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
+.sp-form-success{display:none;padding:32px 20px;text-align:center}
+.sp-form-success.show{display:block}
+.sp-form-success-icon{width:52px;height:52px;margin:0 auto 14px;border-radius:50%;background:rgba(58,154,109,.1);border:1px solid rgba(58,154,109,.22);display:flex;align-items:center;justify-content:center}
+.sp-form-success-icon svg{width:24px;height:24px;stroke:var(--success);fill:none;stroke-width:2}
+.sp-form-success-title{font-family:var(--font-head);font-size:1.25rem;font-weight:700;color:var(--ink);margin-bottom:6px}
+.sp-ticket-id{display:inline-block;padding:7px 18px;background:rgba(79,107,237,.08);border:1px solid var(--border);border-radius:var(--radius);font-family:monospace;font-size:.86rem;letter-spacing:.08em;color:var(--accent);margin-bottom:16px}
+
+/* ── TICKET LIST ── */
+.sp-ticket-list{display:flex;flex-direction:column;gap:8px}
+.sp-ticket-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden}
+.sp-ticket-row::before{content:'';position:absolute;top:0;left:0;width:3px;height:0;background:var(--accent);transition:height .35s;border-radius:0 3px 3px 0}
+.sp-ticket-row:hover{border-color:var(--border-h);box-shadow:0 4px 18px rgba(79,107,237,.09);transform:translateY(-1px)}
+.sp-ticket-row:hover::before{height:100%}
+.sp-ticket-row-left{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.sp-ticket-row-icon{width:36px;height:36px;border-radius:9px;background:rgba(79,107,237,.08);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sp-ticket-row-icon svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:1.8}
+.sp-ticket-row-subject{font-size:.82rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.sp-ticket-row-meta{display:flex;align-items:center;gap:5px;font-size:.65rem;color:var(--text-sec);flex-wrap:wrap}
+.sp-ticket-row-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.sp-ticket-arrow{font-size:.82rem;color:var(--accent);opacity:.6;transition:opacity .2s,transform .2s}
+.sp-ticket-row:hover .sp-ticket-arrow{opacity:1;transform:translateX(3px)}
+
+/* ── BADGES ── */
+.sp-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:100px;font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;font-weight:600}
+.sp-b-pending{background:rgba(79,107,237,.1);color:var(--accent);border:1px solid var(--border)}
+.sp-b-open{background:rgba(58,154,109,.1);color:var(--success);border:1px solid rgba(58,154,109,.22)}
+.sp-b-resolved{background:rgba(58,154,109,.1);color:var(--success);border:1px solid rgba(58,154,109,.22)}
+.sp-b-closed{background:rgba(100,116,139,.1);color:var(--text-sec);border:1px solid rgba(100,116,139,.2)}
+.sp-b-high{background:rgba(217,83,79,.08);color:var(--error);border:1px solid rgba(217,83,79,.2)}
+.sp-b-medium{background:rgba(79,107,237,.1);color:var(--accent-d);border:1px solid var(--border)}
+.sp-b-low{background:rgba(58,154,109,.08);color:var(--success-l);border:1px solid rgba(58,154,109,.16)}
+
+/* ── STATUS DOTS ── */
+.sp-dot{width:5px;height:5px;border-radius:50%;display:inline-block;flex-shrink:0}
+.sp-dot-pending{background:var(--accent)}
+.sp-dot-open{background:var(--success)}
+.sp-dot-resolved{background:var(--success)}
+.sp-dot-closed{background:var(--text-sec)}
+
+/* ── MONO ── */
+.sp-mono{font-family:monospace;letter-spacing:.03em}
+
+/* ── EMPTY STATE ── */
+.sp-empty-state{text-align:center;padding:48px 20px}
+.sp-empty-state svg{width:32px;height:32px;stroke:var(--border-h);fill:none;stroke-width:1.5;margin:0 auto 12px;display:block}
+.sp-empty-state p{font-size:.78rem;color:var(--text-sec)}
+
+/* ── BUTTONS ── */
+.sp-btn-ghost{padding:7px 16px;background:transparent;color:var(--charcoal);border:1px solid var(--border);font-family:var(--font-body);font-size:.7rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:var(--radius);transition:all .22s}
+.sp-btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── MSG BOX ── */
+.sp-msg-box{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:14px 16px;font-size:.8rem;color:var(--ink);line-height:1.65;white-space:pre-wrap}
+
+/* ── MODAL ── */
+.sp-modal-overlay{position:fixed;inset:0;z-index:700;background:rgba(10,14,26,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto}
+.sp-modal-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:760px;box-shadow:0 24px 60px rgba(0,0,0,.2);animation:spModalIn .35s cubic-bezier(.16,1,.3,1);margin:auto;overflow:hidden}
+@keyframes spModalIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:none}}
+.sp-modal-header{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;background:var(--panel-bg)}
+.sp-modal-title{font-family:var(--font-head);font-size:1.15rem;font-weight:700;color:var(--ink);line-height:1.3}
+.sp-modal-close{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;color:var(--text-sec);transition:all .2s;flex-shrink:0}
+.sp-modal-close:hover{border-color:var(--error);color:var(--error)}
+.sp-modal-close svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.sp-modal-body{padding:22px;display:flex;flex-direction:column;gap:20px}
+.sp-modal-section-title{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:8px;font-weight:700}
+.sp-modal-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.sp-modal-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.sp-modal-field{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:11px 14px}
+.sp-modal-field-label{font-size:.59rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-sec);margin-bottom:3px;font-weight:600}
+.sp-modal-field-value{font-size:.8rem;color:var(--ink);font-weight:600}
+
+/* ── CHAT ── */
+.sp-chat-wrap{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg)}
+.sp-chat-messages{height:280px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.sp-chat-messages::-webkit-scrollbar{width:3px}
+.sp-chat-messages::-webkit-scrollbar-thumb{background:var(--accent)}
+.sp-chat-footer{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--surface)}
+.sp-chat-input{flex:1;padding:9px 14px;background:var(--bg);border:1px solid var(--border);border-radius:100px;font-family:var(--font-body);font-size:.8rem;color:var(--ink);outline:none;transition:border-color .2s;min-width:0}
+.sp-chat-input:focus{border-color:var(--accent)}
+.sp-chat-input::placeholder{color:var(--text-sec);opacity:.6}
+.sp-chat-input:disabled{opacity:.5;cursor:not-allowed}
+.sp-chat-send{width:36px;height:36px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s}
+.sp-chat-send:hover{background:var(--accent-d)}
+.sp-chat-send:disabled{opacity:.4;cursor:not-allowed}
+.sp-chat-send svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2}
+.sp-bubble-wrap{display:flex;gap:8px;align-items:flex-end;max-width:88%}
+.sp-bubble-wrap.user{align-self:flex-start}
+.sp-bubble-wrap.admin{align-self:flex-end;flex-direction:row-reverse}
+.sp-bubble-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:.6rem;font-weight:700;flex-shrink:0}
+.sp-av-user{background:var(--surface);border:1px solid var(--border);color:var(--accent)}
+.sp-av-admin{background:var(--accent);color:#fff}
+.sp-bubble{padding:9px 13px;border-radius:12px;font-size:.79rem;line-height:1.5;word-break:break-word}
+.sp-bubble.user{background:var(--surface);border:1px solid var(--border);color:var(--ink);border-bottom-left-radius:4px}
+.sp-bubble.admin{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.sp-bubble-time{font-size:.6rem;color:var(--text-sec);margin-top:3px}
+.sp-bubble-wrap.admin .sp-bubble-time{text-align:right}
+
+/* ── TOAST ── */
+.sp-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-90px);background:var(--charcoal);border:1px solid var(--border-h);border-radius:10px;padding:10px 22px;z-index:9000;color:#fff;font-size:.74rem;letter-spacing:.03em;box-shadow:0 8px 28px rgba(0,0,0,.2);transition:transform .4s cubic-bezier(.16,1,.3,1);white-space:nowrap;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+:root[data-theme="dark"] .sp-toast{background:#232a42;color:var(--accent-l)}
+.sp-toast.show{transform:translateX(-50%) translateY(0)}
+.sp-toast.ok{border-color:rgba(58,154,109,.4);color:var(--success-l)}
+.sp-toast.err{border-color:rgba(217,83,79,.4);color:#f0726e}
+
+/* ── SCROLL REVEAL ── */
+.sp-reveal{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}
+.sp-reveal.vis{opacity:1;transform:none}
+
+/* ── TWO-COL ── */
+.sp-two-col{display:grid;gap:16px;grid-template-columns:1fr}
+
+/* ══════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════ */
+@media(min-width:901px){
+  .sp-topbar{display:none}
+  .sp-two-col{grid-template-columns:1.35fr 1fr}
+  .sp-support-grid{grid-template-columns:repeat(4,1fr)}
+}
+
+@media(max-width:900px){
+  .sp-layout{display:block}
+  .sp-sidebar{transform:translateX(-100%);height:100vh;height:100dvh}
+  .sp-sidebar.open{transform:translateX(0);box-shadow:4px 0 32px rgba(0,0,0,.28)}
+  .sp-main{margin-left:0!important;padding:20px 16px 48px;width:100%}
+  .sp-topbar{display:flex}
+  .sp-support-grid{grid-template-columns:1fr 1fr}
+  .sp-chat-messages{height:220px}
+  .sp-modal-body{padding:16px;gap:16px}
+  .sp-modal-header{padding:16px}
+  .sp-modal-detail-grid{grid-template-columns:1fr 1fr}
+}
+
+@media(max-width:560px){
+  .sp-ticket-row{flex-direction:column;align-items:flex-start;gap:10px}
+  .sp-ticket-row-right{width:100%;justify-content:space-between}
+  .sp-ticket-row-left{width:100%}
+  .sp-modal-detail-grid{grid-template-columns:1fr}
+  .sp-ticket-row-subject{white-space:normal}
+}
+
+@media(max-width:480px){
+  .sp-support-grid{grid-template-columns:1fr 1fr}
+  .sp-faq-filter-row{gap:5px}
+  .sp-chat-messages{height:200px}
+}
+
+@media(max-width:360px){
+  .sp-support-grid{grid-template-columns:1fr}
+}
+</file>
 
 <file path="app/(admin)/admin/dashboard/page.tsx">
 // app/(admin)/admin/dashboard/page.tsx
@@ -2162,23 +3039,790 @@ export default function ReferralDashboardPage() {
 }
 </file>
 
-<file path="app/(user)/layout.tsx">
-// app/(user)/layout.tsx
-// User panel: dashboard, markets, wallet, fund, referral, support etc.
-// ONLY this layout has the GlobalDock.
+<file path="app/(user)/trading/ai-trading/page.tsx">
+// app/(user)/ai-trading/page.tsx
+"use client";
 
-import { GlobalDock } from "@/components/app/global-dock";
+import { UserShell } from "@/app/(user)/_components/user-shell";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Bot,
+  Lock,
+  LockOpen,
+  Calendar,
+  Percent,
+  Wallet,
+  ShieldCheck,
+  PackageCheck,
+  RadioTower,
+} from "lucide-react";
+import { useState } from "react";
+import { BouncyAccordion } from "@/components/motion/bouncy-accordion";
+import { Table } from "@/components/motion/table";
+import { StatefulButton, type ButtonState } from "@/components/motion/button";
 
-export default function UserLayout({
-  children,
-}: {
-  children: React.ReactNode;
+// ── Shared primitives ────────────────────────────────────────────────────
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-4xl border border-border bg-card p-6 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" }) {
+  const colors: Record<string, string> = {
+    default:     "bg-foreground/10 text-foreground",
+    success:     "bg-success/10 text-success",
+    destructive: "bg-destructive/10 text-destructive",
+    muted:       "bg-muted text-muted-foreground",
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}>
+      {label}
+    </span>
+  );
+}
+
+function Stat({ label, value, delta, loading = false, icon }: {
+  label: string;
+  value: string;
+  delta?: { value: string; positive: boolean };
+  loading?: boolean;
+  icon?: React.ReactNode;
 }) {
   return (
-    <>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        {icon && <span className="text-muted-foreground">{icon}</span>}
+        <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      </div>
+      {loading ? (
+        <div className="h-6 w-24 animate-pulse rounded-md bg-muted" />
+      ) : (
+        <p className="text-lg font-semibold text-foreground">{value}</p>
+      )}
+      {delta && !loading && (
+        <p className={`flex items-center gap-1 text-xs font-medium ${delta.positive ? "text-success" : "text-destructive"}`}>
+          {delta.positive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+          {delta.value}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SectionHeader({ title, action, actionLabel }: {
+  title: string;
+  action?: () => void;
+  actionLabel?: string;
+}) {
+  return (
+    <div className="mb-4 flex items-center justify-between">
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      {action && actionLabel && (
+        <button
+          type="button"
+          onClick={action}
+          className="text-xs font-medium text-foreground/80 transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+        >
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Strategy tier data ───────────────────────────────────────────────────
+// Each tier = a stake bracket on the "9 EMA" (or other) strategy. Lock period
+// is fixed at 15 days from the moment a user invests in a plan; funds can't
+// be withdrawn until that window elapses.
+
+type StrategyStatus = "not-invested" | "running" | "unlocked";
+
+type Strategy = {
+  id: string;
+  name: string;
+  exchange: string;
+  minStake: number;
+  roiPct: number;          // total ROI % since inception, this tier
+  daysRunning: number;
+  lockDays: number;        // fixed at 15
+  daysElapsed: number;     // how many of the lock days have passed (0 if not invested)
+  status: StrategyStatus;
+  invested?: number;
+  currentProfit?: number;
+};
+
+const STRATEGIES: Strategy[] = [
+  {
+    id: "s1",
+    name: "9 EMA Strategy",
+    exchange: "Binance",
+    minStake: 20,
+    roiPct: 18.4,
+    daysRunning: 62,
+    lockDays: 15,
+    daysElapsed: 15,
+    status: "unlocked",
+    invested: 20,
+    currentProfit: 3.68,
+  },
+  {
+    id: "s2",
+    name: "Momentum Breakout",
+    exchange: "Binance",
+    minStake: 40,
+    roiPct: 24.1,
+    daysRunning: 48,
+    lockDays: 15,
+    daysElapsed: 9,
+    status: "running",
+    invested: 40,
+    currentProfit: 9.64,
+  },
+  {
+    id: "s3",
+    name: "Grid Scalper Pro",
+    exchange: "Binance",
+    minStake: 70,
+    roiPct: 31.7,
+    daysRunning: 35,
+    lockDays: 15,
+    daysElapsed: 0,
+    status: "not-invested",
+  },
+  {
+    id: "s4",
+    name: "Trend Reversal AI",
+    exchange: "Binance",
+    minStake: 100,
+    roiPct: 42.9,
+    daysRunning: 21,
+    lockDays: 15,
+    daysElapsed: 0,
+    status: "not-invested",
+  },
+];
+
+function StrategyCard({ strategy }: { strategy: Strategy }) {
+  const isLocked = strategy.status === "running";
+  const isUnlocked = strategy.status === "unlocked";
+  const isEmpty = strategy.status === "not-invested";
+  const daysLeft = Math.max(0, strategy.lockDays - strategy.daysElapsed);
+  const [state, setState] = useState<ButtonState>("idle");
+
+  const runAction = async () => {
+    if (state === "loading") return;
+    setState("loading");
+    await new Promise((r) => setTimeout(r, 800));
+    setState("success");
+  };
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-foreground/5 text-foreground">
+            <Bot className="size-4" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-card-foreground">{strategy.name}</p>
+            <p className="text-[11px] text-muted-foreground">{strategy.exchange} · min ${strategy.minStake}</p>
+          </div>
+        </div>
+        {isEmpty && <Badge label="Available" tone="muted" />}
+        {isLocked && <Badge label="Locked" tone="destructive" />}
+        {isUnlocked && <Badge label="Unlocked" tone="success" />}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Min. Stake</p>
+          <p className="mt-0.5 text-sm font-semibold text-foreground">${strategy.minStake.toFixed(2)}</p>
+        </div>
+        <div>
+          <p className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <Percent className="size-3" /> Total ROI
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-success">+{strategy.roiPct.toFixed(1)}%</p>
+        </div>
+        <div>
+          <p className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <Calendar className="size-3" /> Days Running
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-foreground">{strategy.daysRunning}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Lock Period</p>
+          <p className="mt-0.5 text-sm font-semibold text-foreground">{strategy.lockDays} days</p>
+        </div>
+      </div>
+
+      {!isEmpty && (
+        <div className="mt-4 space-y-2 rounded-2xl bg-background p-3">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Your Invested</span>
+            <span className="font-medium text-foreground">${strategy.invested?.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Current Profit</span>
+            <span className="font-medium text-success">+${strategy.currentProfit?.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Withdrawal</span>
+            <span className={`flex items-center gap-1 font-medium ${isUnlocked ? "text-success" : "text-destructive"}`}>
+              {isUnlocked ? <LockOpen className="size-3" /> : <Lock className="size-3" />}
+              {isUnlocked ? "Available now" : `Unlocks in ${daysLeft}d`}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4">
+        {isEmpty && (
+          <StatefulButton
+            className="h-10 w-full text-xs"
+            variant="success"
+            state={state}
+            onClick={runAction}
+          >
+            Invest from ${strategy.minStake}
+          </StatefulButton>
+        )}
+        {isLocked && (
+          <button
+            type="button"
+            disabled
+            className="h-10 w-full cursor-not-allowed rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+          >
+            Locked until {strategy.lockDays - strategy.daysElapsed}d remain
+          </button>
+        )}
+        {isUnlocked && (
+          <StatefulButton
+            className="h-10 w-full text-xs"
+            variant="destructive"
+            state={state}
+            onClick={runAction}
+          >
+            Withdraw
+          </StatefulButton>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ── AI trade history (feeds the "trade history" table for this page) ───────
+
+type AiTrade = {
+  id: string;
+  date: string;
+  strategy: string;
+  pair: string;
+  pnl: string;
+  positive: boolean;
+};
+
+const AI_TRADES: AiTrade[] = [
+  { id: "ai1", date: "2025-07-18", strategy: "9 EMA Strategy",      pair: "BTC/USDT", pnl: "+$14.20", positive: true  },
+  { id: "ai2", date: "2025-07-18", strategy: "Momentum Breakout",   pair: "ETH/USDT", pnl: "+$9.60",  positive: true  },
+  { id: "ai3", date: "2025-07-17", strategy: "9 EMA Strategy",      pair: "SOL/USDT", pnl: "-$6.40",  positive: false },
+  { id: "ai4", date: "2025-07-16", strategy: "Momentum Breakout",   pair: "BTC/USDT", pnl: "+$31.80", positive: true  },
+];
+
+const AI_TRADE_COLUMNS = [
+  { key: "date",     header: "Date",     width: "110px" },
+  { key: "strategy", header: "Strategy", width: "160px" },
+  { key: "pair",     header: "Pair",     width: "110px" },
+  { key: "pnl",      header: "P&L",      align: "right" as const,
+    cell: (r: AiTrade) => (
+      <span className={`text-xs font-semibold ${r.positive ? "text-success" : "text-destructive"}`}>
+        {r.pnl}
+      </span>
+    ),
+  },
+];
+
+export default function AiTradingPage() {
+  const loading = false;
+  const totalInvested = STRATEGIES.reduce((sum, s) => sum + (s.invested ?? 0), 0);
+  const totalProfit = STRATEGIES.reduce((sum, s) => sum + (s.currentProfit ?? 0), 0);
+  const activeCount = STRATEGIES.filter((s) => s.status !== "not-invested").length;
+
+  return (
+    <UserShell active="AI Trading">
+      <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8 space-y-8">
+
+        {/* ── Header ────────────────────────────────────── */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">AI-managed strategies</p>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            AI Trading
+          </h1>
+        </div>
+
+        {/* ── Summary stats ─────────────────────────────── */}
+        <section aria-label="AI Trading Summary">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Card>
+              <Stat label="AI Trading Balance" value="$1,820.30" icon={<Wallet className="size-3.5" />} loading={loading} />
+            </Card>
+            <Card>
+              <Stat label="Total Invested" value={`$${totalInvested.toFixed(2)}`} icon={<Bot className="size-3.5" />} loading={loading} />
+            </Card>
+            <Card>
+              <Stat
+                label="Total AI Profit"
+                value={`+$${totalProfit.toFixed(2)}`}
+                delta={{ value: "All time", positive: true }}
+                loading={loading}
+              />
+            </Card>
+            <Card>
+              <Stat label="Active Strategies" value={String(activeCount)} loading={loading} />
+            </Card>
+          </div>
+        </section>
+
+        {/* ── Strategy cards ────────────────────────────── */}
+        <section aria-label="Strategies">
+          <SectionHeader title="Strategies" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {STRATEGIES.map((s) => (
+              <StrategyCard key={s.id} strategy={s} />
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Every plan locks your stake for 15 days from the day you invest — withdrawals open automatically once the lock period ends. Past performance does not guarantee future results.
+          </p>
+        </section>
+
+        {/* ── AI activity / trade history ───────────────── */}
+        <section aria-label="AI Trade History">
+          <SectionHeader title="AI Trade History" actionLabel="View all" action={() => {}} />
+          <Table
+            data={AI_TRADES}
+            columns={AI_TRADE_COLUMNS}
+            getRowId={(r) => r.id}
+            height={240}
+            rowHeight={44}
+          />
+        </section>
+
+        {/* ── Notifications ─────────────────────────────── */}
+        <section aria-label="Notifications">
+          <SectionHeader title="Notifications" />
+          <BouncyAccordion
+            defaultValue="1"
+            items={[
+              {
+                id: "1",
+                title: "9 EMA Strategy Unlocked",
+                description: "Your 15-day lock has ended — withdrawal is now available.",
+                icon: <RadioTower className="h-4 w-4" />,
+              },
+              {
+                id: "2",
+                title: "Momentum Breakout Profit Credited",
+                description: "+$9.60 credited to your AI Trading balance.",
+                icon: <PackageCheck className="h-4 w-4" />,
+              },
+              {
+                id: "3",
+                title: "New Login Detected",
+                description: "New login detected from Dhaka, Bangladesh.",
+                icon: <ShieldCheck className="h-4 w-4" />,
+              },
+            ]}
+          />
+        </section>
+
+        <div className="h-20" />
+      </div>
+    </UserShell>
+  );
+}
+</file>
+
+<file path="app/(user)/trading/manual-trading/page.tsx">
+// app/(user)/trading/manual-trading/page.tsx
+"use client";
+
+import { UserShell } from "@/app/(user)/_components/user-shell";
+import { TradingChart } from "@/components/motion/trading-chart";
+import { OrderPanel, type OrderValue } from "@/components/motion/order-panel";
+import { useState } from "react";
+
+export default function ManualTradingPage() {
+  const [order, setOrder] = useState<OrderValue>({
+    mode: "buy",
+    amount: "115",
+    expiryId: "15m",
+  });
+
+  return (
+    <UserShell active="Manual Trading">
+      <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
+        <div className="mb-6">
+          <p className="text-xs font-medium text-muted-foreground">Live market</p>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            Manual Trading
+          </h1>
+        </div>
+
+        <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-5">
+          <section className="min-w-0" aria-label="Chart">
+            <TradingChart />
+          </section>
+
+          <aside className="w-full min-w-0 lg:sticky lg:top-6" aria-label="Order panel">
+            <OrderPanel
+              price={0.167}
+              value={order}
+              onValueChange={setOrder}
+              balance={500}
+              holding={125}
+              quickAmounts={[1, 5, 10, 100]}
+              className="max-w-none"
+            />
+          </aside>
+        </div>
+
+        <div className="h-20" />
+      </div>
+    </UserShell>
+  );
+}
+</file>
+
+<file path="app/(user)/trading/overview/page.tsx">
+// app/(user)/overview/page.tsx
+"use client";
+
+import { UserShell } from "@/app/(user)/_components/user-shell";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Bot,
+  LayoutGrid,
+  Wallet,
+  Activity,
+  ShieldCheck,
+  PackageCheck,
+  RadioTower,
+} from "lucide-react";
+import { BouncyAccordion } from "@/components/motion/bouncy-accordion";
+import { Table } from "@/components/motion/table";
+
+// ── Shared primitives (same pattern as dashboard/page.tsx) ─────────────────
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-4xl border border-border bg-card p-6 ${className}`}>
       {children}
-      <GlobalDock />
-    </>
+    </div>
+  );
+}
+
+function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" }) {
+  const colors: Record<string, string> = {
+    default:     "bg-foreground/10 text-foreground",
+    success:     "bg-success/10 text-success",
+    destructive: "bg-destructive/10 text-destructive",
+    muted:       "bg-muted text-muted-foreground",
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}>
+      {label}
+    </span>
+  );
+}
+
+function Stat({ label, value, delta, loading = false, icon }: {
+  label: string;
+  value: string;
+  delta?: { value: string; positive: boolean };
+  loading?: boolean;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        {icon && <span className="text-muted-foreground">{icon}</span>}
+        <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      </div>
+      {loading ? (
+        <div className="h-6 w-24 animate-pulse rounded-md bg-muted" />
+      ) : (
+        <p className="text-lg font-semibold text-foreground">{value}</p>
+      )}
+      {delta && !loading && (
+        <p className={`flex items-center gap-1 text-xs font-medium ${delta.positive ? "text-success" : "text-destructive"}`}>
+          {delta.positive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+          {delta.value}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SectionHeader({ title, action, actionLabel }: {
+  title: string;
+  action?: () => void;
+  actionLabel?: string;
+}) {
+  return (
+    <div className="mb-4 flex items-center justify-between">
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      {action && actionLabel && (
+        <button
+          type="button"
+          onClick={action}
+          className="text-xs font-medium text-foreground/80 transition-opacity hover:opacity-75 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+        >
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Recent activity table (combined AI + manual) ────────────────────────────
+
+type ActivityRow = {
+  id: string;
+  date: string;
+  source: "AI" | "Manual";
+  pair: string;
+  pnl: string;
+  positive: boolean;
+};
+
+const RECENT_ACTIVITY: ActivityRow[] = [
+  { id: "a1", date: "2025-07-18", source: "AI",     pair: "BTC/USDT", pnl: "+$14.20", positive: true  },
+  { id: "a2", date: "2025-07-18", source: "Manual",  pair: "ETH/USDT", pnl: "+$22.00", positive: true  },
+  { id: "a3", date: "2025-07-17", source: "AI",     pair: "SOL/USDT", pnl: "-$6.40",  positive: false },
+  { id: "a4", date: "2025-07-17", source: "Manual",  pair: "BNB/USDT", pnl: "-$8.10",  positive: false },
+  { id: "a5", date: "2025-07-16", source: "AI",     pair: "BTC/USDT", pnl: "+$31.80", positive: true  },
+  { id: "a6", date: "2025-07-16", source: "AI",     pair: "ETH/USDT", pnl: "+$9.60",  positive: true  },
+];
+
+const ACTIVITY_COLUMNS = [
+  { key: "date",   header: "Date",   width: "110px" },
+  { key: "source", header: "Source", width: "90px",
+    cell: (r: ActivityRow) => (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+        {r.source === "AI" ? <Bot className="size-3.5" /> : <LayoutGrid className="size-3.5" />}
+        {r.source}
+      </span>
+    ),
+  },
+  { key: "pair",   header: "Pair",   width: "110px" },
+  { key: "pnl",    header: "P&L",    align: "right" as const,
+    cell: (r: ActivityRow) => (
+      <span className={`text-xs font-semibold ${r.positive ? "text-success" : "text-destructive"}`}>
+        {r.pnl}
+      </span>
+    ),
+  },
+];
+
+export default function OverviewPage() {
+  const loading = false;
+
+  return (
+    <UserShell active="Overview">
+      <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8 space-y-8">
+
+        {/* ── Greeting ──────────────────────────────────── */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">
+            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          </p>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            Overview
+          </h1>
+        </div>
+
+        {/* ── Balances ──────────────────────────────────── */}
+        <section aria-label="Balances">
+          <SectionHeader title="Balances" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Card>
+              <Stat
+                label="Trading Balance"
+                value="$3,640.60"
+                icon={<Wallet className="size-3.5" />}
+                loading={loading}
+              />
+            </Card>
+            <Card>
+              <Stat
+                label="AI Trading Balance"
+                value="$1,820.30"
+                icon={<Bot className="size-3.5" />}
+                loading={loading}
+              />
+            </Card>
+            <Card>
+              <Stat
+                label="Manual Trading Balance"
+                value="$1,820.30"
+                icon={<LayoutGrid className="size-3.5" />}
+                loading={loading}
+              />
+            </Card>
+          </div>
+        </section>
+
+        {/* ── Profit breakdown ──────────────────────────── */}
+        <section aria-label="Profit Breakdown">
+          <SectionHeader title="Profit Breakdown" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "Total AI Profit",     value: "+$820.50",   positive: true,  icon: <Bot className="size-3.5" /> },
+              { label: "Total Manual Profit", value: "+$362.00",   positive: true,  icon: <LayoutGrid className="size-3.5" /> },
+              { label: "Today's PnL",         value: "+$84.57",    positive: true,  icon: <Activity className="size-3.5" /> },
+              { label: "Overall PnL",         value: "+$1,182.50", positive: true,  icon: <TrendingUpIcon /> },
+            ].map((item) => (
+              <Card key={item.label}>
+                <Stat
+                  label={item.label}
+                  value={item.value}
+                  icon={item.icon}
+                  delta={{ value: item.positive ? "Profit" : "Loss", positive: item.positive }}
+                  loading={loading}
+                />
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* ── P&L windows ──────────────────────────────── */}
+        <section aria-label="Profit and Loss windows">
+          <SectionHeader title="Profit & Loss" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "Today's P/L", value: "+$84.57",    positive: true },
+              { label: "7-Day P/L",   value: "+$312.80",   positive: true },
+              { label: "30-Day P/L",  value: "+$1,024.40", positive: true },
+              { label: "Total P/L",   value: "+$3,480.55", positive: true },
+            ].map((item) => (
+              <Card key={item.label}>
+                <Stat
+                  label={item.label}
+                  value={item.value}
+                  delta={{ value: item.positive ? "Realized" : "Unrealized", positive: item.positive }}
+                  loading={loading}
+                />
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Status cards ─────────────────────────────── */}
+        <section aria-label="Status">
+          <SectionHeader title="Status" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Card>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="grid size-8 place-items-center rounded-xl bg-foreground/5 text-foreground">
+                    <Bot className="size-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-card-foreground">AI Trading</p>
+                    <p className="text-xs text-muted-foreground">2 active strategies</p>
+                  </div>
+                </div>
+                <Badge label="Running" tone="success" />
+              </div>
+            </Card>
+            <Card>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="grid size-8 place-items-center rounded-xl bg-foreground/5 text-foreground">
+                    <LayoutGrid className="size-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-card-foreground">Manual Trading</p>
+                    <p className="text-xs text-muted-foreground">1 open position</p>
+                  </div>
+                </div>
+                <Badge label="Active" tone="success" />
+              </div>
+            </Card>
+          </div>
+        </section>
+
+        {/* ── Recent Activity ───────────────────────────── */}
+        <section aria-label="Recent Activity">
+          <SectionHeader title="Recent Activity" actionLabel="View all" action={() => {}} />
+          <Table
+            data={RECENT_ACTIVITY}
+            columns={ACTIVITY_COLUMNS}
+            getRowId={(r) => r.id}
+            height={260}
+            rowHeight={44}
+          />
+        </section>
+
+        {/* ── Notifications ─────────────────────────────── */}
+        <section aria-label="Notifications">
+          <SectionHeader title="Notifications" />
+          <BouncyAccordion
+            defaultValue="1"
+            items={[
+              {
+                id: "1",
+                title: "AI Strategy Profit Credited",
+                description: "9 EMA strategy credited +$14.20 to your balance.",
+                icon: <RadioTower className="h-4 w-4" />,
+              },
+              {
+                id: "2",
+                title: "Manual Trade Closed",
+                description: "ETH/USDT position closed with +$22.00 profit.",
+                icon: <PackageCheck className="h-4 w-4" />,
+              },
+              {
+                id: "3",
+                title: "New Login Detected",
+                description: "New login detected from Dhaka, Bangladesh.",
+                icon: <ShieldCheck className="h-4 w-4" />,
+              },
+            ]}
+          />
+        </section>
+
+        <div className="h-20" />
+      </div>
+    </UserShell>
+  );
+}
+
+function TrendingUpIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+      <polyline points="16 7 22 7 22 13" />
+    </svg>
+  );
+}
+</file>
+
+<file path="app/not-found.tsx">
+import { NotFoundMagnetic } from "@/components/motion/not-found/magnetic";
+
+export default function NotFound() {
+  return (
+    <div className="flex min-h-screen w-full items-center justify-center bg-background">
+      <NotFoundMagnetic />
+    </div>
   );
 }
 </file>
@@ -3097,198 +4741,6 @@ export function formatAmount(n: number, max = 2) {
 }
 </file>
 
-<file path="components/motion/button/base.tsx">
-"use client";
-
-import {
-  AnimatePresence,
-  type HTMLMotionProps,
-  motion,
-  useReducedMotion,
-} from "motion/react";
-import {
-  forwardRef,
-  type PointerEvent,
-  type ReactNode,
-  useCallback,
-  useRef,
-  useState,
-} from "react";
-import { EASE_OUT, SPRING_PRESS } from "@/lib/ease";
-import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
-import { cn } from "@/lib/utils";
-
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";
-export type ButtonSize = "sm" | "md" | "lg" | "icon";
-
-export interface ButtonProps extends Omit<
-  HTMLMotionProps<"button">,
-  "children"
-> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  pressScale?: number;
-  /** Spawn a Material-style ripple from the press point. Off by default. */
-  ripple?: boolean;
-  children?: ReactNode;
-}
-
-export interface ButtonLinkProps extends Omit<
-  HTMLMotionProps<"a">,
-  "children"
-> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  pressScale?: number;
-  children?: ReactNode;
-}
-
-type Ripple = { id: number; x: number; y: number; size: number };
-
-const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
-  secondary: "border border-border bg-card text-foreground hover:border-border",
-  ghost: "text-muted-foreground hover:text-foreground hover:bg-primary/5",
-  outline:
-    "border border-border bg-transparent text-foreground hover:bg-primary/5",
-};
-
-const SIZE_CLASS: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-xs gap-1.5 rounded-full",
-  md: "h-10 px-5 text-sm gap-2 rounded-full",
-  lg: "h-12 px-6 text-base gap-2 rounded-full",
-  icon: "h-8 w-8 rounded-lg",
-};
-
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  function Button(
-    {
-      variant = "primary",
-      size = "md",
-      pressScale = 0.93,
-      ripple = false,
-      className,
-      children,
-      onPointerDown,
-      ...rest
-    },
-    ref,
-  ) {
-    const reduce = useReducedMotion();
-    const canHover = useHoverCapable();
-    const [ripples, setRipples] = useState<Ripple[]>([]);
-    const nextId = useRef(0);
-
-    const handlePointerDown = useCallback(
-      (event: PointerEvent<HTMLButtonElement>) => {
-        if (ripple && !reduce) {
-          const rect = event.currentTarget.getBoundingClientRect();
-          const size = Math.max(rect.width, rect.height) * 2;
-          const id = nextId.current++;
-          setRipples((prev) => [
-            ...prev,
-            {
-              id,
-              x: event.clientX - rect.left,
-              y: event.clientY - rect.top,
-              size,
-            },
-          ]);
-        }
-        onPointerDown?.(event);
-      },
-      [ripple, reduce, onPointerDown],
-    );
-
-    return (
-      <motion.button
-        ref={ref}
-        type="button"
-        whileTap={reduce ? undefined : { scale: pressScale }}
-        whileHover={reduce || !canHover ? undefined : { scale: 1.02 }}
-        transition={SPRING_PRESS}
-        onPointerDown={handlePointerDown}
-        className={cn(
-          "inline-flex items-center justify-center font-medium select-none",
-          "transition-colors",
-          "disabled:pointer-events-none disabled:opacity-50",
-          ripple && "relative overflow-hidden",
-          VARIANT_CLASS[variant],
-          SIZE_CLASS[size],
-          className,
-        )}
-        {...rest}
-      >
-        {ripple && !reduce ? (
-          <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
-            <AnimatePresence>
-              {ripples.map((r) => (
-                <motion.span
-                  key={r.id}
-                  className="absolute rounded-full bg-current"
-                  style={{
-                    left: r.x,
-                    top: r.y,
-                    width: r.size,
-                    height: r.size,
-                    x: "-50%",
-                    y: "-50%",
-                  }}
-                  initial={{ scale: 0.05, opacity: 0.3 }}
-                  animate={{ scale: 1, opacity: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 1.6, ease: EASE_OUT }}
-                  onAnimationComplete={() =>
-                    setRipples((prev) => prev.filter((x) => x.id !== r.id))
-                  }
-                />
-              ))}
-            </AnimatePresence>
-          </span>
-        ) : null}
-        {children}
-      </motion.button>
-    );
-  },
-);
-
-export const ButtonLink = forwardRef<HTMLAnchorElement, ButtonLinkProps>(
-  function ButtonLink(
-    {
-      variant = "primary",
-      size = "md",
-      pressScale = 0.93,
-      className,
-      children,
-      ...rest
-    },
-    ref,
-  ) {
-    const reduce = useReducedMotion();
-    const canHover = useHoverCapable();
-
-    return (
-      <motion.a
-        ref={ref}
-        whileTap={reduce ? undefined : { scale: pressScale }}
-        whileHover={reduce || !canHover ? undefined : { scale: 1.02 }}
-        transition={SPRING_PRESS}
-        className={cn(
-          "inline-flex items-center justify-center font-medium select-none",
-          "transition-colors",
-          VARIANT_CLASS[variant],
-          SIZE_CLASS[size],
-          className,
-        )}
-        {...rest}
-      >
-        {children}
-      </motion.a>
-    );
-  },
-);
-</file>
-
 <file path="components/motion/button/index.tsx">
 export type {
   ButtonLinkProps,
@@ -3674,6 +5126,161 @@ export const StatefulButton = forwardRef<HTMLButtonElement, StatefulButtonProps>
     </Button>
   );
 });
+</file>
+
+<file path="components/motion/not-found/magnetic.tsx">
+"use client";
+
+import { Magnetic } from "@/components/motion/magnetic";
+import { cn } from "@/lib/utils";
+import {
+  NOT_FOUND_DEFAULTS,
+  NotFoundActions,
+  NotFoundStage,
+  type NotFoundProps,
+} from "./shared";
+
+export function NotFoundMagnetic({
+  className,
+  code = NOT_FOUND_DEFAULTS.code,
+  title = NOT_FOUND_DEFAULTS.title,
+  description = NOT_FOUND_DEFAULTS.description,
+  homeHref,
+  homeLabel,
+  browseHref,
+  browseLabel,
+}: NotFoundProps) {
+  const chars = code.split("");
+
+  return (
+    <NotFoundStage className={className}>
+      <h1
+        aria-label={code}
+        className="flex select-none items-center justify-center font-bold leading-none tracking-tighter text-foreground [font-size:clamp(5rem,18vw,12rem)]"
+      >
+        {chars.map((ch, i) => (
+          <Magnetic
+            key={i}
+            strength={0.6}
+            className={cn(i > 0 && "-ml-2")}
+          >
+            <span aria-hidden className="inline-block px-1 tabular-nums">
+              {ch}
+            </span>
+          </Magnetic>
+        ))}
+      </h1>
+
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-lg font-semibold text-foreground">{title}</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
+      </div>
+
+      <NotFoundActions
+        homeHref={homeHref}
+        homeLabel={homeLabel}
+        browseHref={browseHref}
+        browseLabel={browseLabel}
+      />
+    </NotFoundStage>
+  );
+}
+</file>
+
+<file path="components/motion/not-found/shared.tsx">
+"use client";
+
+import { motion, useReducedMotion } from "motion/react";
+import { SPRING_PRESS } from "@/lib/ease";
+import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
+import { cn } from "@/lib/utils";
+
+export interface NotFoundProps {
+  className?: string;
+  code?: string;
+  title?: string;
+  description?: string;
+  homeHref?: string;
+  homeLabel?: string;
+  browseHref?: string;
+  browseLabel?: string;
+}
+
+export const NOT_FOUND_DEFAULTS = {
+  code: "404",
+  title: "Page not found",
+  description:
+    "The page you are looking for moved, vanished, or never existed.",
+  homeHref: "/",
+  homeLabel: "Back home",
+  browseHref: "/dashboard",
+  browseLabel: "Back to dashboard",
+} as const;
+
+type ActionsProps = Pick<
+  NotFoundProps,
+  "homeHref" | "homeLabel" | "browseHref" | "browseLabel" | "className"
+>;
+
+export function NotFoundActions({
+  homeHref = NOT_FOUND_DEFAULTS.homeHref,
+  homeLabel = NOT_FOUND_DEFAULTS.homeLabel,
+  browseHref = NOT_FOUND_DEFAULTS.browseHref,
+  browseLabel = NOT_FOUND_DEFAULTS.browseLabel,
+  className,
+}: ActionsProps) {
+  const reduce = useReducedMotion();
+  const canHover = useHoverCapable();
+  const whileTap = reduce ? undefined : { scale: 0.96 };
+  const whileHover = reduce || !canHover ? undefined : { scale: 1.02 };
+
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-center gap-3",
+        className,
+      )}
+    >
+      <motion.a
+        href={homeHref}
+        whileTap={whileTap}
+        whileHover={whileHover}
+        transition={SPRING_PRESS}
+        className="inline-flex h-11 select-none items-center justify-center rounded-full bg-success px-6 text-sm font-medium text-background transition-colors hover:bg-success/90"
+      >
+        {homeLabel}
+      </motion.a>
+      <motion.a
+        href={browseHref}
+        whileTap={whileTap}
+        whileHover={whileHover}
+        transition={SPRING_PRESS}
+        className="inline-flex h-11 select-none items-center justify-center rounded-full border border-border bg-card px-6 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
+      >
+        {browseLabel}
+      </motion.a>
+    </div>
+  );
+}
+
+export function NotFoundStage({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-[420px] w-full flex-col items-center justify-center gap-8 px-4 text-center",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 </file>
 
 <file path="components/motion/table/editable-cell.tsx">
@@ -5500,349 +7107,6 @@ export function AccountTransfer({
 
 function findAccount(accounts: Account[], id: string) {
   return accounts.find((a) => a.id === id) ?? accounts[0];
-}
-</file>
-
-<file path="components/motion/action-swap.tsx">
-"use client";
-
-import { AnimatePresence, motion, useReducedMotion, type HTMLMotionProps, type Variants } from "motion/react";
-import { useState } from "react";
-import type { ReactNode } from "react";
-import { EASE_OUT, SPRING_PRESS, SPRING_SWAP } from "@/lib/ease";
-import { cn } from "@/lib/utils";
-
-export type ActionSwapItem = {
-  id: string;
-  label: ReactNode;
-  icon?: ReactNode;
-  ariaLabel?: string;
-};
-
-export type ActionSwapButtonVariant = "primary" | "secondary" | "outline" | "ghost";
-export type ActionSwapButtonSize = "sm" | "md" | "lg" | "icon";
-export type ActionSwapAnimation = "blur" | "roll" | "cascade";
-
-/** Animations with a single-element variant set (cascade animates per letter). */
-type CoreAnimation = "blur" | "roll";
-
-export interface ActionSwapButtonProps extends Omit<
-  HTMLMotionProps<"button">,
-  "children" | "onChange"
-> {
-  items: ActionSwapItem[];
-  value?: string;
-  defaultValue?: string;
-  onValueChange?: (value: string, item: ActionSwapItem) => void;
-  variant?: ActionSwapButtonVariant;
-  size?: ActionSwapButtonSize;
-  animation?: ActionSwapAnimation;
-  iconOnly?: boolean;
-  cycle?: boolean;
-}
-
-export interface ActionSwapTextProps {
-  value: string;
-  children: ReactNode;
-  animation?: ActionSwapAnimation;
-  className?: string;
-}
-
-export interface ActionSwapIconProps {
-  value: string;
-  children: ReactNode;
-  animation?: ActionSwapAnimation;
-  className?: string;
-}
-
-const BLUR_TRANSITION = { duration: 0.2, ease: "easeInOut" } as const;
-const ROLL_TRANSITION = SPRING_SWAP;
-const ROLL_EXIT_TRANSITION = { duration: 0.14, ease: EASE_OUT } as const;
-const SWAP_BLUR = "blur(8px)";
-const ROLL_BLUR = "blur(3px)";
-
-// Cascade rolls the label one letter at a time, left to right. The leaving
-// and landing strings overlap as independent layers (no shared cells), so
-// proportional glyph widths never jitter. Exits cascade at half the enter
-// stagger so the tail of the old label lingers briefly.
-const CASCADE_STAGGER = 0.025;
-
-const CASCADE_LETTER_VARIANTS: Variants = {
-  initial: { opacity: 0, y: "105%", filter: ROLL_BLUR },
-  animate: (delay: number = 0) => ({
-    opacity: 1,
-    y: "0%",
-    filter: "blur(0px)",
-    transition: { ...SPRING_SWAP, delay },
-  }),
-  exit: (delay: number = 0) => ({
-    opacity: 0,
-    y: "-105%",
-    filter: ROLL_BLUR,
-    transition: { duration: 0.16, ease: EASE_OUT, delay: delay * 0.5 },
-  }),
-};
-
-const TEXT_VARIANTS: Record<CoreAnimation, Variants> = {
-  blur: {
-    initial: { opacity: 0, scale: 0.94, filter: SWAP_BLUR },
-    animate: {
-      opacity: 1,
-      scale: 1,
-      filter: "blur(0px)",
-      transition: BLUR_TRANSITION,
-    },
-    exit: {
-      opacity: 0,
-      scale: 0.94,
-      filter: SWAP_BLUR,
-      transition: BLUR_TRANSITION,
-    },
-  },
-  roll: {
-    initial: { opacity: 0, y: "90%", filter: ROLL_BLUR },
-    animate: {
-      opacity: 1,
-      y: "0%",
-      filter: "blur(0px)",
-      transition: ROLL_TRANSITION,
-    },
-    exit: {
-      opacity: 0,
-      y: "-90%",
-      filter: ROLL_BLUR,
-      transition: ROLL_EXIT_TRANSITION,
-    },
-  },
-};
-
-const ICON_VARIANTS: Record<CoreAnimation, Variants> = {
-  blur: {
-    initial: { opacity: 0, scale: 0.25, filter: SWAP_BLUR },
-    animate: {
-      opacity: 1,
-      scale: 1,
-      filter: "blur(0px)",
-      transition: BLUR_TRANSITION,
-    },
-    exit: {
-      opacity: 0,
-      scale: 0.25,
-      filter: SWAP_BLUR,
-      transition: BLUR_TRANSITION,
-    },
-  },
-  roll: {
-    initial: { opacity: 0, y: 12, filter: ROLL_BLUR },
-    animate: {
-      opacity: 1,
-      y: 0,
-      filter: "blur(0px)",
-      transition: ROLL_TRANSITION,
-    },
-    exit: {
-      opacity: 0,
-      y: -12,
-      filter: ROLL_BLUR,
-      transition: ROLL_EXIT_TRANSITION,
-    },
-  },
-};
-
-const VARIANT_CLASS: Record<ActionSwapButtonVariant, string> = {
-  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
-  secondary: "border border-border bg-card text-foreground hover:border-border",
-  outline: "border border-border bg-transparent text-foreground hover:bg-primary/5",
-  ghost: "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
-};
-
-const SIZE_CLASS: Record<ActionSwapButtonSize, string> = {
-  sm: "h-8 gap-1.5 rounded-full px-3 text-xs",
-  md: "h-10 gap-2 rounded-full px-4 text-sm",
-  lg: "h-12 gap-2.5 rounded-full px-5 text-base",
-  icon: "h-10 w-10 rounded-full",
-};
-
-export function ActionSwapText({
-  value,
-  children,
-  animation = "blur",
-  className,
-}: ActionSwapTextProps) {
-  const reduce = useReducedMotion();
-
-  // Cascade needs a plain string to split into letters; non-string content
-  // and reduced motion fall back to the closest single-element animation.
-  const label = typeof children === "string" ? children : null;
-  const cascade = animation === "cascade" && label !== null && !reduce;
-  const coreAnimation: CoreAnimation =
-    animation === "cascade" ? "roll" : animation;
-
-  return (
-    <span
-      className={cn(
-        "relative -my-[0.08em] inline-block max-w-full whitespace-nowrap py-[0.08em] align-bottom",
-        className,
-      )}
-      style={{
-        clipPath: "inset(0 -999px)",
-        WebkitClipPath: "inset(0 -999px)",
-      }}
-    >
-      <span
-        aria-hidden
-        className="invisible inline-block whitespace-nowrap"
-      >
-        {cascade
-          ? label.split("").map((char, index) => (
-              <span
-                // biome-ignore lint/suspicious/noArrayIndexKey: position is the slot identity.
-                key={index}
-                className="inline-block whitespace-pre"
-              >
-                {char}
-              </span>
-            ))
-          : children}
-      </span>
-      {cascade ? (
-        <>
-          {/* Letters are decorative fragments; readers get the whole label. */}
-          <span className="sr-only">{label}</span>
-          <AnimatePresence initial={false}>
-            <motion.span
-              key={`cascade-${value}`}
-              aria-hidden
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              className="absolute left-0 top-[0.08em] inline-block whitespace-pre"
-            >
-              {label.split("").map((char, i) => (
-                <motion.span
-                  // biome-ignore lint/suspicious/noArrayIndexKey: position is the slot identity — the letter at a position is exactly what rolls.
-                  key={i}
-                  custom={i * CASCADE_STAGGER}
-                  variants={CASCADE_LETTER_VARIANTS}
-                  className="inline-block whitespace-pre will-change-[opacity,filter,transform]"
-                >
-                  {char}
-                </motion.span>
-              ))}
-            </motion.span>
-          </AnimatePresence>
-        </>
-      ) : (
-        <AnimatePresence initial={false}>
-          <motion.span
-            key={`${animation}-${value}`}
-            variants={TEXT_VARIANTS[coreAnimation]}
-            initial={reduce ? false : "initial"}
-            animate={reduce ? { opacity: 1, filter: "blur(0px)", scale: 1, y: 0 } : "animate"}
-            exit={reduce ? undefined : "exit"}
-            // Truncation lives on the layer that holds the text — the layer
-            // moves as a whole, so clipping it never eats the roll.
-            className="absolute left-0 top-[0.08em] inline-block max-w-full truncate will-change-[opacity,filter,transform]"
-          >
-            {children}
-          </motion.span>
-        </AnimatePresence>
-      )}
-    </span>
-  );
-}
-
-export function ActionSwapIcon({
-  value,
-  children,
-  animation = "blur",
-  className,
-}: ActionSwapIconProps) {
-  const reduce = useReducedMotion();
-  // Icons are single elements — cascade maps to its closest motion, roll.
-  const coreAnimation: CoreAnimation =
-    animation === "cascade" ? "roll" : animation;
-
-  return (
-    <span className={cn("relative inline-grid shrink-0 place-items-center overflow-hidden", className)}>
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.span
-          key={`${animation}-${value}`}
-          aria-hidden
-          variants={ICON_VARIANTS[coreAnimation]}
-          initial={reduce ? false : "initial"}
-          animate={reduce ? { opacity: 1, filter: "blur(0px)", scale: 1, y: 0 } : "animate"}
-          exit={reduce ? undefined : "exit"}
-          className="col-start-1 row-start-1 inline-flex items-center justify-center will-change-[opacity,filter,transform]"
-        >
-          {children}
-        </motion.span>
-      </AnimatePresence>
-    </span>
-  );
-}
-
-export function ActionSwapButton({
-  items,
-  value,
-  defaultValue,
-  onValueChange,
-  variant = "secondary",
-  size = "md",
-  animation = "blur",
-  iconOnly = size === "icon",
-  cycle = true,
-  className,
-  disabled,
-  onClick,
-  ...rest
-}: ActionSwapButtonProps) {
-  const reduce = useReducedMotion();
-  const [internalValue, setInternalValue] = useState(defaultValue ?? items[0]?.id);
-  const currentValue = value ?? internalValue;
-  const activeIndex = Math.max(0, items.findIndex((item) => item.id === currentValue));
-  const activeItem = items[activeIndex] ?? items[0];
-  const hasIcon = items.some((item) => item.icon);
-  const nextItem = cycle && items.length > 0 ? items[(activeIndex + 1) % items.length] : undefined;
-
-  if (!activeItem) return null;
-
-  const accessibleLabel = activeItem.ariaLabel ?? (iconOnly && typeof activeItem.label === "string" ? activeItem.label : undefined);
-
-  return (
-    <motion.button
-      type="button"
-      disabled={disabled}
-      whileTap={reduce || disabled ? undefined : { scale: 0.97 }}
-      transition={SPRING_PRESS}
-      className={cn(
-        "inline-flex items-center justify-center overflow-hidden font-medium transition-colors",
-        "disabled:pointer-events-none disabled:opacity-50",
-        VARIANT_CLASS[variant],
-        SIZE_CLASS[size],
-        className,
-      )}
-      aria-label={accessibleLabel}
-      onClick={(event) => {
-        onClick?.(event);
-        if (event.defaultPrevented || disabled || !cycle || !nextItem) return;
-        if (value === undefined) setInternalValue(nextItem.id);
-        onValueChange?.(nextItem.id, nextItem);
-      }}
-      {...rest}
-    >
-      {hasIcon ? (
-        <ActionSwapIcon value={activeItem.id} animation={animation} className="h-4 w-4">
-          {activeItem.icon ?? null}
-        </ActionSwapIcon>
-      ) : null}
-      {!iconOnly ? (
-        <ActionSwapText value={activeItem.id} animation={animation}>
-          {activeItem.label}
-        </ActionSwapText>
-      ) : null}
-    </motion.button>
-  );
 }
 </file>
 
@@ -8209,124 +9473,6 @@ export function ContextMenuShortcut({
 }
 </file>
 
-<file path="components/motion/dock.tsx">
-// components/motion/dock.tsx
-"use client";
-// beui.dev/components/motion/dock
-
-import { motion, useReducedMotion } from "motion/react";
-import { createContext, useContext, useId, useMemo, type ReactNode } from "react";
-import { SPRING_LAYOUT } from "@/lib/ease";
-import { cn } from "@/lib/utils";
-
-type DockContextValue = {
-  size: number;
-  pillLayoutId: string;
-};
-
-const DockContext = createContext<DockContextValue | null>(null);
-
-export interface DockProps {
-  children: ReactNode;
-  className?: string;
-  /** Size of each item in px. */
-  size?: number;
-}
-
-export function Dock({ children, size = 44, className }: DockProps) {
-  const pillLayoutId = useId();
-  const ctx = useMemo<DockContextValue>(
-    () => ({ size, pillLayoutId }),
-    [size, pillLayoutId],
-  );
-
-  return (
-    <DockContext.Provider value={ctx}>
-      <div
-        className={cn(
-          "inline-flex h-auto items-end gap-1.5 rounded-2xl border border-border bg-card/80 px-2 py-1 shadow-2xl backdrop-blur-xl",
-          className,
-        )}
-      >
-        {children}
-      </div>
-    </DockContext.Provider>
-  );
-}
-
-export interface DockItemProps {
-  children: ReactNode;
-  className?: string;
-  /** When set, the item renders as a <button>. Omit when children carry their own link or button. */
-  onClick?: () => void;
-  active?: boolean;
-  "aria-label"?: string;
-}
-
-export function DockItem({
-  children,
-  className,
-  onClick,
-  active,
-  ...rest
-}: DockItemProps) {
-  const dock = useContext(DockContext);
-  const reduce = useReducedMotion();
-  const size = dock?.size ?? 44;
-  const pillLayoutId = dock?.pillLayoutId ?? "dock-pill";
-
-  const pill = active ? (
-    <motion.span
-      layoutId={pillLayoutId}
-      transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
-      className="absolute inset-0.5 -z-10 rounded-xl bg-primary/5"
-    />
-  ) : null;
-  const sharedStyle = { width: size, height: size };
-  const sharedClass = cn(
-    "relative flex shrink-0 items-center justify-center rounded-full text-foreground",
-    className,
-  );
-
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label={rest["aria-label"]}
-        aria-pressed={active}
-        style={sharedStyle}
-        className={cn(
-          sharedClass,
-          "cursor-pointer border-0 bg-transparent p-0 outline-none",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        )}
-      >
-        {pill}
-        {children}
-      </button>
-    );
-  }
-
-  // Children carry their own link or button (and its accessible name).
-  return (
-    <div style={sharedStyle} className={sharedClass}>
-      {pill}
-      {children}
-    </div>
-  );
-}
-
-export function DockSeparator({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn("mx-1 h-6 w-px self-center bg-border", className)}
-    />
-  );
-}
-</file>
-
 <file path="components/motion/magnetic.tsx">
 "use client";
 
@@ -9457,6 +10603,381 @@ function Digit({
 }
 </file>
 
+<file path="components/motion/order-panel.tsx">
+// components/motion/order-panel.tsx
+"use client";
+
+import { ActionSwap } from "@/components/motion/action-swap";
+import { StatefulButton, type ButtonState } from "@/components/motion/button";
+import { cn } from "@/lib/utils";
+import {
+  ArrowDownUp,
+  Check,
+  Clock,
+  Coins,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+
+export type OrderMode = "buy" | "sell";
+
+export type OrderValue = {
+  mode: OrderMode;
+  amount: string;
+  expiryId: string;
+};
+
+export type OrderExpiryOption = {
+  id: string;
+  label: string;
+  seconds: number;
+};
+
+export const DEFAULT_EXPIRY_OPTIONS: OrderExpiryOption[] = [
+  { id: "5m", label: "5m", seconds: 5 * 60 },
+  { id: "15m", label: "15m", seconds: 15 * 60 },
+  { id: "1h", label: "1H", seconds: 60 * 60 },
+  { id: "4h", label: "4H", seconds: 4 * 60 * 60 },
+  { id: "1d", label: "1D", seconds: 24 * 60 * 60 },
+];
+
+type Props = {
+  /** Price of one unit, expressed as a fraction 0–1 (e.g. 0.167 = 16.7¢). */
+  price: number;
+  value: OrderValue;
+  onValueChange: (value: OrderValue) => void;
+  balance: number;
+  holding: number;
+  expiryOptions?: OrderExpiryOption[];
+  quickAmounts?: number[];
+  title?: string;
+  subtitle?: ReactNode;
+  className?: string;
+};
+
+// Green/red only — pulled from CSS vars so the panel follows your theme
+// instead of hardcoded hex. Fall back to Tailwind's emerald/red if the
+// vars aren't defined on :root.
+const SUCCESS = "var(--success, #4ade80)";
+const DESTRUCTIVE = "var(--destructive, #ef4444)";
+
+function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const first = window.setTimeout(() => setNow(Date.now()), 0);
+    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(id);
+    };
+  }, [intervalMs]);
+  return now;
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+function formatRemaining(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+export function OrderPanel({
+  price,
+  value,
+  onValueChange,
+  balance,
+  holding,
+  expiryOptions = DEFAULT_EXPIRY_OPTIONS,
+  quickAmounts = [1, 5, 10, 100],
+  title = "Manual Order",
+  subtitle,
+  className,
+}: Props) {
+  const [touched, setTouched] = useState(false);
+  const [submitState, setSubmitState] = useState<ButtonState>("idle");
+  const now = useNow();
+
+  const amount = Math.max(0, Number(value.amount) || 0);
+  const shares = price > 0 ? amount / price : 0;
+  const payout = shares * 1;
+  const potentialProfit = payout - amount;
+  const isBuy = value.mode === "buy";
+  const canSubmit = amount > 0 && amount <= (isBuy ? balance : holding);
+
+  const expiry =
+    expiryOptions.find((o) => o.id === value.expiryId) ?? expiryOptions[0];
+  const periodMs = (expiry?.seconds ?? 0) * 1000;
+  const closesAtMs =
+    now !== null && periodMs > 0
+      ? (Math.floor(now / periodMs) + 1) * periodMs
+      : null;
+  const remaining = closesAtMs !== null && now !== null ? closesAtMs - now : null;
+  const closesLabel =
+    closesAtMs === null
+      ? "—"
+      : new Date(closesAtMs).toLocaleString(
+          "en-US",
+          periodMs >= 86_400_000
+            ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
+            : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
+        );
+
+  const patch = (partial: Partial<OrderValue>) => {
+    setSubmitState("idle");
+    onValueChange({ ...value, ...partial });
+  };
+
+  const setAmountFromString = (raw: string) => {
+    const cleaned = raw.replace(/[^0-9.]/g, "");
+    const parts = cleaned.split(".");
+    const normalized =
+      parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
+    patch({ amount: normalized });
+  };
+
+  const submit = async () => {
+    if (submitState === "loading") return;
+    setSubmitState("loading");
+    await new Promise((r) => setTimeout(r, 900));
+    setSubmitState("success");
+  };
+
+  const priceLabel = useMemo(() => `${(price * 100).toFixed(1)}¢`, [price]);
+
+  const headerIcon = isBuy ? (
+    <TrendingUp className="size-4" />
+  ) : (
+    <TrendingDown className="size-4" />
+  );
+
+  return (
+    <div
+      className={cn(
+        "w-full overflow-hidden rounded-3xl border border-border bg-background",
+        "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)]",
+        className,
+      )}
+    >
+      {/* Header */}
+      <div className="border-b border-border/80 px-4 pt-4">
+        <div className="flex items-start justify-between gap-3 pb-3">
+          <div className="min-w-0">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <Coins className="size-3.5" />
+              Manual trading
+            </div>
+            <h3 className="text-base font-semibold leading-snug tracking-tight text-foreground sm:text-lg">
+              {title}
+            </h3>
+            {subtitle ? (
+              <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Mode toggle */}
+        <div role="tablist" aria-label="Order side" className="relative flex gap-1 rounded-full bg-card p-1">
+          {(["buy", "sell"] as const).map((mode) => {
+            const active = value.mode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => patch({ mode })}
+                className={cn(
+                  "relative flex-1 rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
+                  active ? "text-background" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="op-mode-pill"
+                    transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: mode === "buy" ? SUCCESS : DESTRUCTIVE }}
+                  />
+                )}
+                <span className="relative z-10">{mode}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Trade expiry */}
+      <div className="px-3 pt-3">
+        <div className="rounded-2xl border border-border bg-card p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+              <Clock className="size-3.5" />
+              Trade expires
+            </span>
+            <span aria-live="off" className="text-sm font-semibold tabular-nums text-foreground">
+              {remaining !== null ? formatRemaining(remaining) : "--:--"}
+            </span>
+          </div>
+
+          <div role="radiogroup" aria-label="Trade expiry" className="mt-2 flex gap-1 rounded-full bg-background p-1">
+            {expiryOptions.map((o) => {
+              const active = o.id === expiry?.id;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => patch({ expiryId: o.id })}
+                  className={cn(
+                    "relative flex-1 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors",
+                    active ? "text-background" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="op-expiry-pill"
+                      transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
+                      className="absolute inset-0 rounded-full bg-foreground"
+                    />
+                  )}
+                  <span className="relative z-10">{o.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Closes at <span className="font-semibold text-foreground tabular-nums">{closesLabel}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Amount */}
+      <div className="px-3 pt-3">
+        <div className="rounded-2xl border border-border bg-card p-3">
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="op-amount" className="text-[11px] font-medium text-muted-foreground">
+              Amount (USDT)
+            </label>
+            <span className="text-[11px] text-muted-foreground">
+              {isBuy ? "Balance" : "Holding"}:{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                {isBuy ? balance.toFixed(2) : holding.toFixed(2)}
+              </span>
+            </span>
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-lg font-semibold text-muted-foreground">$</span>
+            <input
+              id="op-amount"
+              inputMode="decimal"
+              autoComplete="off"
+              value={value.amount}
+              onChange={(e) => setAmountFromString(e.target.value)}
+              onBlur={() => setTouched(true)}
+              placeholder="0.00"
+              className={cn(
+                "w-full min-w-0 bg-transparent text-2xl font-semibold tabular-nums text-foreground outline-none placeholder:text-muted-foreground/50",
+                touched && !canSubmit && amount > 0 && "text-destructive",
+              )}
+            />
+            <div className="flex shrink-0 gap-1">
+              {quickAmounts.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => patch({ amount: String(q) })}
+                  className="rounded-full border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="space-y-1.5 px-4 pt-3 text-xs">
+        <SummaryRow
+          label="Avg. price"
+          value={priceLabel}
+          icon={<ActionSwap showA={isBuy} a={<span>·</span>} b={<span>·</span>} />}
+        />
+        <SummaryRow label="Units" value={shares.toLocaleString("en-US", { maximumFractionDigits: 2 })} />
+        <SummaryRow label={isBuy ? "Cost" : "Est. proceeds"} value={`$${amount.toFixed(2)}`} />
+        <SummaryRow
+          label="Potential profit"
+          value={`${potentialProfit >= 0 ? "+" : "-"}$${Math.abs(potentialProfit).toFixed(2)}`}
+          tone={potentialProfit >= 0 ? SUCCESS : DESTRUCTIVE}
+          bold
+        />
+        <SummaryRow label="Payout if correct" value={`$${payout.toFixed(2)}`} />
+        <SummaryRow label="Expires" value={closesLabel} />
+      </div>
+
+      {/* Submit */}
+      <div className="p-4">
+        <StatefulButton
+          className="h-12 w-full text-sm"
+          variant={isBuy ? "success" : "destructive"}
+          state={submitState}
+          disabled={!canSubmit}
+          onClick={submit}
+        >
+          <span className="inline-flex items-center gap-2">
+            {headerIcon}
+            {isBuy ? `Buy · $${amount.toFixed(2)}` : `Sell · $${amount.toFixed(2)}`}
+            <Check className="hidden size-4" />
+            <ArrowDownUp className="size-4 opacity-60" />
+          </span>
+        </StatefulButton>
+
+        <AnimatePresence>
+          {touched && amount > (isBuy ? balance : holding) && (
+            <motion.p
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="mt-2 text-center text-[11px] text-destructive"
+            >
+              {isBuy ? "Insufficient balance" : "Insufficient units"}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, tone, bold, icon }: {
+  label: string;
+  value: string;
+  tone?: string;
+  bold?: boolean;
+  icon?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="inline-flex items-center gap-1 text-muted-foreground">
+        {icon}
+        {label}
+      </span>
+      <span className={cn("tabular-nums", bold ? "font-semibold" : "font-medium")} style={tone ? { color: tone } : undefined}>
+        {value}
+      </span>
+    </div>
+  );
+}
+</file>
+
 <file path="components/motion/overflow-actions.tsx">
 "use client";
 // beui.dev/components/blocks/overflow-actions
@@ -10317,6 +11838,564 @@ export function Tooltip({
           )
         : null}
     </>
+  );
+}
+</file>
+
+<file path="components/motion/trading-chart.tsx">
+// components/motion/trading-chart.tsx
+"use client";
+
+import {
+  ColorType,
+  CrosshairMode,
+  createChart,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from "lightweight-charts";
+import { Check, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type Candle = {
+  time: UTCTimestamp;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+const FOUR_H = 4 * 3600;
+
+const ASSETS = [
+  { id: "BTCUSDT", symbol: "BTC/USDT", name: "Bitcoin", glyph: "₿", base: 52000, seed: 11 },
+  { id: "ETHUSDT", symbol: "ETH/USDT", name: "Ethereum", glyph: "Ξ", base: 3000, seed: 22 },
+  { id: "SOLUSDT", symbol: "SOL/USDT", name: "Solana", glyph: "◎", base: 150, seed: 33 },
+  { id: "BNBUSDT", symbol: "BNB/USDT", name: "BNB", glyph: "◆", base: 580, seed: 44 },
+] as const;
+type Asset = (typeof ASSETS)[number];
+type AssetId = Asset["id"];
+const BTC_BASE = 52000;
+
+function mulberry32(seed: number) {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function genHistory(count: number, scale: number, seed: number): Candle[] {
+  const rand = mulberry32(seed);
+  const phases = [
+    { start: 52000 * scale, end: 73000 * scale, bars: 90 },
+    { start: 73000 * scale, end: 56000 * scale, bars: 60 },
+    { start: 56000 * scale, end: 68000 * scale, bars: 50 },
+    { start: 68000 * scale, end: 61000 * scale, bars: 40 },
+    { start: 61000 * scale, end: 67000 * scale, bars: 29 },
+  ];
+  const candles: Candle[] = [];
+  let price = BTC_BASE * scale;
+  let ts = Math.floor(new Date("2024-03-01").getTime() / 1000);
+  let pi = 0;
+  let pb = 0;
+  for (let i = 0; i < count; i++) {
+    const ph = phases[Math.min(pi, phases.length - 1)];
+    const trend = (ph.end - ph.start) / ph.bars;
+    const vol = price * 0.012;
+    const open = price;
+    const move = trend + (rand() - 0.42) * vol;
+    const close = open + move;
+    const wick = Math.abs(move) * (0.5 + rand());
+    const high = Math.max(open, close) + rand() * wick * 0.6;
+    const low = Math.min(open, close) - rand() * wick * 0.6;
+    const volume = 800 + rand() * 3000 + Math.abs(move / price) * 80000;
+    candles.push({
+      time: ts as UTCTimestamp,
+      open: +open.toFixed(2),
+      high: +high.toFixed(2),
+      low: +low.toFixed(2),
+      close: +close.toFixed(2),
+      volume: +volume.toFixed(0),
+    });
+    price = close;
+    ts += FOUR_H;
+    pb++;
+    if (pb >= ph.bars) {
+      pi++;
+      pb = 0;
+    }
+  }
+  return candles;
+}
+
+const fmt = (n: number) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtVol = (n: number) =>
+  n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : n.toFixed(0);
+
+function rgba(hex: string, a: number) {
+  const h = hex.replace("#", "");
+  const n = parseInt(
+    h.length === 3 ? h.split("").map((x) => x + x).join("") : h,
+    16,
+  );
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+// Green/red only — read from the theme's --success / --destructive vars so the
+// chart always matches globals.css instead of carrying its own hex values.
+const UP_FALLBACK = "#4ade80";
+const DOWN_FALLBACK = "#ef4444";
+
+const INTERVALS = ["1m", "5m", "15m", "1H", "4H", "1D", "1W", "1M"] as const;
+type ChartType = "candle" | "line" | "area";
+
+function readVar(el: HTMLElement, name: string, fallback: string) {
+  const v = getComputedStyle(el).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
+export function TradingChart() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const lineRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const areaRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const resetViewRef = useRef<(() => void) | null>(null);
+
+  const [assetId, setAssetId] = useState<AssetId>("BTCUSDT");
+  const asset: Asset = ASSETS.find((a) => a.id === assetId) ?? ASSETS[0];
+  const scale = asset.base / BTC_BASE;
+
+  const history = useMemo(() => genHistory(269, scale, asset.seed), [scale, asset.seed]);
+  const [interval, setIntervalValue] = useState<(typeof INTERVALS)[number]>("4H");
+  const [type, setType] = useState<ChartType>("candle");
+  const [ohlc, setOhlc] = useState<Candle>(history[history.length - 1]);
+
+  const [ohlcAssetId, setOhlcAssetId] = useState<AssetId>(assetId);
+  if (ohlcAssetId !== assetId) {
+    setOhlcAssetId(assetId);
+    setOhlc(history[history.length - 1]);
+  }
+  const hoverRef = useRef<number | null>(null);
+  const liveRef = useRef<Candle>(history[history.length - 1]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    const root = rootRef.current;
+    if (!host || !root) return;
+
+    liveRef.current = history[history.length - 1];
+    hoverRef.current = null;
+
+    const bg = readVar(root, "--chart-bg", "#1c1c1c");
+    const fg = readVar(root, "--chart-fg", "#71717a");
+    const grid = readVar(root, "--chart-grid", "rgba(255,255,255,0.06)");
+    const UP = readVar(root, "--success", UP_FALLBACK);
+    const DOWN = readVar(root, "--destructive", DOWN_FALLBACK);
+
+    const chart = createChart(host, {
+      width: host.clientWidth,
+      height: host.clientHeight,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: fg,
+        fontSize: 11,
+        fontFamily: "var(--font-sans), system-ui, sans-serif",
+      },
+      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: fg, width: 1, style: 3, labelBackgroundColor: bg },
+        horzLine: { color: fg, width: 1, style: 3, labelBackgroundColor: bg },
+      },
+      rightPriceScale: { borderColor: grid, scaleMargins: { top: 0.08, bottom: 0.22 } },
+      timeScale: { borderColor: grid, timeVisible: true, secondsVisible: false, rightOffset: 4 },
+      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: { time: true, price: true } },
+    });
+    chartRef.current = chart;
+
+    const candle = chart.addCandlestickSeries({
+      upColor: UP, downColor: DOWN, borderUpColor: UP, borderDownColor: DOWN, wickUpColor: UP, wickDownColor: DOWN,
+    });
+    candle.setData(history);
+    candleRef.current = candle;
+
+    const volume = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
+    volume.setData(
+      history.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? rgba(UP, 0.35) : rgba(DOWN, 0.3) })),
+    );
+    chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, borderVisible: false });
+    volumeRef.current = volume;
+
+    chart.timeScale().fitContent();
+
+    const byTime = new Map(history.map((c) => [c.time as number, c]));
+    chart.subscribeCrosshairMove((param) => {
+      if (!param.time) {
+        hoverRef.current = null;
+        setOhlc(liveRef.current);
+        return;
+      }
+      hoverRef.current = param.time as number;
+      const c = liveRef.current.time === (param.time as number) ? liveRef.current : byTime.get(param.time as number);
+      if (c) setOhlc(c);
+    });
+
+    let last: Candle = { ...history[history.length - 1] };
+    let live: Candle | null = null;
+    let tickCount = 0;
+    let price = last.close;
+    let trend = (Math.random() - 0.5) * 60 * scale;
+    const TICKS_PER_CANDLE = 80;
+
+    const tick = window.setInterval(() => {
+      const volatility = price * 0.0015;
+      price = Math.max(price + trend * 0.01 + (Math.random() - 0.48) * volatility, asset.base * 0.02);
+      if (Math.random() < 0.05) trend = (Math.random() - 0.5) * 120 * scale;
+
+      if (!live) {
+        live = { time: (last.time + FOUR_H) as UTCTimestamp, open: price, high: price, low: price, close: price, volume: 0 };
+      }
+      live.close = +price.toFixed(2);
+      live.high = +Math.max(live.high, price).toFixed(2);
+      live.low = +Math.min(live.low, price).toFixed(2);
+      live.volume += 20 + Math.random() * 80;
+
+      candle.update(live);
+      volume.update({ time: live.time, value: live.volume, color: live.close >= live.open ? rgba(UP, 0.35) : rgba(DOWN, 0.3) });
+      lineRef.current?.update({ time: live.time, value: live.close });
+      areaRef.current?.update({ time: live.time, value: live.close });
+
+      liveRef.current = { ...live };
+      if (hoverRef.current === null || hoverRef.current === live.time) setOhlc({ ...live });
+
+      tickCount++;
+      if (tickCount >= TICKS_PER_CANDLE) {
+        last = { ...live };
+        live = null;
+        tickCount = 0;
+        price = last.close;
+      }
+    }, 800);
+
+    let vZoom: { min: number; max: number } | null = null;
+    candle.applyOptions({
+      autoscaleInfoProvider: (original: () => unknown) => {
+        const res = original() as { priceRange: { minValue: number; maxValue: number } | null; margins?: { above: number; below: number } } | null;
+        if (!vZoom) return res;
+        return { priceRange: { minValue: vZoom.min, maxValue: vZoom.max }, margins: res?.margins };
+      },
+    });
+
+    const timeH = () => chart.timeScale().height();
+    const priceW = () => chart.priceScale("right").width();
+    const currentRange = () => {
+      const h = host.clientHeight - timeH();
+      const max = candle.coordinateToPrice(0);
+      const min = candle.coordinateToPrice(h);
+      return max != null && min != null ? { min: Number(min), max: Number(max) } : null;
+    };
+    const onWheel = (e: WheelEvent) => {
+      const rect = host.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const overPrice = x > rect.width - priceW();
+      const overTime = y > rect.height - timeH();
+      e.preventDefault();
+      const step = Math.min(Math.abs(e.deltaY), 120) / 120;
+      const zoomIn = e.deltaY < 0;
+      if (overPrice && !overTime) {
+        const factor = zoomIn ? Math.pow(0.85, step) : Math.pow(1 / 0.85, step);
+        const r = vZoom ?? currentRange();
+        if (!r) return;
+        const plotH = host.clientHeight - timeH();
+        const anchor = candle.coordinateToPrice(Math.min(Math.max(y, 0), plotH));
+        if (anchor == null) return;
+        const a = Number(anchor);
+        const min = a - (a - r.min) * factor;
+        const max = a + (r.max - a) * factor;
+        if (max - min < Math.max(scale, 0.02)) return;
+        vZoom = { min, max };
+        chart.priceScale("right").applyOptions({ autoScale: true });
+      } else {
+        const ts = chart.timeScale();
+        const cur = ts.options().barSpacing;
+        const next = cur * (zoomIn ? Math.pow(1.12, step) : Math.pow(1 / 1.12, step));
+        ts.applyOptions({ barSpacing: Math.min(Math.max(next, 0.5), 60) });
+      }
+    };
+    const onDbl = (e: MouseEvent) => {
+      const rect = host.getBoundingClientRect();
+      if (e.clientX - rect.left > rect.width - priceW()) {
+        vZoom = null;
+        chart.priceScale("right").applyOptions({ autoScale: true });
+      }
+    };
+    host.addEventListener("wheel", onWheel, { passive: false });
+    host.addEventListener("dblclick", onDbl);
+
+    resetViewRef.current = () => {
+      vZoom = null;
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      chart.timeScale().fitContent();
+    };
+
+    const ro = new ResizeObserver(() => {
+      chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
+    });
+    ro.observe(host);
+
+    return () => {
+      window.clearInterval(tick);
+      ro.disconnect();
+      host.removeEventListener("wheel", onWheel);
+      host.removeEventListener("dblclick", onDbl);
+      chart.remove();
+      chartRef.current = null;
+      candleRef.current = null;
+      lineRef.current = null;
+      areaRef.current = null;
+      volumeRef.current = null;
+      resetViewRef.current = null;
+    };
+  }, [history, asset.base, scale]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const candle = candleRef.current;
+    const root = rootRef.current;
+    if (!chart || !candle) return;
+    const UP = root ? readVar(root, "--success", UP_FALLBACK) : UP_FALLBACK;
+    const data = history.map((c) => ({ time: c.time, value: c.close }));
+
+    if (type === "line" && !lineRef.current) {
+      lineRef.current = chart.addLineSeries({ color: UP, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+      lineRef.current.setData(data);
+    }
+    if (type === "area" && !areaRef.current) {
+      areaRef.current = chart.addAreaSeries({
+        topColor: rgba(UP, 0.3), bottomColor: rgba(UP, 0), lineColor: UP, lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
+      });
+      areaRef.current.setData(data);
+    }
+    candle.applyOptions({ visible: type === "candle" });
+    lineRef.current?.applyOptions({ visible: type === "line" });
+    areaRef.current?.applyOptions({ visible: type === "area" });
+  }, [type, history]);
+
+  const diff = ohlc.close - ohlc.open;
+  const pct = (diff / ohlc.open) * 100;
+  const positive = diff >= 0;
+
+  return (
+    <div ref={rootRef} className="trading-chart w-full overflow-hidden rounded-3xl border border-border bg-background">
+      {/* Header */}
+      <div className="border-b border-border/80 px-4 pt-4">
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 pb-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-base font-semibold text-foreground">
+              {asset.glyph}
+            </div>
+            <div className="min-w-0">
+              <AssetPicker assets={ASSETS} value={asset} onChange={setAssetId} />
+              <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>BINANCE · {interval}</span>
+                <span className="inline-flex items-center gap-1.5 text-success">
+                  <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-current" />
+                  Live
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div className="ml-auto text-right">
+            <div className="text-xl font-semibold leading-none tracking-tight text-foreground tabular-nums sm:text-2xl">
+              {fmt(ohlc.close)}
+            </div>
+            <div className={`mt-1 text-sm font-medium tabular-nums ${positive ? "text-success" : "text-destructive"}`}>
+              {positive ? "+" : ""}{diff.toFixed(2)} ({positive ? "+" : ""}{pct.toFixed(2)}%)
+            </div>
+          </div>
+        </div>
+
+        {/* Interval tabs + chart type */}
+        <div className="flex items-center justify-between gap-3 pb-3">
+          <div role="tablist" aria-label="Interval" className="flex min-w-0 gap-1 overflow-x-auto rounded-full bg-card p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {INTERVALS.map((iv) => {
+              const active = iv === interval;
+              return (
+                <button
+                  key={iv}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setIntervalValue(iv)}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {iv}
+                </button>
+              );
+            })}
+          </div>
+
+          <div role="group" aria-label="Chart type" className="flex shrink-0 gap-1 rounded-full bg-card p-1">
+            {([["candle", "Candles"], ["line", "Line"], ["area", "Area"]] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={type === id}
+                aria-label={label}
+                title={label}
+                onClick={() => setType(id)}
+                className={`flex size-8 items-center justify-center rounded-full transition-colors ${
+                  type === id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <ChartTypeIcon type={id} />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* OHLC strip */}
+      <div className="grid grid-cols-3 gap-2 px-3 pt-3 sm:grid-cols-6">
+        {([
+          ["Open", fmt(ohlc.open), ""],
+          ["High", fmt(ohlc.high), "text-success"],
+          ["Low", fmt(ohlc.low), "text-destructive"],
+          ["Close", fmt(ohlc.close), ""],
+          ["Volume", fmtVol(ohlc.volume), ""],
+          ["Change", `${positive ? "+" : ""}${pct.toFixed(2)}%`, positive ? "text-success" : "text-destructive"],
+        ] as const).map(([label, value, tone]) => (
+          <div key={label} className="min-w-0 rounded-2xl bg-card px-3 py-2">
+            <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+            <p className={`truncate text-sm font-semibold tabular-nums text-foreground ${tone}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart — trimmed heights so it fits inside the shell alongside the order panel */}
+      <div className="p-3">
+        <div className="relative rounded-3xl bg-card p-2 sm:p-3">
+          <div ref={hostRef} className="h-[320px] w-full touch-pan-y sm:h-[400px] lg:h-[460px]" />
+          <button
+            type="button"
+            title="Auto — reset chart to the default view"
+            aria-label="Auto: reset chart to the default view"
+            onClick={() => resetViewRef.current?.()}
+            className="absolute bottom-[11px] right-3 z-10 h-5 rounded-md border border-border bg-background px-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:bottom-[15px] sm:right-4"
+          >
+            Auto
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssetPicker({ assets, value, onChange }: { assets: readonly Asset[]; value: Asset; onChange: (id: AssetId) => void }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative min-w-0">
+      <h2 className="min-w-0 text-lg font-semibold leading-tight tracking-tight text-foreground sm:text-xl">
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Select chart, current ${value.symbol}`}
+          onClick={() => setOpen((o) => !o)}
+          className="-mx-1.5 flex max-w-full items-center gap-1.5 rounded-xl px-1.5 py-0.5 transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="truncate">{value.symbol}</span>
+          <ChevronDown aria-hidden className={`size-5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      </h2>
+
+      {open && (
+        <div role="menu" aria-label="Select chart" className="absolute left-0 top-full z-30 mt-2 w-60 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-border bg-background p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.25)]">
+          {assets.map((a) => {
+            const active = a.id === value.id;
+            return (
+              <button
+                key={a.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => { onChange(a.id); setOpen(false); }}
+                className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors ${active ? "bg-card" : "hover:bg-card"}`}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-sm font-semibold text-foreground">
+                  {a.glyph}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-foreground">{a.symbol}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{a.name}</span>
+                </span>
+                {active && <Check className="size-4 shrink-0 text-success" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChartTypeIcon({ type }: { type: ChartType }) {
+  if (type === "candle") {
+    return (
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+        <rect x="2" y="4" width="3" height="6" rx=".5" />
+        <line x1="3.5" y1="2" x2="3.5" y2="4" stroke="currentColor" strokeWidth="1.2" />
+        <line x1="3.5" y1="10" x2="3.5" y2="12" stroke="currentColor" strokeWidth="1.2" />
+        <rect x="8" y="2" width="3" height="6" rx=".5" />
+        <line x1="9.5" y1="1" x2="9.5" y2="2" stroke="currentColor" strokeWidth="1.2" />
+        <line x1="9.5" y1="8" x2="9.5" y2="13" stroke="currentColor" strokeWidth="1.2" />
+      </svg>
+    );
+  }
+  if (type === "line") {
+    return (
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+        <polyline points="1,11 5,6 8,8 13,3" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M1 11 L5 6 L8 8 L13 3 L13 12 L1 12 Z" fill="currentColor" opacity=".3" stroke="none" />
+      <polyline points="1,11 5,6 8,8 13,3" />
+    </svg>
   );
 }
 </file>
@@ -16090,6 +18169,19 @@ export default function WalletHistoryPage() {
 }
 </file>
 
+<file path="app/(user)/layout.tsx">
+// app/(user)/layout.tsx
+// User panel: dashboard, markets, wallet, fund, referral, support etc.
+
+export default function UserLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <>{children}</>;
+}
+</file>
+
 <file path="components/base-ui/avatar.tsx">
 import { CheckIcon } from 'lucide-react';
 
@@ -16126,6 +18218,206 @@ const Avatar8 = () => {
 };
 
 export default Avatar8;
+</file>
+
+<file path="components/motion/button/base.tsx">
+"use client";
+
+import {
+  AnimatePresence,
+  type HTMLMotionProps,
+  motion,
+  useReducedMotion,
+} from "motion/react";
+import {
+  forwardRef,
+  type PointerEvent,
+  type ReactNode,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
+import { EASE_OUT, SPRING_PRESS } from "@/lib/ease";
+import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
+import { cn } from "@/lib/utils";
+
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "outline"
+  | "success"
+  | "destructive";
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
+
+export interface ButtonProps extends Omit<
+  HTMLMotionProps<"button">,
+  "children"
+> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  pressScale?: number;
+  /** Spawn a Material-style ripple from the press point. Off by default. */
+  ripple?: boolean;
+  children?: ReactNode;
+}
+
+export interface ButtonLinkProps extends Omit<
+  HTMLMotionProps<"a">,
+  "children"
+> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  pressScale?: number;
+  children?: ReactNode;
+}
+
+type Ripple = { id: number; x: number; y: number; size: number };
+
+const VARIANT_CLASS: Record<ButtonVariant, string> = {
+  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  secondary: "border border-border bg-card text-foreground hover:border-border",
+  ghost: "text-muted-foreground hover:text-foreground hover:bg-primary/5",
+  outline:
+    "border border-border bg-transparent text-foreground hover:bg-primary/5",
+  success: "bg-success text-background hover:bg-success/90",
+  destructive: "bg-destructive text-background hover:bg-destructive/90",
+};
+
+const SIZE_CLASS: Record<ButtonSize, string> = {
+  sm: "h-8 px-3 text-xs gap-1.5 rounded-full",
+  md: "h-10 px-5 text-sm gap-2 rounded-full",
+  lg: "h-12 px-6 text-base gap-2 rounded-full",
+  icon: "h-8 w-8 rounded-lg",
+};
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button(
+    {
+      variant = "primary",
+      size = "md",
+      pressScale = 0.93,
+      ripple = false,
+      className,
+      children,
+      onPointerDown,
+      ...rest
+    },
+    ref,
+  ) {
+    const reduce = useReducedMotion();
+    const canHover = useHoverCapable();
+    const [ripples, setRipples] = useState<Ripple[]>([]);
+    const nextId = useRef(0);
+
+    const handlePointerDown = useCallback(
+      (event: PointerEvent<HTMLButtonElement>) => {
+        if (ripple && !reduce) {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const size = Math.max(rect.width, rect.height) * 2;
+          const id = nextId.current++;
+          setRipples((prev) => [
+            ...prev,
+            {
+              id,
+              x: event.clientX - rect.left,
+              y: event.clientY - rect.top,
+              size,
+            },
+          ]);
+        }
+        onPointerDown?.(event);
+      },
+      [ripple, reduce, onPointerDown],
+    );
+
+    return (
+      <motion.button
+        ref={ref}
+        type="button"
+        whileTap={reduce ? undefined : { scale: pressScale }}
+        whileHover={reduce || !canHover ? undefined : { scale: 1.02 }}
+        transition={SPRING_PRESS}
+        onPointerDown={handlePointerDown}
+        className={cn(
+          "inline-flex items-center justify-center font-medium select-none",
+          "transition-colors",
+          "disabled:pointer-events-none disabled:opacity-50",
+          ripple && "relative overflow-hidden",
+          VARIANT_CLASS[variant],
+          SIZE_CLASS[size],
+          className,
+        )}
+        {...rest}
+      >
+        {ripple && !reduce ? (
+          <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+            <AnimatePresence>
+              {ripples.map((r) => (
+                <motion.span
+                  key={r.id}
+                  className="absolute rounded-full bg-current"
+                  style={{
+                    left: r.x,
+                    top: r.y,
+                    width: r.size,
+                    height: r.size,
+                    x: "-50%",
+                    y: "-50%",
+                  }}
+                  initial={{ scale: 0.05, opacity: 0.3 }}
+                  animate={{ scale: 1, opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 1.6, ease: EASE_OUT }}
+                  onAnimationComplete={() =>
+                    setRipples((prev) => prev.filter((x) => x.id !== r.id))
+                  }
+                />
+              ))}
+            </AnimatePresence>
+          </span>
+        ) : null}
+        {children}
+      </motion.button>
+    );
+  },
+);
+
+export const ButtonLink = forwardRef<HTMLAnchorElement, ButtonLinkProps>(
+  function ButtonLink(
+    {
+      variant = "primary",
+      size = "md",
+      pressScale = 0.93,
+      className,
+      children,
+      ...rest
+    },
+    ref,
+  ) {
+    const reduce = useReducedMotion();
+    const canHover = useHoverCapable();
+
+    return (
+      <motion.a
+        ref={ref}
+        whileTap={reduce ? undefined : { scale: pressScale }}
+        whileHover={reduce || !canHover ? undefined : { scale: 1.02 }}
+        transition={SPRING_PRESS}
+        className={cn(
+          "inline-flex items-center justify-center font-medium select-none",
+          "transition-colors",
+          VARIANT_CLASS[variant],
+          SIZE_CLASS[size],
+          className,
+        )}
+        {...rest}
+      >
+        {children}
+      </motion.a>
+    );
+  },
+);
 </file>
 
 <file path="components/motion/wallet-card/index.tsx">
@@ -16313,6 +18605,394 @@ export interface WalletCardProps {
   hasNotifications?: boolean;
   onNotifications?: () => void;
   className?: string;
+}
+</file>
+
+<file path="components/motion/action-swap.tsx">
+"use client";
+
+import { AnimatePresence, motion, useReducedMotion, type HTMLMotionProps, type Variants } from "motion/react";
+import { useState } from "react";
+import type { ReactNode } from "react";
+import { EASE_OUT, SPRING_PRESS, SPRING_SWAP } from "@/lib/ease";
+import { cn } from "@/lib/utils";
+
+export type ActionSwapItem = {
+  id: string;
+  label: ReactNode;
+  icon?: ReactNode;
+  ariaLabel?: string;
+};
+
+export type ActionSwapButtonVariant = "primary" | "secondary" | "outline" | "ghost";
+export type ActionSwapButtonSize = "sm" | "md" | "lg" | "icon";
+export type ActionSwapAnimation = "blur" | "roll" | "cascade";
+
+/** Animations with a single-element variant set (cascade animates per letter). */
+type CoreAnimation = "blur" | "roll";
+
+export interface ActionSwapButtonProps extends Omit<
+  HTMLMotionProps<"button">,
+  "children" | "onChange"
+> {
+  items: ActionSwapItem[];
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string, item: ActionSwapItem) => void;
+  variant?: ActionSwapButtonVariant;
+  size?: ActionSwapButtonSize;
+  animation?: ActionSwapAnimation;
+  iconOnly?: boolean;
+  cycle?: boolean;
+}
+
+export interface ActionSwapTextProps {
+  value: string;
+  children: ReactNode;
+  animation?: ActionSwapAnimation;
+  className?: string;
+}
+
+export interface ActionSwapIconProps {
+  value: string;
+  children: ReactNode;
+  animation?: ActionSwapAnimation;
+  className?: string;
+}
+
+const BLUR_TRANSITION = { duration: 0.2, ease: "easeInOut" } as const;
+const ROLL_TRANSITION = SPRING_SWAP;
+const ROLL_EXIT_TRANSITION = { duration: 0.14, ease: EASE_OUT } as const;
+const SWAP_BLUR = "blur(8px)";
+const ROLL_BLUR = "blur(3px)";
+
+// Cascade rolls the label one letter at a time, left to right. The leaving
+// and landing strings overlap as independent layers (no shared cells), so
+// proportional glyph widths never jitter. Exits cascade at half the enter
+// stagger so the tail of the old label lingers briefly.
+const CASCADE_STAGGER = 0.025;
+
+const CASCADE_LETTER_VARIANTS: Variants = {
+  initial: { opacity: 0, y: "105%", filter: ROLL_BLUR },
+  animate: (delay: number = 0) => ({
+    opacity: 1,
+    y: "0%",
+    filter: "blur(0px)",
+    transition: { ...SPRING_SWAP, delay },
+  }),
+  exit: (delay: number = 0) => ({
+    opacity: 0,
+    y: "-105%",
+    filter: ROLL_BLUR,
+    transition: { duration: 0.16, ease: EASE_OUT, delay: delay * 0.5 },
+  }),
+};
+
+const TEXT_VARIANTS: Record<CoreAnimation, Variants> = {
+  blur: {
+    initial: { opacity: 0, scale: 0.94, filter: SWAP_BLUR },
+    animate: {
+      opacity: 1,
+      scale: 1,
+      filter: "blur(0px)",
+      transition: BLUR_TRANSITION,
+    },
+    exit: {
+      opacity: 0,
+      scale: 0.94,
+      filter: SWAP_BLUR,
+      transition: BLUR_TRANSITION,
+    },
+  },
+  roll: {
+    initial: { opacity: 0, y: "90%", filter: ROLL_BLUR },
+    animate: {
+      opacity: 1,
+      y: "0%",
+      filter: "blur(0px)",
+      transition: ROLL_TRANSITION,
+    },
+    exit: {
+      opacity: 0,
+      y: "-90%",
+      filter: ROLL_BLUR,
+      transition: ROLL_EXIT_TRANSITION,
+    },
+  },
+};
+
+const ICON_VARIANTS: Record<CoreAnimation, Variants> = {
+  blur: {
+    initial: { opacity: 0, scale: 0.25, filter: SWAP_BLUR },
+    animate: {
+      opacity: 1,
+      scale: 1,
+      filter: "blur(0px)",
+      transition: BLUR_TRANSITION,
+    },
+    exit: {
+      opacity: 0,
+      scale: 0.25,
+      filter: SWAP_BLUR,
+      transition: BLUR_TRANSITION,
+    },
+  },
+  roll: {
+    initial: { opacity: 0, y: 12, filter: ROLL_BLUR },
+    animate: {
+      opacity: 1,
+      y: 0,
+      filter: "blur(0px)",
+      transition: ROLL_TRANSITION,
+    },
+    exit: {
+      opacity: 0,
+      y: -12,
+      filter: ROLL_BLUR,
+      transition: ROLL_EXIT_TRANSITION,
+    },
+  },
+};
+
+const VARIANT_CLASS: Record<ActionSwapButtonVariant, string> = {
+  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  secondary: "border border-border bg-card text-foreground hover:border-border",
+  outline: "border border-border bg-transparent text-foreground hover:bg-primary/5",
+  ghost: "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
+};
+
+const SIZE_CLASS: Record<ActionSwapButtonSize, string> = {
+  sm: "h-8 gap-1.5 rounded-full px-3 text-xs",
+  md: "h-10 gap-2 rounded-full px-4 text-sm",
+  lg: "h-12 gap-2.5 rounded-full px-5 text-base",
+  icon: "h-10 w-10 rounded-full",
+};
+
+export function ActionSwapText({
+  value,
+  children,
+  animation = "blur",
+  className,
+}: ActionSwapTextProps) {
+  const reduce = useReducedMotion();
+
+  // Cascade needs a plain string to split into letters; non-string content
+  // and reduced motion fall back to the closest single-element animation.
+  const label = typeof children === "string" ? children : null;
+  const cascade = animation === "cascade" && label !== null && !reduce;
+  const coreAnimation: CoreAnimation =
+    animation === "cascade" ? "roll" : animation;
+
+  return (
+    <span
+      className={cn(
+        "relative -my-[0.08em] inline-block max-w-full whitespace-nowrap py-[0.08em] align-bottom",
+        className,
+      )}
+      style={{
+        clipPath: "inset(0 -999px)",
+        WebkitClipPath: "inset(0 -999px)",
+      }}
+    >
+      <span
+        aria-hidden
+        className="invisible inline-block whitespace-nowrap"
+      >
+        {cascade
+          ? label.split("").map((char, index) => (
+              <span
+                // biome-ignore lint/suspicious/noArrayIndexKey: position is the slot identity.
+                key={index}
+                className="inline-block whitespace-pre"
+              >
+                {char}
+              </span>
+            ))
+          : children}
+      </span>
+      {cascade ? (
+        <>
+          {/* Letters are decorative fragments; readers get the whole label. */}
+          <span className="sr-only">{label}</span>
+          <AnimatePresence initial={false}>
+            <motion.span
+              key={`cascade-${value}`}
+              aria-hidden
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="absolute left-0 top-[0.08em] inline-block whitespace-pre"
+            >
+              {label.split("").map((char, i) => (
+                <motion.span
+                  // biome-ignore lint/suspicious/noArrayIndexKey: position is the slot identity — the letter at a position is exactly what rolls.
+                  key={i}
+                  custom={i * CASCADE_STAGGER}
+                  variants={CASCADE_LETTER_VARIANTS}
+                  className="inline-block whitespace-pre will-change-[opacity,filter,transform]"
+                >
+                  {char}
+                </motion.span>
+              ))}
+            </motion.span>
+          </AnimatePresence>
+        </>
+      ) : (
+        <AnimatePresence initial={false}>
+          <motion.span
+            key={`${animation}-${value}`}
+            variants={TEXT_VARIANTS[coreAnimation]}
+            initial={reduce ? false : "initial"}
+            animate={reduce ? { opacity: 1, filter: "blur(0px)", scale: 1, y: 0 } : "animate"}
+            exit={reduce ? undefined : "exit"}
+            // Truncation lives on the layer that holds the text — the layer
+            // moves as a whole, so clipping it never eats the roll.
+            className="absolute left-0 top-[0.08em] inline-block max-w-full truncate will-change-[opacity,filter,transform]"
+          >
+            {children}
+          </motion.span>
+        </AnimatePresence>
+      )}
+    </span>
+  );
+}
+
+export function ActionSwapIcon({
+  value,
+  children,
+  animation = "blur",
+  className,
+}: ActionSwapIconProps) {
+  const reduce = useReducedMotion();
+  // Icons are single elements — cascade maps to its closest motion, roll.
+  const coreAnimation: CoreAnimation =
+    animation === "cascade" ? "roll" : animation;
+
+  return (
+    <span className={cn("relative inline-grid shrink-0 place-items-center overflow-hidden", className)}>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span
+          key={`${animation}-${value}`}
+          aria-hidden
+          variants={ICON_VARIANTS[coreAnimation]}
+          initial={reduce ? false : "initial"}
+          animate={reduce ? { opacity: 1, filter: "blur(0px)", scale: 1, y: 0 } : "animate"}
+          exit={reduce ? undefined : "exit"}
+          className="col-start-1 row-start-1 inline-flex items-center justify-center will-change-[opacity,filter,transform]"
+        >
+          {children}
+        </motion.span>
+      </AnimatePresence>
+    </span>
+  );
+}
+
+export function ActionSwapButton({
+  items,
+  value,
+  defaultValue,
+  onValueChange,
+  variant = "secondary",
+  size = "md",
+  animation = "blur",
+  iconOnly = size === "icon",
+  cycle = true,
+  className,
+  disabled,
+  onClick,
+  ...rest
+}: ActionSwapButtonProps) {
+  const reduce = useReducedMotion();
+  const [internalValue, setInternalValue] = useState(defaultValue ?? items[0]?.id);
+  const currentValue = value ?? internalValue;
+  const activeIndex = Math.max(0, items.findIndex((item) => item.id === currentValue));
+  const activeItem = items[activeIndex] ?? items[0];
+  const hasIcon = items.some((item) => item.icon);
+  const nextItem = cycle && items.length > 0 ? items[(activeIndex + 1) % items.length] : undefined;
+
+  if (!activeItem) return null;
+
+  const accessibleLabel = activeItem.ariaLabel ?? (iconOnly && typeof activeItem.label === "string" ? activeItem.label : undefined);
+
+  return (
+    <motion.button
+      type="button"
+      disabled={disabled}
+      whileTap={reduce || disabled ? undefined : { scale: 0.97 }}
+      transition={SPRING_PRESS}
+      className={cn(
+        "inline-flex items-center justify-center overflow-hidden font-medium transition-colors",
+        "disabled:pointer-events-none disabled:opacity-50",
+        VARIANT_CLASS[variant],
+        SIZE_CLASS[size],
+        className,
+      )}
+      aria-label={accessibleLabel}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented || disabled || !cycle || !nextItem) return;
+        if (value === undefined) setInternalValue(nextItem.id);
+        onValueChange?.(nextItem.id, nextItem);
+      }}
+      {...rest}
+    >
+      {hasIcon ? (
+        <ActionSwapIcon value={activeItem.id} animation={animation} className="h-4 w-4">
+          {activeItem.icon ?? null}
+        </ActionSwapIcon>
+      ) : null}
+      {!iconOnly ? (
+        <ActionSwapText value={activeItem.id} animation={animation}>
+          {activeItem.label}
+        </ActionSwapText>
+      ) : null}
+    </motion.button>
+  );
+}
+
+type ActionSwapPairProps = {
+  showA: boolean;
+  a: ReactNode;
+  b: ReactNode;
+  className?: string;
+};
+
+/** Crossfades between two contents with a small rotate-in/rotate-out flip. */
+export function ActionSwap({ showA, a, b, className }: ActionSwapPairProps) {
+  return (
+    <span
+      className={cn(
+        "relative inline-flex size-5 items-center justify-center overflow-hidden",
+        className,
+      )}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        {showA ? (
+          <motion.span
+            key="a"
+            initial={{ y: 12, opacity: 0, rotate: -45 }}
+            animate={{ y: 0, opacity: 1, rotate: 0 }}
+            exit={{ y: -12, opacity: 0, rotate: 45 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            {a}
+          </motion.span>
+        ) : (
+          <motion.span
+            key="b"
+            initial={{ y: 12, opacity: 0, rotate: -45 }}
+            animate={{ y: 0, opacity: 1, rotate: 0 }}
+            exit={{ y: -12, opacity: 0, rotate: 45 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            {b}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </span>
+  );
 }
 </file>
 
@@ -17066,59 +19746,6 @@ export default function WithdrawPage() {
       </div>
     </UserShell>
   );
-}
-</file>
-
-<file path="app/globals.css">
-@import "tailwindcss";
-
-:root {
-  --background: #151515;
-  --foreground: #ededed;
-  --border: #2a2a2a;
-  --muted: #1f1f1f;
-  --muted-foreground: #71717a;
-  --ring: #60a5fa;
-  --primary: #60a5fa;
-  --card: #1c1c1c;
-  --destructive: #ef4444;
-  --success: #4ade80;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #151515;
-    --foreground: #ededed;
-    --border: #2a2a2a;
-    --muted: #1f1f1f;
-    --muted-foreground: #71717a;
-    --ring: #60a5fa;
-    --primary: #60a5fa;
-    --card: #1c1c1c;
-    --destructive: #ef4444;
-    --success: #4ade80;
-  }
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-border: var(--border);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-ring: var(--ring);
-  --color-primary: var(--primary);
-  --color-card: var(--card);
-  --color-destructive: var(--destructive);
-  --color-success: var(--success);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
 }
 </file>
 
@@ -19732,6 +22359,65 @@ export default function ReferralWalletPage() {
 }
 </file>
 
+<file path="app/globals.css">
+@import "tailwindcss";
+
+:root {
+  --background: #151515;
+  --foreground: #ededed;
+  --border: #2a2a2a;
+  --muted: #1f1f1f;
+  --muted-foreground: #71717a;
+  --ring: #60a5fa;
+  --primary: #60a5fa;
+  --card: #1c1c1c;
+  --destructive: #ef4444;
+  --success: #4ade80;
+  --chart-bg: #1c1c1c;
+  --chart-fg: #71717a;
+  --chart-grid: rgba(255, 255, 255, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #151515;
+    --foreground: #ededed;
+    --border: #2a2a2a;
+    --muted: #1f1f1f;
+    --muted-foreground: #71717a;
+    --ring: #60a5fa;
+    --primary: #60a5fa;
+    --card: #1c1c1c;
+    --destructive: #ef4444;
+    --success: #4ade80;
+    --chart-bg: #1c1c1c;
+    --chart-fg: #71717a;
+    --chart-grid: rgba(255, 255, 255, 0.06);
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-card: var(--card);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, Arial, Helvetica, sans-serif);
+}
+</file>
+
 <file path="app/layout.tsx">
 // app/layout.tsx
 import type { Metadata } from "next";
@@ -21343,87 +24029,6 @@ export default function TradingWalletPage() {
 }
 </file>
 
-<file path="components/app/global-dock.tsx">
-// components/app/global-dock.tsx
-"use client";
-
-import {
-  BriefcaseBusiness,
-  CandlestickChart,
-  Home,
-  Landmark,
-  Wallet,
-} from "lucide-react";
-import { motion } from "motion/react";
-import { useRef, useState } from "react";
-
-import {
-  type OverflowActionItem,
-  OverflowActions,
-} from "@/components/motion/overflow-actions";
-
-const NAV_ITEMS = [
-  { id: "home", icon: Home, label: "Home" },
-  { id: "investment", icon: BriefcaseBusiness, label: "Investment" },
-  { id: "trading", icon: CandlestickChart, label: "Trading" },
-  { id: "wallet", icon: Wallet, label: "Wallet" },
-  { id: "fund", icon: Landmark, label: "Fund" },
-];
-
-export function GlobalDock() {
-  const [active, setActive] = useState("home");
-  const [expanded, setExpanded] = useState(false);
-  const constraintsRef = useRef<HTMLDivElement>(null);
-
-  // All 5 nav icons live in the overflow group, and primaryActions stays
-  // empty — so collapsed state shows ONLY the 3-dot toggle button.
-  const overflowActions: OverflowActionItem[] = NAV_ITEMS.map(
-    ({ id, icon: Icon, label }) => ({
-      id,
-      label,
-      ariaLabel: label,
-      icon: (
-        <Icon
-          className={
-            active === id
-              ? "h-4 w-4 text-primary"
-              : "h-4 w-4 text-foreground"
-          }
-        />
-      ),
-      onClick: () => setActive(id),
-    }),
-  );
-
-  return (
-    <div
-      ref={constraintsRef}
-      className="pointer-events-none fixed inset-0 z-50"
-    >
-      <motion.div
-        drag
-        dragMomentum={false}
-        dragElastic={0.06}
-        dragConstraints={constraintsRef}
-        whileDrag={{ cursor: "grabbing" }}
-        initial={false}
-        className="pointer-events-auto absolute bottom-8 left-1/2 -translate-x-1/2 cursor-grab active:cursor-grabbing"
-      >
-        <OverflowActions
-          primaryActions={[]}
-          overflowActions={overflowActions}
-          expanded={expanded}
-          onExpandedChange={setExpanded}
-          collapseOnAction={false}
-          openLabel="Open navigation"
-          closeLabel="Close navigation"
-        />
-      </motion.div>
-    </div>
-  );
-}
-</file>
-
 <file path="package.json">
 {
   "name": "crypto-invest",
@@ -21438,6 +24043,7 @@ export function GlobalDock() {
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.13",
     "clsx": "^2.1.1",
+    "lightweight-charts": "^4.2.3",
     "lucide-react": "^1.47.0",
     "motion": "^13.4.1",
     "next": "16.3.5",
@@ -22172,12 +24778,12 @@ const ROUTES: Record<string, string> = {
   "Daily Profit": "/investment/daily-profit",
   "Cloud Mining": "/investment/cloud-mining",
   // Trading
+  "Trade Overview":         "/trading/overview",
   "Trading":          "/trading",
   "AI Trading":       "/trading/ai-trading",
   "Manual Trading":   "/trading/manual-trading",
-  "Open Orders":      "/trading/open-orders",
   "Trade History":    "/trading/trade-history",
-  "Trading Portfolio":"/trading/portfolio",
+  
   // Wallet
   "Wallet":            "/wallet",
   "Main Wallet":       "/wallet/main",
@@ -22200,8 +24806,7 @@ const ROUTES: Record<string, string> = {
   // Support
   "Support":       "/support",
   
-  "My Tickets":    "/support/my-tickets",
-  "Create Ticket": "/support/create-ticket",
+
   // Community
   "Community":           "/community",
   "International Chat":  "/community/chat",
@@ -22218,7 +24823,7 @@ const destinations = [
   {
     label: "Trading",
     icon: CandlestickChart,
-    children: [ "Overview" , "AI Trading", "Manual Trading",  "Trade History"],
+    children: [ "Trade Overview" , "AI Trading", "Manual Trading",  "Trade History"],
   },
   {
     label: "Wallet",
@@ -22248,7 +24853,7 @@ const destinations = [
   {
     label: "Support",
     icon: HeadsetIcon,
-    children: [ "Create Tickets" , "My Tickets" ],
+
   },
   {
     label: "Community",
@@ -22468,7 +25073,287 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
 </file>
 
 <file path="AGENTS.md">
+Looking at the uploaded file, let me check what's actually there first.This is a Next.js app with an `(user)/dashboard/page.tsx` — a specific dashboard, not a general site page. To add the 404 page from your doc, it goes in a Next.js `not-found.tsx` file (the App Router convention), not inside this dashboard page. Here's everything you need, ready to paste in.
 
+## 1. `lib/ease.ts` — add these tokens (skip any that already exist in your file)
+
+```tsx
+export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+export const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
+export const EASE_DRAWER = [0.32, 0.72, 0, 1] as const;
+
+export const EASE_OUT_CSS = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+export const SPRING_PRESS = {
+  type: "spring",
+  stiffness: 500,
+  damping: 30,
+  mass: 0.6,
+} as const;
+
+export const SPRING_MOUSE = {
+  stiffness: 200,
+  damping: 15,
+  mass: 0.3,
+} as const;
+```
+
+## 2. `lib/hooks/use-hover-capable.ts` — new file
+
+```tsx
+"use client";
+
+import { useEffect, useState } from "react";
+
+export function useHoverCapable() {
+  const [canHover, setCanHover] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const update = () => setCanHover(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
+
+  return canHover;
+}
+```
+
+## 3. `components/motion/magnetic.tsx` — new file
+
+```tsx
+"use client";
+
+import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
+import { useRef, type ReactNode } from "react";
+import { SPRING_MOUSE } from "@/lib/ease";
+import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
+import { cn } from "@/lib/utils";
+
+export interface MagneticProps {
+  children: ReactNode;
+  strength?: number;
+  className?: string;
+}
+
+export function Magnetic({ children, strength = 0.35, className }: MagneticProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
+  const canHover = useHoverCapable();
+  const enabled = !reduce && canHover;
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const sx = useSpring(x, SPRING_MOUSE);
+  const sy = useSpring(y, SPRING_MOUSE);
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    const rect = el.getBoundingClientRect();
+    x.set((e.clientX - rect.left - rect.width / 2) * strength);
+    y.set((e.clientY - rect.top - rect.height / 2) * strength);
+  };
+
+  const onLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      style={{ x: sx, y: sy }}
+      className={cn("inline-block", className)}
+    >
+      {children}
+    </motion.div>
+  );
+}
+```
+
+## 4. `components/motion/not-found/shared.tsx` — new file
+
+```tsx
+"use client";
+
+import { motion, useReducedMotion } from "motion/react";
+import { SPRING_PRESS } from "@/lib/ease";
+import { useHoverCapable } from "@/lib/hooks/use-hover-capable";
+import { cn } from "@/lib/utils";
+
+export interface NotFoundProps {
+  className?: string;
+  code?: string;
+  title?: string;
+  description?: string;
+  homeHref?: string;
+  homeLabel?: string;
+  browseHref?: string;
+  browseLabel?: string;
+}
+
+export const NOT_FOUND_DEFAULTS = {
+  code: "404",
+  title: "Page not found",
+  description:
+    "The page you are looking for moved, vanished, or never existed.",
+  homeHref: "/",
+  homeLabel: "Back home",
+  browseHref: "/dashboard",
+  browseLabel: "Back to dashboard",
+} as const;
+
+type ActionsProps = Pick
+  NotFoundProps,
+  "homeHref" | "homeLabel" | "browseHref" | "browseLabel" | "className"
+>;
+
+export function NotFoundActions({
+  homeHref = NOT_FOUND_DEFAULTS.homeHref,
+  homeLabel = NOT_FOUND_DEFAULTS.homeLabel,
+  browseHref = NOT_FOUND_DEFAULTS.browseHref,
+  browseLabel = NOT_FOUND_DEFAULTS.browseLabel,
+  className,
+}: ActionsProps) {
+  const reduce = useReducedMotion();
+  const canHover = useHoverCapable();
+  const whileTap = reduce ? undefined : { scale: 0.96 };
+  const whileHover = reduce || !canHover ? undefined : { scale: 1.02 };
+
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-center gap-3",
+        className,
+      )}
+    >
+      <motion.a
+        href={homeHref}
+        whileTap={whileTap}
+        whileHover={whileHover}
+        transition={SPRING_PRESS}
+        className="inline-flex h-11 select-none items-center justify-center rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        {homeLabel}
+      </motion.a>
+      <motion.a
+        href={browseHref}
+        whileTap={whileTap}
+        whileHover={whileHover}
+        transition={SPRING_PRESS}
+        className="inline-flex h-11 select-none items-center justify-center rounded-full border border-border bg-card px-6 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
+      >
+        {browseLabel}
+      </motion.a>
+    </div>
+  );
+}
+
+export function NotFoundStage({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-[420px] w-full flex-col items-center justify-center gap-8 px-4 text-center",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+```
+
+## 5. `components/motion/not-found/magnetic.tsx` — new file
+
+```tsx
+"use client";
+
+import { Magnetic } from "@/components/motion/magnetic";
+import { cn } from "@/lib/utils";
+import {
+  NOT_FOUND_DEFAULTS,
+  NotFoundActions,
+  NotFoundStage,
+  type NotFoundProps,
+} from "./shared";
+
+export function NotFoundMagnetic({
+  className,
+  code = NOT_FOUND_DEFAULTS.code,
+  title = NOT_FOUND_DEFAULTS.title,
+  description = NOT_FOUND_DEFAULTS.description,
+  homeHref,
+  homeLabel,
+  browseHref,
+  browseLabel,
+}: NotFoundProps) {
+  const chars = code.split("");
+
+  return (
+    <NotFoundStage className={className}>
+      <h1
+        aria-label={code}
+        className="flex select-none items-center justify-center font-bold leading-none tracking-tighter text-foreground [font-size:clamp(5rem,18vw,12rem)]"
+      >
+        {chars.map((ch, i) => (
+          <Magnetic
+            key={i}
+            strength={0.6}
+            className={cn(i > 0 && "-ml-2")}
+          >
+            <span aria-hidden className="inline-block px-1 tabular-nums">
+              {ch}
+            </span>
+          </Magnetic>
+        ))}
+      </h1>
+
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-lg font-semibold text-foreground">{title}</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
+      </div>
+
+      <NotFoundActions
+        homeHref={homeHref}
+        homeLabel={homeLabel}
+        browseHref={browseHref}
+        browseLabel={browseLabel}
+      />
+    </NotFoundStage>
+  );
+}
+```
+
+## 6. `app/not-found.tsx` — this wires it into the site (Next.js renders this automatically for any unmatched route)
+
+```tsx
+import { NotFoundMagnetic } from "@/components/motion/not-found/magnetic";
+
+export default function NotFound() {
+  return (
+    <div className="flex min-h-screen w-full items-center justify-center bg-background">
+      <NotFoundMagnetic />
+    </div>
+  );
+}
+```
+
+**Also run:**
+```
+npm i clsx motion tailwind-merge
+```
+
+That's it — no changes needed to your `dashboard/page.tsx`. Next.js will automatically show `app/not-found.tsx` for any route that doesn't match, or you can trigger it manually anywhere by calling `notFound()` from `next/navigation`.
 </file>
 
 </files>
