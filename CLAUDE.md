@@ -1,1243 +1,624 @@
-TSX
-components/previews/blocks/morphing-tabs.preview.tsx
+Good changes — let me set up a small sandbox to actually verify the country flag data and dialog behavior before handing you code that might not compile.I'll build this as two changes:
 
+1. **Country** → a proper closed dropdown (like a native `<select>`, but styled to match `Input`), listing every country with its flag emoji, searchable.
+2. **Date of birth** → looks like a normal `Input` field (label, rounded pill, click target) showing the formatted date as text — but clicking it opens a dialog/modal containing the exact same `WheelPicker` trio from before.
+
+No changes to `WheelPicker`, `Input`, `Button`, or animation tokens — I'm only adding a dropdown component, a dialog wrapper, and a trigger field.
+
+---
+
+### 1. `lib/countries.ts` (replace previous version — full list with flags)
+
+```ts
+// ISO 3166-1 country list with flag emoji (derived from the two-letter code)
+// and calling code. Flag emoji are just regional indicator symbols — no image
+// assets needed, they render natively on every modern OS/browser.
+
+export interface Country {
+  code: string; // ISO 3166-1 alpha-2
+  name: string;
+  flag: string;
+}
+
+function flagFromCode(code: string): string {
+  return code
+    .toUpperCase()
+    .replace(/./g, (char) =>
+      String.fromCodePoint(127397 + char.charCodeAt(0)),
+    );
+}
+
+const RAW: [string, string][] = [
+  ["AF", "Afghanistan"], ["AL", "Albania"], ["DZ", "Algeria"], ["AD", "Andorra"],
+  ["AO", "Angola"], ["AG", "Antigua and Barbuda"], ["AR", "Argentina"], ["AM", "Armenia"],
+  ["AU", "Australia"], ["AT", "Austria"], ["AZ", "Azerbaijan"], ["BS", "Bahamas"],
+  ["BH", "Bahrain"], ["BD", "Bangladesh"], ["BB", "Barbados"], ["BY", "Belarus"],
+  ["BE", "Belgium"], ["BZ", "Belize"], ["BJ", "Benin"], ["BT", "Bhutan"],
+  ["BO", "Bolivia"], ["BA", "Bosnia and Herzegovina"], ["BW", "Botswana"], ["BR", "Brazil"],
+  ["BN", "Brunei"], ["BG", "Bulgaria"], ["BF", "Burkina Faso"], ["BI", "Burundi"],
+  ["CV", "Cabo Verde"], ["KH", "Cambodia"], ["CM", "Cameroon"], ["CA", "Canada"],
+  ["CF", "Central African Republic"], ["TD", "Chad"], ["CL", "Chile"], ["CN", "China"],
+  ["CO", "Colombia"], ["KM", "Comoros"], ["CG", "Congo"], ["CD", "Congo (DRC)"],
+  ["CR", "Costa Rica"], ["CI", "Côte d'Ivoire"], ["HR", "Croatia"], ["CU", "Cuba"],
+  ["CY", "Cyprus"], ["CZ", "Czechia"], ["DK", "Denmark"], ["DJ", "Djibouti"],
+  ["DM", "Dominica"], ["DO", "Dominican Republic"], ["EC", "Ecuador"], ["EG", "Egypt"],
+  ["SV", "El Salvador"], ["GQ", "Equatorial Guinea"], ["ER", "Eritrea"], ["EE", "Estonia"],
+  ["SZ", "Eswatini"], ["ET", "Ethiopia"], ["FJ", "Fiji"], ["FI", "Finland"],
+  ["FR", "France"], ["GA", "Gabon"], ["GM", "Gambia"], ["GE", "Georgia"],
+  ["DE", "Germany"], ["GH", "Ghana"], ["GR", "Greece"], ["GD", "Grenada"],
+  ["GT", "Guatemala"], ["GN", "Guinea"], ["GW", "Guinea-Bissau"], ["GY", "Guyana"],
+  ["HT", "Haiti"], ["HN", "Honduras"], ["HU", "Hungary"], ["IS", "Iceland"],
+  ["IN", "India"], ["ID", "Indonesia"], ["IR", "Iran"], ["IQ", "Iraq"],
+  ["IE", "Ireland"], ["IL", "Israel"], ["IT", "Italy"], ["JM", "Jamaica"],
+  ["JP", "Japan"], ["JO", "Jordan"], ["KZ", "Kazakhstan"], ["KE", "Kenya"],
+  ["KI", "Kiribati"], ["KP", "Korea (North)"], ["KR", "Korea (South)"], ["KW", "Kuwait"],
+  ["KG", "Kyrgyzstan"], ["LA", "Laos"], ["LV", "Latvia"], ["LB", "Lebanon"],
+  ["LS", "Lesotho"], ["LR", "Liberia"], ["LY", "Libya"], ["LI", "Liechtenstein"],
+  ["LT", "Lithuania"], ["LU", "Luxembourg"], ["MG", "Madagascar"], ["MW", "Malawi"],
+  ["MY", "Malaysia"], ["MV", "Maldives"], ["ML", "Mali"], ["MT", "Malta"],
+  ["MH", "Marshall Islands"], ["MR", "Mauritania"], ["MU", "Mauritius"], ["MX", "Mexico"],
+  ["FM", "Micronesia"], ["MD", "Moldova"], ["MC", "Monaco"], ["MN", "Mongolia"],
+  ["ME", "Montenegro"], ["MA", "Morocco"], ["MZ", "Mozambique"], ["MM", "Myanmar"],
+  ["NA", "Namibia"], ["NR", "Nauru"], ["NP", "Nepal"], ["NL", "Netherlands"],
+  ["NZ", "New Zealand"], ["NI", "Nicaragua"], ["NE", "Niger"], ["NG", "Nigeria"],
+  ["MK", "North Macedonia"], ["NO", "Norway"], ["OM", "Oman"], ["PK", "Pakistan"],
+  ["PW", "Palau"], ["PA", "Panama"], ["PG", "Papua New Guinea"], ["PY", "Paraguay"],
+  ["PE", "Peru"], ["PH", "Philippines"], ["PL", "Poland"], ["PT", "Portugal"],
+  ["QA", "Qatar"], ["RO", "Romania"], ["RU", "Russia"], ["RW", "Rwanda"],
+  ["KN", "Saint Kitts and Nevis"], ["LC", "Saint Lucia"], ["VC", "Saint Vincent and the Grenadines"],
+  ["WS", "Samoa"], ["SM", "San Marino"], ["ST", "Sao Tome and Principe"], ["SA", "Saudi Arabia"],
+  ["SN", "Senegal"], ["RS", "Serbia"], ["SC", "Seychelles"], ["SL", "Sierra Leone"],
+  ["SG", "Singapore"], ["SK", "Slovakia"], ["SI", "Slovenia"], ["SB", "Solomon Islands"],
+  ["SO", "Somalia"], ["ZA", "South Africa"], ["SS", "South Sudan"], ["ES", "Spain"],
+  ["LK", "Sri Lanka"], ["SD", "Sudan"], ["SR", "Suriname"], ["SE", "Sweden"],
+  ["CH", "Switzerland"], ["SY", "Syria"], ["TW", "Taiwan"], ["TJ", "Tajikistan"],
+  ["TZ", "Tanzania"], ["TH", "Thailand"], ["TL", "Timor-Leste"], ["TG", "Togo"],
+  ["TO", "Tonga"], ["TT", "Trinidad and Tobago"], ["TN", "Tunisia"], ["TR", "Turkey"],
+  ["TM", "Turkmenistan"], ["TV", "Tuvalu"], ["UG", "Uganda"], ["UA", "Ukraine"],
+  ["AE", "United Arab Emirates"], ["GB", "United Kingdom"], ["US", "United States"],
+  ["UY", "Uruguay"], ["UZ", "Uzbekistan"], ["VU", "Vanuatu"], ["VA", "Vatican City"],
+  ["VE", "Venezuela"], ["VN", "Vietnam"], ["YE", "Yemen"], ["ZM", "Zambia"],
+  ["ZW", "Zimbabwe"],
+];
+
+export const COUNTRIES: Country[] = RAW.map(([code, name]) => ({
+  code,
+  name,
+  flag: flagFromCode(code),
+})).sort((a, b) => a.name.localeCompare(b.name));
+```
+
+---
+
+### 2. `components/motion/country-select.tsx` (replaced — now a real dropdown)
+
+A button styled exactly like `Input`'s field chrome, opening an absolutely-positioned panel with a search box and a scrollable, filtered list. No new dependency — pure React state + your existing motion/ease tokens.
+
+```tsx
 "use client";
+// beui.dev/components/motion/country-select
+// Closed-by-default dropdown, styled to match Input's field chrome exactly
+// (h-11, rounded-full, same border/focus states). Opens a floating panel
+// with a search box and the full country list, each row showing its flag.
 
-import { useMemo, useState } from "react";
-import { MorphingTabs, type MorphingTabsItem } from "@/components/motion/morphing-tabs";
-
-const ROOM_CONTENT: Record<string, { eyebrow: string; title: string; detail: string; accent: string }> = {
-  "room-2": {
-    eyebrow: "quiet focus",
-    title: "Room 2",
-    detail: "A small space for the work that needs a little more air around it.",
-    accent: "#db5b2f",
-  },
-  general: {
-    eyebrow: "shared space",
-    title: "General",
-    detail: "The common room for notes, links and the ideas that are still finding their shape.",
-    accent: "#1bb273",
-  },
-  archive: {
-    eyebrow: "kept close",
-    title: "Archive",
-    detail: "Past rooms stay available without competing with the conversations in motion.",
-    accent: "#7a6de2",
-  },
-};
-
-function RoomPanel({ id }: { id: string }) {
-  const room = ROOM_CONTENT[id];
-
-  return (
-    <div className="relative min-h-64 overflow-hidden bg-[radial-gradient(circle_at_1px_1px,#dfe2e3_1px,transparent_1.5px)] bg-[size:4.8rem_4.8rem] px-7 py-8 md:px-12 md:py-10">
-      <div className="relative max-w-xl">
-        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-black/40">
-          {room.eyebrow}
-        </p>
-        <h3 className="mt-3 text-3xl font-light tracking-[-0.055em] text-[#151515] md:text-5xl">
-          {room.title}
-        </h3>
-        <p className="mt-4 max-w-md text-sm leading-6 text-black/55 md:text-base">
-          {room.detail}
-        </p>
-        <div className="mt-8 flex items-center gap-3 text-xs font-medium text-black/50">
-          <span className="size-2 rounded-full" style={{ backgroundColor: room.accent }} />
-          drag any room to reorder
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function MorphingTabsPreview() {
-  const initialItems = useMemo<MorphingTabsItem[]>(
-    () =>
-      Object.keys(ROOM_CONTENT).map((id) => ({
-        id,
-        label: ROOM_CONTENT[id].title,
-        content: <RoomPanel id={id} />,
-      })),
-    [],
-  );
-  const [items, setItems] = useState(initialItems);
-  const [value, setValue] = useState<string | null>("room-2");
-
-  return (
-    <div className="flex w-full min-w-0 items-center justify-center bg-[#242424] p-3 md:p-8">
-      <MorphingTabs
-        items={items}
-        value={value}
-        onValueChange={setValue}
-        onOrderChange={(ids) => {
-          setItems((current) => {
-            const byId = new Map(current.map((item) => [item.id, item]));
-            return ids.flatMap((id) => {
-              const item = byId.get(id);
-              return item ? [item] : [];
-            });
-          });
-        }}
-        onClose={(id) => {
-          setItems((current) => {
-            const next = current.filter((item) => item.id !== id);
-            if (id === value) setValue(next[0]?.id ?? null);
-            return next;
-          });
-        }}
-        ariaLabel="Rooms"
-        className="w-full max-w-5xl"
-      />
-    </div>
-  );
-}
-
-Install
-
-Add it with the shadcn CLI, or copy the source manually.
-CLI
-Manual
-Needs the theme tokens once. Already ran shadcn init? You are set. Theme setup
-Install dependencies
-
-npm i clsx lucide-react motion tailwind-merge
-
-Add util files
-TSX
-lib/ease.ts
-
-// Shared motion tokens. Easing curves mirror the CSS custom properties in
-// globals.css; springs are the canonical physics used across components.
-// Strong custom variants — defaults like `ease-in`/`ease-out` feel weak.
-
-export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
-export const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
-export const EASE_DRAWER = [0.32, 0.72, 0, 1] as const;
-
-/** CSS string form of EASE_OUT for inline style transitions. */
-export const EASE_OUT_CSS = "cubic-bezier(0.16, 1, 0.3, 1)";
-
-/** Press feedback on buttons and other tappable surfaces. */
-export const SPRING_PRESS = {
-  type: "spring",
-  stiffness: 500,
-  damping: 30,
-  mass: 0.6,
-} as const;
-
-/** Content swaps — label/icon slots trading places inside a control. */
-export const SPRING_SWAP = {
-  type: "spring",
-  stiffness: 460,
-  damping: 30,
-  mass: 0.55,
-} as const;
-
-/** Overlay panel entrances — modals and sheets summoned by pointer. */
-export const SPRING_PANEL = {
-  type: "spring",
-  stiffness: 420,
-  damping: 40,
-  mass: 0.5,
-} as const;
-
-/** Shared-layout glides — pills, indicators and panels morphing between positions. */
-export const SPRING_LAYOUT = {
-  type: "spring",
-  stiffness: 360,
-  damping: 32,
-  mass: 0.6,
-} as const;
-
-/** Cursor-follow physics for decorative mouse tracking (magnetic, tilt, dock). */
-export const SPRING_MOUSE = {
-  stiffness: 200,
-  damping: 15,
-  mass: 0.3,
-} as const;
-
-/** Dragged handles and fills (sliders) — critically damped `useSpring` config,
- * so the value follows the pointer butterily and never rebounds off an end. */
-export const SPRING_GLIDE = {
-  stiffness: 700,
-  damping: 50,
-  mass: 0.5,
-} as const;
-
-TSX
-lib/touch.ts
-
-// Shared touch primitives. iOS and iPadOS run their own gestures on top of the
-// page — the long-press selection callout and the selection it drags in with
-// it — and they win: once the platform claims a touch it cancels ours
-// mid-gesture, so a press-and-hold or a drag simply dies. Surfaces that own
-// their gesture have to opt out.
-//
-// What the two classes below cover, precisely:
-// - `-webkit-touch-callout: none` stops iOS's long-press callout. WebKit-only:
-//   it is not a property other engines have, so it is inert everywhere else.
-// - `user-select: none` stops the long-press selection on every engine,
-//   Android included, and stops a drag from painting a selection under the
-//   cursor. It is inherited, so it reaches every descendant — which is why the
-//   two classes differ only in whether they apply it unconditionally.
-// What neither covers:
-// - Chrome for Android's long-press menu on a link or an image. No CSS
-//   suppresses it; a gesture surface that wraps one needs its own
-//   `onContextMenu` with `preventDefault()`.
-// - The native drag of an `<img>` or `<a>` descendant. `-webkit-user-drag` is
-//   not inherited and plain divs and buttons are not drag sources, so setting
-//   it on the surface does nothing — the child itself needs `draggable={false}`.
-
-/**
- * Classes for a surface that *is* the control: a thumb, a drum, a stage, a
- * handle, a hold button. Selection is suppressed on every input, because a
- * drag that highlights the control's own label is wrong on a mouse too.
- * Compose with `touch-none` when the surface also owns the scroll axis — leave
- * it off when the page must still scroll from there.
- */
-export const TOUCH_GESTURE_CLASS = "select-none [-webkit-touch-callout:none]";
-
-/**
- * The same opt-out for a gesture surface that wraps content the consumer owns:
- * a scroller, a context-menu trigger, a sheet header, a list row. Selection is
- * suppressed only where the platform runs its own press gestures — a coarse
- * pointer — so a mouse user can still select and copy that content. If the
- * gesture itself would paint a selection under the cursor, add `select-none`
- * for the duration of the gesture rather than reaching for
- * `TOUCH_GESTURE_CLASS`.
- *
- * `pointer: coarse` describes the *primary* pointer and nothing else, so a
- * hybrid machine reads it wrong in both directions: a tablet with a mouse
- * plugged in keeps touch as primary and loses mouse selection, and a laptop
- * with a touchscreen keeps the mouse as primary and leaves selection live
- * under a finger. No media query can answer per interaction — the query is
- * about the device, and the question is about the gesture in progress. The
- * default stays here because it is right on the machines that are one thing or
- * the other, and losing a selection is a nuisance; where the miss costs a
- * *gesture* instead, the surface pairs it with `holdSelection` on the press.
- */
-export const TOUCH_GESTURE_CONTENT_CLASS =
-  "[-webkit-touch-callout:none] pointer-coarse:select-none";
-
-/**
- * Suppress selection on `element` for as long as a gesture is running on it,
- * whatever the primary pointer of the machine happens to be. Returns the
- * release. Inline, so it wins over the class above and is gone again the
- * moment the gesture ends.
- *
- * For the press gestures a native selection would otherwise steal — a
- * long-press that opens a menu. Elsewhere prefer the classes: a surface that
- * takes selection away for the whole session is a surface whose text nobody
- * can copy.
- */
-export function holdSelection(element: HTMLElement) {
-  element.style.setProperty("user-select", "none");
-  element.style.setProperty("-webkit-user-select", "none");
-  return () => {
-    element.style.removeProperty("user-select");
-    element.style.removeProperty("-webkit-user-select");
-  };
-}
-
-/**
- * Pointer capture, best effort. WebKit throws `NotFoundError` when the pointer
- * is already gone by the time the handler runs — routine on iOS, where the
- * system can claim the touch first — and an uncaught throw takes the rest of
- * the handler, the gesture included, down with it. Touch pointers carry
- * implicit capture anyway, so losing it is never fatal.
- */
-export function capturePointer(element: Element, pointerId: number) {
-  try {
-    element.setPointerCapture(pointerId);
-  } catch {
-    // Pointer is no longer active — implicit capture still applies on touch.
-  }
-}
-
-/** Release a capture taken with `capturePointer`, ignoring a stale pointer. */
-export function releasePointer(element: Element, pointerId: number) {
-  try {
-    if (element.hasPointerCapture(pointerId)) {
-      element.releasePointerCapture(pointerId);
-    }
-  } catch {
-    // Capture was already dropped by the browser.
-  }
-}
-
-/**
- * Whether this event came from a pointer that is *hovering*: not a touch, and
- * not currently pressed. Which input the user is holding right now is not
- * something a device capability can answer — a touchscreen laptop hovers and
- * taps, and iPadOS reports a fine hovering pointer for a finger — so both
- * paths stay live and each handler branches on the event it was given.
- *
- * A pen resting on the glass is making contact, not hovering: `buttons` is the
- * tell, and it sends a pen tap down the same route a finger takes.
- *
- * This answers what an *enter* asks. A leave is the other half of a pair and
- * has to be read against the enter that started it — `useHoverGesture` in
- * `lib/hooks/use-hover-gesture` does that, and hover surfaces should use it
- * rather than asking this question twice.
- */
-export const isHoveringPointer = (event: {
-  pointerType: string;
-  buttons: number;
-}) => event.pointerType !== "touch" && event.buttons === 0;
-
-TSX
-lib/utils.ts
-
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
-
-Copy the source code
-TSX
-components/motion/morphing-tabs.tsx
-
-"use client";
-// beui.dev/components/blocks/morphing-tabs
-
-import { X } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
-  AnimatePresence,
-  animate as animateValue,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useSpring,
-  useTransform,
-  type MotionValue,
-} from "motion/react";
-import {
-  useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
-import { EASE_OUT, SPRING_GLIDE, SPRING_PRESS } from "@/lib/ease";
-import { TOUCH_GESTURE_CLASS, capturePointer } from "@/lib/touch";
+import { COUNTRIES } from "@/lib/countries";
+import { EASE_OUT } from "@/lib/ease";
 import { cn } from "@/lib/utils";
 
-export type MorphingTabsItem = {
-  id: string;
-  label: string;
-  icon?: ReactNode;
-  content: ReactNode;
-  disabled?: boolean;
-};
-
-export type MorphingTabsClassNames = {
-  root?: string;
-  rail?: string;
-  tab?: string;
-  activeTab?: string;
-  icon?: string;
+export interface CountrySelectProps {
   label?: string;
-  close?: string;
-  content?: string;
-};
-
-export interface MorphingTabsProps {
-  items: MorphingTabsItem[];
-  value?: string | null;
-  defaultValue?: string | null;
-  onValueChange?: (id: string | null) => void;
-  /** Called once after a pointer drag or keyboard reorder completes. */
-  onOrderChange?: (ids: string[]) => void;
-  /** Enables the close affordance on every tab when provided. */
-  onClose?: (id: string) => void;
-  ariaLabel?: string;
+  /** Country name (matches Country["name"]) or "" for none selected. */
+  value?: string;
+  onValueChange?: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: string | boolean;
+  reserveErrorLine?: boolean;
+  success?: boolean;
   className?: string;
-  classNames?: MorphingTabsClassNames;
 }
 
-type DragSession = {
-  id: string;
-  pointerId: number;
-  originX: number;
-  startLeft: number;
-  startIndex: number;
-  targetIndex: number;
-  moved: boolean;
-  finishing: boolean;
-  startOrder: string[];
-  slotLefts: number[];
-};
-
-type SpringTabProps = {
-  id: string;
-  targetLeft: number;
-  dragging: boolean;
-  dragLeft: MotionValue<number>;
-  surfaceLeft: MotionValue<number>;
-  reduce: boolean;
-  active: boolean;
-  anyDragging: boolean;
-  surfaceHost: HTMLDivElement | null;
-  surfaceWidth: number;
-  tabWidth: number;
-  surfaceClassName?: string;
-  zIndex: number;
-  className: string;
-  children: ReactNode;
-  registerPosition: (id: string, position: MotionValue<number> | null) => void;
-  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onLostPointerCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
-};
-
-const DRAG_THRESHOLD = 5;
-// The design width of a tab, and the narrowest it may shrink to before the
-// label stops reading. See `tabWidth` in MorphingTabs.
-const MAX_TAB_WIDTH = 176;
-const MIN_TAB_WIDTH = 96;
-const TAB_HEIGHT = 56;
-const TAB_TOP = 24;
-const TAB_RADIUS = 24;
-const RAIL_HEIGHT = 80;
-const SURFACE_INSET = 16;
-const LIQUID_JOIN = 24;
-const PANEL_RADIUS = 28;
-
-function sameOrder(a: string[], b: string[]) {
-  return a.length === b.length && a.every((id, index) => id === b[index]);
-}
-
-function safeId(value: string) {
-  return value.replace(/[^a-zA-Z0-9_-]/g, "-");
-}
-
-function moveItem(order: string[], from: number, to: number) {
-  if (from === to) return order.slice();
-  const next = order.slice();
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
-}
-
-function liquidTabPath(
-  tabLeft: number,
-  surfaceWidth: number,
-  tabWidth: number,
-) {
-  const panelLeft = SURFACE_INSET;
-  const panelRight = surfaceWidth - SURFACE_INSET;
-  const left = Math.max(
-    panelLeft,
-    Math.min(panelRight - tabWidth, tabLeft),
-  );
-  const right = left + tabWidth;
-  const top = RAIL_HEIGHT - TAB_HEIGHT;
-  const bottom = RAIL_HEIGHT;
-  const leftJoin = Math.max(panelLeft, left - LIQUID_JOIN);
-  const rightJoin = Math.min(panelRight, right + LIQUID_JOIN);
-  const leftDepth = Math.min(LIQUID_JOIN, left - leftJoin);
-  const rightDepth = Math.min(LIQUID_JOIN, rightJoin - right);
-  const leftControl = leftDepth * 0.55;
-  const rightControl = rightDepth * 0.55;
-  const leftPanelRadius = Math.min(PANEL_RADIUS, leftJoin - panelLeft);
-  const rightPanelRadius = Math.min(PANEL_RADIUS, panelRight - rightJoin);
-
-  return [
-    `M${panelLeft} ${bottom + PANEL_RADIUS}`,
-    `V${bottom + leftPanelRadius}`,
-    `Q${panelLeft} ${bottom} ${panelLeft + leftPanelRadius} ${bottom}`,
-    `H${leftJoin}`,
-    `C${leftJoin + leftControl} ${bottom} ${left} ${bottom - leftDepth + leftControl} ${left} ${bottom - leftDepth}`,
-    `V${top + TAB_RADIUS}`,
-    `Q${left} ${top} ${left + TAB_RADIUS} ${top}`,
-    `H${right - TAB_RADIUS}`,
-    `Q${right} ${top} ${right} ${top + TAB_RADIUS}`,
-    `V${bottom - rightDepth}`,
-    `C${right} ${bottom - rightDepth + rightControl} ${rightJoin - rightControl} ${bottom} ${rightJoin} ${bottom}`,
-    `H${panelRight - rightPanelRadius}`,
-    `Q${panelRight} ${bottom} ${panelRight} ${bottom + rightPanelRadius}`,
-    `V${bottom + PANEL_RADIUS}`,
-    "Z",
-  ].join(" ");
-}
-
-function SpringTab({
-  id,
-  targetLeft,
-  dragging,
-  dragLeft,
-  surfaceLeft,
-  reduce,
-  active,
-  anyDragging,
-  surfaceHost,
-  surfaceWidth,
-  tabWidth,
-  surfaceClassName,
-  zIndex,
-  className,
-  children,
-  registerPosition,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onPointerCancel,
-  onLostPointerCapture,
-}: SpringTabProps) {
-  const target = useMotionValue(targetLeft);
-  const position = useSpring(target, SPRING_GLIDE);
-  const settledTransform = useTransform(
-    reduce ? target : position,
-    (left) => `translate3d(${left}px, 0, 0)`,
-  );
-  const draggedTransform = useTransform(
-    dragLeft,
-    (left) => `translate3d(${left}px, 0, 0)`,
-  );
-
-  useLayoutEffect(() => {
-    target.set(targetLeft);
-    if (reduce) position.jump(targetLeft);
-  }, [position, reduce, target, targetLeft]);
-
-  useLayoutEffect(() => {
-    registerPosition(id, position);
-    return () => registerPosition(id, null);
-  }, [id, position, registerPosition]);
-
-  const liquidDriver = anyDragging
-    ? dragging
-      ? dragLeft
-      : position
-    : surfaceLeft;
-
-  return (
-    <>
-      {active && surfaceHost && surfaceWidth > SURFACE_INSET * 2
-        ? createPortal(
-            <svg
-              aria-hidden="true"
-              focusable="false"
-              viewBox={`0 0 ${surfaceWidth} ${RAIL_HEIGHT + PANEL_RADIUS}`}
-              preserveAspectRatio="none"
-              className={cn(
-                "pointer-events-none absolute inset-x-0 top-0 h-[108px] w-full text-[#fafaf8]",
-                dragging ? "z-20" : "z-0",
-                surfaceClassName,
-              )}
-            >
-              <LiquidSurfacePath
-                key={
-                  anyDragging
-                    ? dragging
-                      ? "dragged"
-                      : "displaced"
-                    : "idle"
-                }
-                left={liquidDriver}
-                surfaceWidth={surfaceWidth}
-                tabWidth={tabWidth}
-              />
-            </svg>,
-            surfaceHost,
-          )
-        : null}
-      <motion.div
-        style={{
-          zIndex,
-          transform: dragging ? draggedTransform : settledTransform,
-        }}
-        className={className}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onLostPointerCapture={onLostPointerCapture}
-      >
-        {children}
-      </motion.div>
-    </>
-  );
-}
-
-function LiquidSurfacePath({
-  left,
-  surfaceWidth,
-  tabWidth,
-}: {
-  left: MotionValue<number>;
-  surfaceWidth: number;
-  tabWidth: number;
-}) {
-  const path = useTransform(left, (value) =>
-    liquidTabPath(value, surfaceWidth, tabWidth),
-  );
-  return <motion.path d={path} fill="currentColor" />;
-}
-
-export function MorphingTabs({
-  items,
+export function CountrySelect({
+  label = "Country",
   value,
-  defaultValue,
   onValueChange,
-  onOrderChange,
-  onClose,
-  ariaLabel = "Tabs",
+  placeholder = "Select your country",
+  disabled,
+  error,
+  reserveErrorLine = false,
+  success,
   className,
-  classNames,
-}: MorphingTabsProps) {
-  const reduce = Boolean(useReducedMotion());
-  const uid = useId();
-  const itemIds = useMemo(() => items.map((item) => item.id), [items]);
-  const itemMap = useMemo(
-    () => new Map(items.map((item) => [item.id, item])),
-    [items],
-  );
-  const [order, setOrder] = useState(itemIds);
-  const orderRef = useRef(order);
-  orderRef.current = order;
+}: CountrySelectProps) {
+  const reduce = useReducedMotion();
+  const id = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const [internalValue, setInternalValue] = useState<string | null>(
-    defaultValue ?? itemIds[0] ?? null,
-  );
-  const controlled = value !== undefined;
-  const currentValue = controlled ? (value ?? null) : internalValue;
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const railRef = useRef<HTMLDivElement | null>(null);
-  const tabButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const tabPositionRefs = useRef<Record<string, MotionValue<number> | null>>(
-    {},
-  );
-  const dragRef = useRef<DragSession | null>(null);
-  const dragAnimationRef = useRef<ReturnType<typeof animateValue> | null>(null);
-  const surfaceAnimationRef = useRef<ReturnType<typeof animateValue> | null>(
-    null,
-  );
-  const [surfaceWidth, setSurfaceWidth] = useState(0);
-  const [tabGap, setTabGap] = useState(12);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragTargetIndex, setDragTargetIndex] = useState(-1);
-  const dragLeft = useMotionValue(SURFACE_INSET);
-  const surfaceLeft = useMotionValue(SURFACE_INSET);
+  const hasError = Boolean(error);
+  const errorMessage = typeof error === "string" ? error : null;
+  const selected = COUNTRIES.find((c) => c.name === value);
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return COUNTRIES;
+    return COUNTRIES.filter((c) => c.name.toLowerCase().includes(q));
+  }, [query]);
+
+  // Close on outside click / Escape — same pattern any dialog-lite needs.
   useEffect(() => {
-    setOrder((current) => {
-      const available = new Set(itemIds);
-      const retained = current.filter((id) => available.has(id));
-      const retainedSet = new Set(retained);
-      const added = itemIds.filter((id) => !retainedSet.has(id));
-      const next = [...retained, ...added];
-      return sameOrder(current, next) ? current : next;
-    });
-  }, [itemIds]);
-
-  const orderedItems = useMemo(
-    () =>
-      order.flatMap((id) => {
-        const item = itemMap.get(id);
-        return item ? [item] : [];
-      }),
-    [itemMap, order],
-  );
-
-  const firstEnabledItem =
-    orderedItems.find((item) => !item.disabled) ?? orderedItems[0] ?? null;
-  const activeItem =
-    currentValue && itemMap.has(currentValue)
-      ? itemMap.get(currentValue) ?? null
-      : firstEnabledItem;
-  const activeId = activeItem?.id ?? null;
-
-  // The rail cannot scroll: the liquid surface is one continuous shape spanning
-  // the panel, so its notch has to stay over the tab that cut it. Slots narrow
-  // to fit the panel instead, in that order of sacrifice:
-  //   1. the design width, down to a floor where a truncated label still reads;
-  //   2. the gap between slots, so the floor survives one panel narrower;
-  //   3. the floor itself — a cramped tab is still tappable, a clipped one is
-  //      not reachable at all.
-  // Every tier fits inside the panel by construction, so no tab is ever cut off
-  // and the notch never has to be clamped away from the tab that cut it.
-  const { tabWidth, slotGap } = useMemo(() => {
-    const count = order.length;
-    if (!surfaceWidth || count === 0) {
-      return { tabWidth: MAX_TAB_WIDTH, slotGap: tabGap };
-    }
-    const inner = surfaceWidth - SURFACE_INSET * 2;
-    const widthAt = (gap: number) =>
-      Math.floor((inner - gap * (count - 1)) / count);
-
-    if (widthAt(tabGap) >= MIN_TAB_WIDTH) {
-      return {
-        tabWidth: Math.min(MAX_TAB_WIDTH, widthAt(tabGap)),
-        slotGap: tabGap,
-      };
-    }
-    if (count > 1 && widthAt(0) >= MIN_TAB_WIDTH) {
-      const gap = Math.floor((inner - MIN_TAB_WIDTH * count) / (count - 1));
-      return { tabWidth: MIN_TAB_WIDTH, slotGap: Math.max(0, gap) };
-    }
-    return { tabWidth: Math.max(0, widthAt(0)), slotGap: 0 };
-  }, [order.length, surfaceWidth, tabGap]);
-
-  const slotLefts = useMemo(
-    () =>
-      order.map(
-        (_, index) => SURFACE_INSET + index * (tabWidth + slotGap),
-      ),
-    [order, slotGap, tabWidth],
-  );
-
-  const dragStartIndex = draggingId ? order.indexOf(draggingId) : -1;
-
-  const visualIndexFor = useCallback(
-    (index: number) => {
-      if (dragStartIndex < 0 || dragTargetIndex < 0) return index;
-      if (index === dragStartIndex) return dragTargetIndex;
-
-      if (
-        dragTargetIndex > dragStartIndex &&
-        index > dragStartIndex &&
-        index <= dragTargetIndex
-      ) {
-        return index - 1;
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
       }
-      if (
-        dragTargetIndex < dragStartIndex &&
-        index >= dragTargetIndex &&
-        index < dragStartIndex
-      ) {
-        return index + 1;
-      }
-      return index;
-    },
-    [dragStartIndex, dragTargetIndex],
-  );
-
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    const rail = railRef.current;
-    if (!root || !rail) return;
-
-    const measure = () => {
-      setSurfaceWidth(root.clientWidth);
-      const nextGap = Number.parseFloat(getComputedStyle(rail).columnGap);
-      if (Number.isFinite(nextGap)) setTabGap(nextGap);
     };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(root);
-    return () => observer.disconnect();
-  }, []);
-
-  const setActive = useCallback(
-    (id: string | null) => {
-      if (id && itemMap.get(id)?.disabled) return;
-      if (!controlled) setInternalValue(id);
-      onValueChange?.(id);
-    },
-    [controlled, itemMap, onValueChange],
-  );
-
-  useEffect(() => {
-    if (currentValue && itemMap.has(currentValue)) return;
-    if (firstEnabledItem && firstEnabledItem.id !== currentValue) {
-      setActive(firstEnabledItem.id);
-    }
-  }, [currentValue, firstEnabledItem, itemMap, setActive]);
-
-  const activeOrderIndex = activeId ? order.indexOf(activeId) : -1;
-  const activeVisualIndex =
-    activeOrderIndex < 0 ? -1 : visualIndexFor(activeOrderIndex);
-
-  useLayoutEffect(() => {
-    if (
-      !activeId ||
-      activeVisualIndex < 0 ||
-      activeId === draggingId ||
-      !slotLefts[activeVisualIndex]
-    ) {
-      return;
-    }
-
-    surfaceAnimationRef.current?.stop();
-
-    if (draggingId) return;
-
-    surfaceAnimationRef.current = animateValue(
-      surfaceLeft,
-      slotLefts[activeVisualIndex],
-      reduce ? { duration: 0 } : SPRING_GLIDE,
-    );
-  }, [
-    activeId,
-    activeVisualIndex,
-    draggingId,
-    reduce,
-    slotLefts,
-    surfaceLeft,
-  ]);
-
-  const commitOrder = useCallback(
-    (next: string[], notify: boolean) => {
-      orderRef.current = next;
-      setOrder((current) => (sameOrder(current, next) ? current : next));
-      if (notify) onOrderChange?.(next);
-    },
-    [onOrderChange],
-  );
-
-  const registerPosition = useCallback(
-    (id: string, position: MotionValue<number> | null) => {
-      tabPositionRefs.current[id] = position;
-    },
-    [],
-  );
-
-  const startDrag = useCallback(
-    (id: string, event: ReactPointerEvent<HTMLDivElement>) => {
-      if (
-        event.button !== 0 ||
-        itemMap.get(id)?.disabled ||
-        dragRef.current
-      ) {
-        return;
-      }
-
-      const startIndex = orderRef.current.indexOf(id);
-      if (startIndex < 0) return;
-      const capturedSlots = orderRef.current.map(
-        (_, index) => SURFACE_INSET + index * (tabWidth + slotGap),
-      );
-      const startLeft = capturedSlots[startIndex];
-
-      dragAnimationRef.current?.stop();
-      dragAnimationRef.current = null;
-      dragLeft.set(startLeft);
-      dragRef.current = {
-        id,
-        pointerId: event.pointerId,
-        originX: event.clientX,
-        startLeft,
-        startIndex,
-        targetIndex: startIndex,
-        moved: false,
-        finishing: false,
-        startOrder: orderRef.current.slice(),
-        slotLefts: capturedSlots,
-      };
-    },
-    [dragLeft, itemMap, slotGap, tabWidth],
-  );
-
-  const moveDrag = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current;
-      if (!drag || drag.finishing || drag.pointerId !== event.pointerId) return;
-
-      const delta = event.clientX - drag.originX;
-      if (!drag.moved && Math.abs(delta) < DRAG_THRESHOLD) return;
-      event.preventDefault();
-
-      if (!drag.moved) {
-        drag.moved = true;
-        capturePointer(event.currentTarget, event.pointerId);
-        if (drag.id === activeId) {
-          surfaceAnimationRef.current?.stop();
-          surfaceLeft.set(drag.startLeft);
-        }
-        setDraggingId(drag.id);
-        setDragTargetIndex(drag.startIndex);
-      }
-
-      const minLeft = drag.slotLefts[0];
-      const maxLeft = drag.slotLefts[drag.slotLefts.length - 1];
-      const visualLeft = Math.max(
-        minLeft,
-        Math.min(maxLeft, drag.startLeft + delta),
-      );
-      let targetIndex = drag.startIndex;
-
-      if (visualLeft >= drag.startLeft) {
-        for (
-          let index = drag.startIndex + 1;
-          index < drag.slotLefts.length;
-          index += 1
-        ) {
-          if (visualLeft + tabWidth / 2 >= drag.slotLefts[index]) {
-            targetIndex = index;
-          }
-        }
-      } else {
-        for (let index = drag.startIndex - 1; index >= 0; index -= 1) {
-          if (visualLeft <= drag.slotLefts[index] + tabWidth / 2) {
-            targetIndex = index;
-          }
-        }
-      }
-
-      dragLeft.set(visualLeft);
-      if (targetIndex !== drag.targetIndex) {
-        drag.targetIndex = targetIndex;
-        setDragTargetIndex(targetIndex);
-      }
-    },
-    [activeId, dragLeft, surfaceLeft, tabWidth],
-  );
-
-  const finishDrag = useCallback(
-    (pointerId: number) => {
-      const drag = dragRef.current;
-      if (!drag || drag.pointerId !== pointerId || drag.finishing) return;
-
-      if (!drag.moved) {
-        dragRef.current = null;
-        return;
-      }
-
-      drag.finishing = true;
-      const targetLeft = drag.slotLefts[drag.targetIndex];
-      const controls = animateValue(
-        dragLeft,
-        targetLeft,
-        reduce ? { duration: 0 } : SPRING_GLIDE,
-      );
-      dragAnimationRef.current = controls;
-
-      controls.then(async () => {
-        if (dragAnimationRef.current !== controls) return;
-        const next = moveItem(
-          drag.startOrder,
-          drag.startIndex,
-          drag.targetIndex,
-        );
-
-        if (!reduce) {
-          await new Promise<void>((resolve) => {
-            const startedAt = performance.now();
-            const check = () => {
-              const settled = next.every((id, index) => {
-                if (id === drag.id) return true;
-                const position = tabPositionRefs.current[id];
-                if (!position) return true;
-                return (
-                  Math.abs(position.get() - drag.slotLefts[index]) < 0.5 &&
-                  Math.abs(position.getVelocity()) < 10
-                );
-              });
-
-              if (settled || performance.now() - startedAt > 500) {
-                resolve();
-                return;
-              }
-              requestAnimationFrame(check);
-            };
-            check();
-          });
-        }
-
-        if (dragAnimationRef.current !== controls) return;
-        if (drag.id === activeId) {
-          surfaceLeft.set(targetLeft);
-        } else if (activeId) {
-          const activePosition = tabPositionRefs.current[activeId];
-          if (activePosition) surfaceLeft.set(activePosition.get());
-        }
-        tabPositionRefs.current[drag.id]?.jump(targetLeft);
-        dragAnimationRef.current = null;
-        dragRef.current = null;
-        commitOrder(next, !sameOrder(drag.startOrder, next));
-        setDraggingId(null);
-        setDragTargetIndex(-1);
-      });
-    },
-    [activeId, commitOrder, dragLeft, reduce, surfaceLeft],
-  );
-
-  useEffect(() => {
-    const finishFromWindow = (event: PointerEvent) => {
-      finishDrag(event.pointerId);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
     };
-    window.addEventListener("pointerup", finishFromWindow, true);
-    window.addEventListener("pointercancel", finishFromWindow, true);
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("pointerup", finishFromWindow, true);
-      window.removeEventListener("pointercancel", finishFromWindow, true);
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
     };
-  }, [finishDrag]);
+  }, [open]);
 
-  const moveBy = useCallback(
-    (id: string, direction: -1 | 1) => {
-      const current = orderRef.current;
-      const index = current.indexOf(id);
-      const nextIndex = index + direction;
-      if (
-        index < 0 ||
-        nextIndex < 0 ||
-        nextIndex >= current.length ||
-        itemMap.get(id)?.disabled
-      ) {
-        return;
-      }
-      commitOrder(moveItem(current, index, nextIndex), true);
-    },
-    [commitOrder, itemMap],
-  );
-
-  const handleTabKeyDown = useCallback(
-    (id: string, event: React.KeyboardEvent<HTMLButtonElement>) => {
-      const index = orderRef.current.indexOf(id);
-      if (index < 0) return;
-
-      if (
-        event.altKey &&
-        (event.key === "ArrowLeft" || event.key === "ArrowRight")
-      ) {
-        event.preventDefault();
-        moveBy(id, event.key === "ArrowLeft" ? -1 : 1);
-        return;
-      }
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-
-      event.preventDefault();
-      const direction = event.key === "ArrowLeft" ? -1 : 1;
-      const nextIndex =
-        (index + direction + orderRef.current.length) % orderRef.current.length;
-      const nextId = orderRef.current[nextIndex];
-      setActive(nextId);
-      requestAnimationFrame(() => tabButtonRefs.current[nextId]?.focus());
-    },
-    [moveBy, setActive],
-  );
-
-  if (!orderedItems.length) return null;
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      // Focus the search box next tick so the open animation isn't janked by focus scroll.
+      requestAnimationFrame(() => searchRef.current?.focus());
+    }
+  }, [open]);
 
   return (
-    <div
-      ref={rootRef}
-      className={cn(
-        "relative isolate min-w-0 overflow-hidden rounded-[2rem] bg-[#292929] text-white",
-        classNames?.root,
-        className,
-      )}
-    >
-      <div className="relative h-20">
-        <div
-          ref={railRef}
-          role="tablist"
-          aria-label={ariaLabel}
-          aria-orientation="horizontal"
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      {label ? (
+        <label htmlFor={id} className="px-1 text-sm font-medium text-foreground">
+          {label}
+        </label>
+      ) : null}
+
+      <div ref={rootRef} className="relative">
+        <button
+          id={id}
+          type="button"
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => !disabled && setOpen((o) => !o)}
+          data-state={hasError ? "error" : success ? "success" : open ? "focused" : "idle"}
           className={cn(
-            "relative z-30 flex h-full gap-3 md:gap-4",
-            classNames?.rail,
+            "relative flex h-11 w-full items-center gap-2 rounded-full border pl-3.5 pr-3.5 text-left transition-colors duration-200",
+            "border-border",
+            open && !hasError && "border-foreground/40 ring-2 ring-ring/40",
+            hasError && "border-destructive ring-2 ring-destructive/25",
+            disabled && "cursor-not-allowed opacity-60",
           )}
         >
-          {orderedItems.map((item, index) => {
-            const isActive = item.id === activeId;
-            const isDragging = item.id === draggingId;
-            const visualIndex = visualIndexFor(index);
-            const targetLeft = slotLefts[visualIndex] ?? SURFACE_INSET;
-            const tabId = `${uid}-tab-${safeId(item.id)}`;
+          {selected ? (
+            <>
+              <span className="text-base leading-none">{selected.flag}</span>
+              <span className="flex-1 truncate text-base text-foreground">
+                {selected.name}
+              </span>
+            </>
+          ) : (
+            <span className="flex-1 truncate text-base text-muted-foreground/60">
+              {placeholder}
+            </span>
+          )}
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              open && "rotate-180",
+            )}
+          />
+        </button>
 
-            return (
-              <SpringTab
-                key={item.id}
-                id={item.id}
-                targetLeft={targetLeft}
-                dragging={isDragging}
-                dragLeft={dragLeft}
-                surfaceLeft={surfaceLeft}
-                reduce={reduce}
-                active={isActive}
-                anyDragging={Boolean(draggingId)}
-                surfaceHost={rootRef.current}
-                surfaceWidth={surfaceWidth}
-                tabWidth={tabWidth}
-                surfaceClassName={classNames?.activeTab}
-                zIndex={isDragging ? 30 : isActive ? 20 : 1}
-                className={cn(
-                  // The drag is ours end to end, so iPadOS must not answer the
-                  // press with its callout or a native drag of the label.
-                  "group absolute left-0 top-0 flex touch-pan-y items-stretch",
-                  TOUCH_GESTURE_CLASS,
-                  item.disabled && "cursor-not-allowed",
-                  isDragging ? "cursor-grabbing" : "cursor-grab",
+        <AnimatePresence>
+          {open ? (
+            <motion.div
+              role="listbox"
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ duration: 0.15, ease: EASE_OUT }}
+              className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 flex max-h-72 flex-col overflow-hidden rounded-2xl border border-border bg-popover shadow-lg"
+            >
+              <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <input
+                  ref={searchRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search countries…"
+                  className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
+                />
+              </div>
+
+              <ul className="overflow-y-auto py-1">
+                {filtered.length === 0 ? (
+                  <li className="px-4 py-3 text-sm text-muted-foreground">
+                    No countries match "{query}".
+                  </li>
+                ) : (
+                  filtered.map((c) => {
+                    const isSelected = c.name === value;
+                    return (
+                      <li key={c.code}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => {
+                            onValueChange?.(c.name);
+                            setOpen(false);
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-muted/60",
+                            isSelected && "bg-muted/40",
+                          )}
+                        >
+                          <span className="text-base leading-none">{c.flag}</span>
+                          <span className="flex-1 truncate text-foreground">{c.name}</span>
+                          {isSelected ? (
+                            <Check className="h-4 w-4 shrink-0 text-foreground" />
+                          ) : null}
+                        </button>
+                      </li>
+                    );
+                  })
                 )}
-                registerPosition={registerPosition}
-                onPointerDown={(event) => startDrag(item.id, event)}
-                onPointerMove={moveDrag}
-                onPointerUp={(event) => finishDrag(event.pointerId)}
-                onPointerCancel={(event) => finishDrag(event.pointerId)}
-                // A touch is implicitly captured by whatever it landed on —
-                // here the label inside the tab — so the moment the drag takes
-                // the capture for the tab itself, that child *loses* it, and
-                // the notification bubbles straight back up to this handler.
-                // Ending the drag on it kills the gesture on the frame it
-                // starts. Only the tab losing its own capture means the
-                // platform took the pointer away. A mouse has no implicit
-                // capture, which is why this only ever bit on a real finger.
-                onLostPointerCapture={(event) => {
-                  if (event.target !== event.currentTarget) return;
-                  finishDrag(event.pointerId);
-                }}
-              >
-                <div
-                  style={{
-                    width: tabWidth,
-                    height: TAB_HEIGHT,
-                    marginTop: TAB_TOP,
-                  }}
-                  className="relative flex items-stretch"
-                >
-                  {!isActive ? (
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "absolute inset-x-0 bottom-2 top-0 rounded-[1.25rem] transition-colors duration-200",
-                        isDragging
-                          ? "bg-[#3a3a3a]"
-                          : "bg-transparent group-hover:bg-white/[0.06]",
-                      )}
-                    />
-                  ) : null}
-
-                  <button
-                    ref={(node) => {
-                      tabButtonRefs.current[item.id] = node;
-                    }}
-                    id={tabId}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    aria-controls={`${uid}-panel`}
-                    aria-disabled={item.disabled || undefined}
-                    tabIndex={isActive ? 0 : -1}
-                    disabled={item.disabled}
-                    onClick={() => {
-                      const drag = dragRef.current;
-                      if (drag?.id === item.id && drag.moved) return;
-                      setActive(item.id);
-                    }}
-                    onKeyDown={(event) => handleTabKeyDown(item.id, event)}
-                    className={cn(
-                      "group relative z-10 flex h-full w-full min-w-0 items-center gap-2 overflow-hidden rounded-t-[1.5rem] px-3 text-left outline-none transition-colors",
-                      isActive
-                        ? "text-[#181818]"
-                        : "pb-2 text-white/70 hover:text-white",
-                      classNames?.tab,
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "pointer-events-none absolute inset-x-1 top-1 opacity-0 transition-opacity group-focus-visible:opacity-100",
-                        isActive
-                          ? "bottom-0 rounded-t-[1.25rem] border-x-2 border-t-2 border-black/20"
-                          : "bottom-2 rounded-[1rem] border-2 border-white/60",
-                      )}
-                    />
-                    {item.icon ? (
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "grid size-8 shrink-0 place-items-center",
-                          classNames?.icon,
-                        )}
-                      >
-                        {item.icon}
-                      </span>
-                    ) : null}
-                    <span
-                      className={cn(
-                        "min-w-0 truncate whitespace-nowrap text-base font-medium leading-none tracking-[-0.025em]",
-                        classNames?.label,
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  </button>
-
-                  {onClose ? (
-                    <button
-                      type="button"
-                      aria-label={`Close ${item.label}`}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onClose(item.id);
-                      }}
-                      className={cn(
-                        "absolute right-2 top-1/2 z-20 grid size-6 -translate-y-1/2 place-items-center rounded-full text-[#9aa0a8] transition-colors hover:bg-black/[0.06] hover:text-[#4b5563] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current",
-                        !isActive &&
-                          "top-[calc(50%-4px)] text-white/45 hover:bg-white/[0.08] hover:text-white/80",
-                        classNames?.close,
-                      )}
-                    >
-                      <X aria-hidden className="size-3.5 stroke-[1.5]" />
-                    </button>
-                  ) : null}
-                </div>
-              </SpringTab>
-            );
-          })}
-        </div>
+              </ul>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
 
-      <div
-        id={`${uid}-panel`}
-        role="tabpanel"
-        aria-labelledby={`${uid}-tab-${safeId(activeId ?? "empty")}`}
-        className={cn(
-          "relative z-20 mx-4 min-h-64 overflow-hidden rounded-[1.75rem] bg-[#fafaf8] text-[#181818]",
-          classNames?.content,
-        )}
-      >
-        <AnimatePresence mode="popLayout" initial={false}>
-          {activeItem ? (
-            <motion.div
-              key={activeItem.id}
-              initial={
-                reduce
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: 8, filter: "blur(6px)" }
-              }
+      <div className={reserveErrorLine ? "min-h-4" : "contents"}>
+        <AnimatePresence initial={false}>
+          {errorMessage ? (
+            <motion.p
+              role="alert"
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4, filter: "blur(4px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={
-                reduce
-                  ? {
-                      opacity: 0,
-                      transition: { duration: 0.08, ease: EASE_OUT },
-                    }
-                  : {
-                      opacity: 0,
-                      y: -5,
-                      filter: "blur(5px)",
-                      transition: { duration: 0.12, ease: EASE_OUT },
-                    }
-              }
-              transition={
-                reduce
-                  ? { duration: 0.12, ease: EASE_OUT }
-                  : SPRING_PRESS
-              }
-              className="min-h-64"
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4, filter: "blur(4px)" }}
+              transition={{ duration: 0.2 }}
+              className="px-1 text-xs text-destructive"
             >
-              {activeItem.content}
-            </motion.div>
+              {errorMessage}
+            </motion.p>
           ) : null}
         </AnimatePresence>
       </div>
     </div>
   );
 }
+```
+
+> **Note:** this uses `bg-popover` — if your theme tokens don't define `--popover`, swap it for `bg-background` or `bg-card` (whatever your `Input` field uses).
+
+---
+
+### 3. `components/motion/dob-field.tsx` (new — the trigger + dialog)
+
+The visible field looks exactly like `Input` (label, h-11 pill, left icon, click target). Clicking opens a centered dialog with your **unmodified** three-drum `WheelPicker` layout from `wheel-picker.preview.tsx`, plus a Done button.
+
+```tsx
+"use client";
+// beui.dev/components/motion/dob-field
+// Renders like Input (label + h-11 pill), but the field itself is a button.
+// Clicking it opens a centered dialog containing the exact three-WheelPicker
+// month/day/year layout from wheel-picker.preview.tsx.
+
+import { Calendar } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useId, useState } from "react";
+import { WheelPicker } from "@/components/motion/wheel-picker";
+import { EASE_OUT } from "@/lib/ease";
+import { cn } from "@/lib/utils";
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function daysIn(month: number, year: number) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+export interface DobValue {
+  month: string;
+  day: string;
+  year: string;
+}
+
+export interface DobFieldProps {
+  label?: string;
+  value: DobValue;
+  onValueChange: (value: DobValue) => void;
+  disabled?: boolean;
+  sound?: boolean;
+  error?: string | boolean;
+  reserveErrorLine?: boolean;
+  success?: boolean;
+  minYear?: number;
+  maxYear?: number;
+  className?: string;
+}
+
+function formatDob(v: DobValue) {
+  if (!v.month || !v.day || !v.year) return "";
+  return `${v.month} ${v.day}, ${v.year}`;
+}
+
+export function DobField({
+  label = "Date of birth",
+  value,
+  onValueChange,
+  disabled,
+  sound = false,
+  error,
+  reserveErrorLine = false,
+  success,
+  minYear = 1920,
+  maxYear = new Date().getFullYear(),
+  className,
+}: DobFieldProps) {
+  const reduce = useReducedMotion();
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  // Draft lets Cancel discard in-dialog changes; Done commits them.
+  const [draft, setDraft] = useState<DobValue>(value);
+
+  const hasError = Boolean(error);
+  const errorMessage = typeof error === "string" ? error : null;
+
+  useEffect(() => {
+    if (open) setDraft(value);
+  }, [open, value]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => String(minYear + i));
+  const monthIndex = Math.max(0, MONTHS.indexOf(draft.month));
+  const dayCount = daysIn(monthIndex, Number(draft.year) || minYear);
+  const days = Array.from({ length: dayCount }, (_, i) => String(i + 1));
+
+  useEffect(() => {
+    if (Number(draft.day) > dayCount) {
+      setDraft((d) => ({ ...d, day: String(dayCount) }));
+    }
+  }, [dayCount, draft.day]);
+
+  const display = formatDob(value);
+
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      {label ? (
+        <label htmlFor={id} className="px-1 text-sm font-medium text-foreground">
+          {label}
+        </label>
+      ) : null}
+
+      <button
+        id={id}
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+        data-state={hasError ? "error" : success ? "success" : "idle"}
+        className={cn(
+          "relative flex h-11 w-full items-center gap-2.5 rounded-full border pl-3.5 pr-3.5 text-left transition-colors duration-200",
+          "border-border",
+          hasError && "border-destructive ring-2 ring-destructive/25",
+          disabled && "cursor-not-allowed opacity-60",
+        )}
+      >
+        <span className="text-muted-foreground [&_svg]:h-4 [&_svg]:w-4">
+          <Calendar />
+        </span>
+        <span
+          className={cn(
+            "flex-1 truncate text-base",
+            display ? "text-foreground" : "text-muted-foreground/60",
+          )}
+        >
+          {display || "Select your date of birth"}
+        </span>
+      </button>
+
+      <div className={reserveErrorLine ? "min-h-4" : "contents"}>
+        <AnimatePresence initial={false}>
+          {errorMessage ? (
+            <motion.p
+              role="alert"
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4, filter: "blur(4px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4, filter: "blur(4px)" }}
+              transition={{ duration: 0.2 }}
+              className="px-1 text-xs text-destructive"
+            >
+              {errorMessage}
+            </motion.p>
+          ) : null}
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            {/* Backdrop */}
+            <motion.div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setOpen(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+
+            {/* Dialog panel */}
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label={label}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 12 }}
+              transition={{ duration: 0.2, ease: EASE_OUT }}
+              className="relative z-10 flex w-full max-w-sm flex-col gap-5 rounded-3xl border border-border bg-background p-6"
+            >
+              <div className="flex flex-col gap-1">
+                <h3 className="text-lg font-semibold text-foreground">{label}</h3>
+                <p className="text-sm text-muted-foreground">
+                  Scroll or drag each wheel to set your birthday.
+                </p>
+              </div>
+
+              {/* Exact same 3-wheel layout as wheel-picker.preview.tsx */}
+              <div className="flex items-stretch gap-1 self-center rounded-3xl border border-border bg-background p-2">
+                <WheelPicker
+                  options={MONTHS}
+                  value={draft.month}
+                  onValueChange={(m) => setDraft((d) => ({ ...d, month: m }))}
+                  className="w-32 border-0 bg-transparent"
+                  visibleCount={7}
+                  itemHeight={42}
+                  sound={sound}
+                  aria-label="Month"
+                />
+                <WheelPicker
+                  options={days}
+                  value={draft.day}
+                  onValueChange={(d2) => setDraft((d) => ({ ...d, day: d2 }))}
+                  className="w-14 border-0 bg-transparent"
+                  visibleCount={7}
+                  itemHeight={42}
+                  sound={sound}
+                  aria-label="Day"
+                />
+                <WheelPicker
+                  options={years}
+                  value={draft.year}
+                  onValueChange={(y) => setDraft((d) => ({ ...d, year: y }))}
+                  className="w-20 border-0 bg-transparent"
+                  visibleCount={7}
+                  itemHeight={42}
+                  sound={sound}
+                  aria-label="Year"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="h-10 flex-1 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted/60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onValueChange(draft);
+                    setOpen(false);
+                  }}
+                  className="h-10 flex-1 rounded-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+```
+
+---
+
+### 4. `components/motion/signup-form-extended.tsx` — only the field wiring changes
+
+Replace the `country` and `dob` blocks in your existing file with this (everything else stays the same):
+
+```tsx
+// Update the imports at the top:
+import { CountrySelect } from "@/components/motion/country-select";
+import { DobField, type DobValue } from "@/components/motion/dob-field";
+
+// ...
+
+// Replace the "ADDED: Country" block with:
+<CountrySelect
+  value={values.country}
+  onValueChange={(next) => {
+    setValue("country", next);
+    touch("country");
+  }}
+  disabled={isSubmitting}
+  error={shownError("country")}
+  reserveErrorLine
+  success={isValid("country")}
+/>
+
+// Replace the "ADDED: Date of birth" block with:
+<DobField
+  value={values.dob}
+  onValueChange={(next) => {
+    setValue("dob", next);
+    touch("dob");
+  }}
+  disabled={isSubmitting}
+  sound={dobSound}
+  error={shownError("dob")}
+  reserveErrorLine
+/>
+```
+
+Since both components now handle their own error line the same way `Input` does, you can delete the manual `<div className="min-h-4 px-1">...</div>` error wrappers you had around them before — they're built in now.
+
+---
+
+## Setup guide
+
+1. `npm i lucide-react` if not already there (uses `Calendar`, `Search`, `Check`, `ChevronDown` — you already have `lucide-react` from the button icons).
+2. Add/replace:
+   - `lib/countries.ts` (full replace)
+   - `components/motion/country-select.tsx` (full replace)
+   - `components/motion/dob-field.tsx` (new file)
+   - Update `signup-form-extended.tsx` imports + the two field blocks as shown
+3. **Delete** `components/motion/dob-picker.tsx` if you added it earlier — it's superseded by `dob-field.tsx` (the old one rendered wheels inline instead of behind a dialog).
+4. If `bg-popover` / `text-popover-foreground` aren't in your theme, swap for `bg-background`/`text-foreground` in `country-select.tsx`.
+
+Everything else — the signup page, the API route, `WheelPicker` itself — stays exactly as already given.

@@ -1,219 +1,3 @@
-I'll build this as a combined signup form with a country select and a date-of-birth wheel picker, matching the style of both previews you shared.
-
-Let me set up the files locally to verify everything compiles cleanly before handing you the code.I don't need the sandbox for this — it's pure React/TSX component code you'll drop into your own Next.js project (same as the two preview files you pasted), so I'll just write it out directly with a setup guide.
-
-## What you're getting
-
-1. `lib/countries.ts` — a small country list + a `CountrySelect` built the same way (Radix-free, using your `Input`/wheel-picker patterns)
-2. `components/motion/dob-picker.tsx` — three `WheelPicker`s wired together for Month/Day/Year, **exact same** mechanics as your `wheel-picker.preview.tsx` (auto-clamping day when month/year changes, optional tick sound)
-3. `components/motion/signup-form-extended.tsx` — your `SignUpForm`, unmodified in styling/animation, with **Country** and **Date of birth** fields added
-4. A preview file wiring it all together, same shape as `signup-form.preview.tsx`
-
-Nothing about the visual language changes — same `Input`, same `border-border rounded-3xl` card, same springs from `lib/ease.ts`. I'm only adding two fields.
-
----
-
-### 1. `lib/countries.ts` (new file)
-
-```ts
-// A short, common list. Swap in a full ISO-3166 list if you need every country.
-export const COUNTRIES = [
-  "United States",
-  "United Kingdom",
-  "Canada",
-  "Australia",
-  "Germany",
-  "France",
-  "India",
-  "Bangladesh",
-  "Japan",
-  "Brazil",
-  "South Africa",
-  "United Arab Emirates",
-  "Singapore",
-  "Netherlands",
-  "Sweden",
-] as const;
-
-export type Country = (typeof COUNTRIES)[number];
-```
-
----
-
-### 2. `components/motion/country-select.tsx` (new file)
-
-This reuses your existing `WheelPicker` — same component, no new gesture code — just scoped to a single "Country" drum, styled to sit inside the form like your other `Input` fields.
-
-```tsx
-"use client";
-// A single-column WheelPicker, styled to match Input's field chrome.
-
-import { WheelPicker } from "@/components/motion/wheel-picker";
-import { COUNTRIES } from "@/lib/countries";
-import { cn } from "@/lib/utils";
-
-export interface CountrySelectProps {
-  label?: string;
-  value?: string;
-  onValueChange?: (value: string) => void;
-  disabled?: boolean;
-  className?: string;
-}
-
-export function CountrySelect({
-  label = "Country",
-  value,
-  onValueChange,
-  disabled,
-  className,
-}: CountrySelectProps) {
-  return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      {label ? (
-        <label className="px-1 text-sm font-medium text-foreground">
-          {label}
-        </label>
-      ) : null}
-      <WheelPicker
-        options={[...COUNTRIES]}
-        value={value}
-        onValueChange={onValueChange}
-        disabled={disabled}
-        visibleCount={5}
-        itemHeight={36}
-        className="w-full"
-        aria-label={label}
-      />
-    </div>
-  );
-}
-```
-
----
-
-### 3. `components/motion/dob-picker.tsx` (new file)
-
-Same three-drum layout as `WheelPickerPreview`, including the day-count clamp effect, but packaged as a reusable field component that emits a single `{ month, day, year }` value.
-
-```tsx
-"use client";
-// Same mechanics as components/previews/motion/wheel-picker.preview.tsx —
-// three WheelPickers (month/day/year) kept in sync, day count re-clamped
-// whenever month or year changes so Feb 30 etc. can't be selected.
-
-import { useEffect, useState } from "react";
-import { WheelPicker } from "@/components/motion/wheel-picker";
-import { cn } from "@/lib/utils";
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function daysIn(month: number, year: number) {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-export interface DobValue {
-  month: string;
-  day: string;
-  year: string;
-}
-
-export interface DobPickerProps {
-  label?: string;
-  value: DobValue;
-  onValueChange: (value: DobValue) => void;
-  disabled?: boolean;
-  sound?: boolean;
-  /** Earliest selectable year. Default 1920. */
-  minYear?: number;
-  /** Latest selectable year. Default: current year. */
-  maxYear?: number;
-  className?: string;
-}
-
-export function DobPicker({
-  label = "Date of birth",
-  value,
-  onValueChange,
-  disabled,
-  sound = false,
-  minYear = 1920,
-  maxYear = new Date().getFullYear(),
-  className,
-}: DobPickerProps) {
-  const years = useState(() =>
-    Array.from({ length: maxYear - minYear + 1 }, (_, i) => String(minYear + i)),
-  )[0];
-
-  const { month, day, year } = value;
-  const monthIndex = Math.max(0, MONTHS.indexOf(month));
-  const dayCount = daysIn(monthIndex, Number(year) || minYear);
-  const days = Array.from({ length: dayCount }, (_, i) => String(i + 1));
-
-  // Same guard as the preview: pull day back if the new month/year makes it invalid.
-  useEffect(() => {
-    if (Number(day) > dayCount) {
-      onValueChange({ ...value, day: String(dayCount) });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayCount]);
-
-  return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      {label ? (
-        <label className="px-1 text-sm font-medium text-foreground">
-          {label}
-        </label>
-      ) : null}
-      <div className="flex items-stretch gap-1 rounded-3xl border border-border bg-background p-2">
-        <WheelPicker
-          options={MONTHS}
-          value={month}
-          onValueChange={(m) => onValueChange({ ...value, month: m })}
-          disabled={disabled}
-          className="flex-[2] border-0 bg-transparent"
-          visibleCount={5}
-          itemHeight={38}
-          sound={sound}
-          aria-label="Month"
-        />
-        <WheelPicker
-          options={days}
-          value={day}
-          onValueChange={(d) => onValueChange({ ...value, day: d })}
-          disabled={disabled}
-          className="flex-1 border-0 bg-transparent"
-          visibleCount={5}
-          itemHeight={38}
-          sound={sound}
-          aria-label="Day"
-        />
-        <WheelPicker
-          options={years}
-          value={year}
-          onValueChange={(y) => onValueChange({ ...value, year: y })}
-          disabled={disabled}
-          className="flex-[1.3] border-0 bg-transparent"
-          visibleCount={5}
-          itemHeight={38}
-          sound={sound}
-          aria-label="Year"
-        />
-      </div>
-    </div>
-  );
-}
-```
-
----
-
-### 4. `components/motion/signup-form-extended.tsx` (new file — your form + 2 fields)
-
-I copied your `signup-form.tsx` and inserted the two fields between **Email** and **Password**. Everything else — validation shape, touched/error logic, animation, the `StatefulButton` — is untouched. New pieces are marked with `// ADDED`.
-
-```tsx
 "use client";
 // beui.dev/components/blocks/signup-form (extended: country + date of birth)
 
@@ -230,7 +14,7 @@ import {
 import { StatefulButton } from "@/components/motion/button";
 import { Checkbox } from "@/components/motion/checkbox";
 import { CountrySelect } from "@/components/motion/country-select"; // ADDED
-import { DobPicker, type DobValue } from "@/components/motion/dob-picker"; // ADDED
+import { DobField, type DobValue } from "@/components/motion/dob-field"; // ADDED
 import { Input } from "@/components/motion/input";
 import { EASE_OUT, SPRING_LAYOUT } from "@/lib/ease";
 import { cn } from "@/lib/utils";
@@ -527,61 +311,30 @@ export function SignUpForm({
         />
 
         {/* ADDED: Country */}
-        <div className="flex flex-col gap-1">
-          <CountrySelect
-            value={values.country}
-            onValueChange={(next) => {
-              setValue("country", next);
-              touch("country");
-            }}
-            disabled={isSubmitting}
-          />
-          <div className="min-h-4 px-1">
-            <AnimatePresence initial={false}>
-              {shownError("country") ? (
-                <motion.p
-                  role="alert"
-                  initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-xs text-destructive"
-                >
-                  {shownError("country")}
-                </motion.p>
-              ) : null}
-            </AnimatePresence>
-          </div>
-        </div>
+        <CountrySelect
+          value={values.country}
+          onValueChange={(next) => {
+            setValue("country", next);
+            touch("country");
+          }}
+          disabled={isSubmitting}
+          error={shownError("country")}
+          reserveErrorLine
+          success={isValid("country")}
+        />
 
         {/* ADDED: Date of birth */}
-        <div className="flex flex-col gap-1">
-          <DobPicker
-            value={values.dob}
-            onValueChange={(next) => {
-              setValue("dob", next);
-              touch("dob");
-            }}
-            disabled={isSubmitting}
-            sound={dobSound}
-          />
-          <div className="min-h-4 px-1">
-            <AnimatePresence initial={false}>
-              {shownError("dob") ? (
-                <motion.p
-                  role="alert"
-                  initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-xs text-destructive"
-                >
-                  {shownError("dob")}
-                </motion.p>
-              ) : null}
-            </AnimatePresence>
-          </div>
-        </div>
+        <DobField
+          value={values.dob}
+          onValueChange={(next) => {
+            setValue("dob", next);
+            touch("dob");
+          }}
+          disabled={isSubmitting}
+          sound={dobSound}
+          error={shownError("dob")}
+          reserveErrorLine
+        />
 
         <div className="flex flex-col gap-2">
           <Input
@@ -725,64 +478,3 @@ export function SignUpForm({
     </form>
   );
 }
-```
-
----
-
-### 5. Preview / usage — `components/previews/blocks/signup-form-extended.preview.tsx`
-
-Same shape as your original preview.
-
-```tsx
-"use client";
-
-import { useState } from "react";
-import { SignUpForm } from "@/components/motion/signup-form-extended";
-
-export function SignUpFormExtendedPreview() {
-  const [formError, setFormError] = useState<string>();
-
-  return (
-    <div className="flex w-full justify-center py-4">
-      <SignUpForm
-        description="Sign up with taken@example.com to see the failure state."
-        errorMessage={formError}
-        dobSound
-        onSubmit={async (values) => {
-          setFormError(undefined);
-          await new Promise((resolve) => setTimeout(resolve, 1200));
-          if (values.email.toLowerCase().startsWith("taken@")) {
-            setFormError("That email is already registered.");
-            throw new Error("Email already registered");
-          }
-        }}
-        footer={
-          <>
-            Already have an account?{" "}
-            <button type="button" className="font-medium text-foreground underline underline-offset-4">
-              Sign in
-            </button>
-          </>
-        }
-      />
-    </div>
-  );
-}
-```
-
----
-
-## Setup guide
-
-1. **Dependencies** — same as both previews: `npm i clsx lucide-react motion tailwind-merge`
-2. **Files you already have** (unchanged, reuse as-is): `lib/ease.ts`, `lib/utils.ts`, `lib/hooks/use-hover-capable.ts`, `lib/tick-sound.ts`, `lib/touch.ts`, `components/motion/wheel-picker.tsx`, `components/motion/button/*`, `components/motion/checkbox.tsx`, `components/motion/input.tsx`, `components/motion/switch.tsx` (switch isn't used here but keep it if used elsewhere)
-3. **New files to add** (paste exactly as above):
-   - `lib/countries.ts`
-   - `components/motion/country-select.tsx`
-   - `components/motion/dob-picker.tsx`
-   - `components/motion/signup-form-extended.tsx`
-   - `components/previews/blocks/signup-form-extended.preview.tsx`
-4. Import and render `<SignUpFormExtendedPreview />` anywhere, or use `<SignUpForm>` from `signup-form-extended.tsx` directly in your real signup page.
-5. If your `CountrySelect`'s single-column wheel picker feels too tall/short next to the DOB picker, just tweak `itemHeight`/`visibleCount` — same two knobs used throughout `WheelPicker`.
-
-That's the whole diff: two new fields (`country`, `dob`) added to `SignUpValues`, validated the same way as the rest of the form, rendered with your existing `WheelPicker` untouched.
