@@ -20,7 +20,7 @@ import { useState, useMemo } from "react";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-4xl border border-border bg-card p-6 ${className}`}>
+    <div className={`rounded-3xl border border-border bg-card p-4 sm:rounded-4xl sm:p-6 ${className}`}>
       {children}
     </div>
   );
@@ -41,7 +41,7 @@ function Badge({
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap ${colors[tone]}`}
     >
       {label}
     </span>
@@ -239,12 +239,12 @@ function EventModal({ event, onClose }: { event: LoginEvent; onClose: () => void
   const { date, time } = formatDateTime(event.date);
   return (
     <div
-      className="fixed inset-0 z-[900] flex items-end justify-center bg-foreground/20 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-[900] flex items-end justify-center bg-foreground/20 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-t-4xl border border-border bg-card p-6 sm:rounded-4xl">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-4xl border border-border bg-card p-5 sm:max-h-none sm:rounded-4xl sm:p-6">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Login Event
             </p>
@@ -252,7 +252,7 @@ function EventModal({ event, onClose }: { event: LoginEvent; onClose: () => void
           </div>
           <button
             onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/70"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/70"
           >
             <X className="size-4" />
           </button>
@@ -267,7 +267,7 @@ function EventModal({ event, onClose }: { event: LoginEvent; onClose: () => void
           }`}
         >
           <div
-            className={`grid size-9 place-items-center rounded-xl ${
+            className={`grid size-9 shrink-0 place-items-center rounded-xl ${
               event.status === "success" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
             }`}
           >
@@ -277,7 +277,7 @@ function EventModal({ event, onClose }: { event: LoginEvent; onClose: () => void
               <ShieldAlert className="size-5" />
             )}
           </div>
-          <div>
+          <div className="min-w-0">
             <p
               className={`text-sm font-semibold ${
                 event.status === "success" ? "text-success" : "text-destructive"
@@ -302,10 +302,10 @@ function EventModal({ event, onClose }: { event: LoginEvent; onClose: () => void
           ].map(([k, v]) => (
             <div
               key={k}
-              className="flex items-center justify-between border-b border-border px-4 py-3 last:border-none"
+              className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-none"
             >
-              <span className="text-xs text-muted-foreground">{k}</span>
-              <span className="text-right text-sm font-medium text-foreground">{v}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{k}</span>
+              <span className="truncate text-right text-sm font-medium text-foreground">{v}</span>
             </div>
           ))}
           <div className="flex items-center justify-between px-4 py-3">
@@ -382,15 +382,15 @@ export default function LoginHistoryPage() {
 
   return (
     <UserShell active="Login History">
-      <div className="relative overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
-        <div className="mx-auto max-w-3xl space-y-6">
+      <div className="relative overflow-y-auto px-4 py-5 sm:px-7 sm:py-8">
+        <div className="mx-auto max-w-3xl space-y-5 sm:space-y-6">
 
           {/* Header */}
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
               Account
             </p>
-            <h1 className="mt-2 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            <h1 className="mt-2 text-lg font-semibold tracking-tight text-foreground sm:text-xl md:text-2xl">
               Login History
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -399,17 +399,17 @@ export default function LoginHistoryPage() {
           </div>
 
           {/* Summary stat strip */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {[
               { label: "Total Logins",    value: LOGIN_HISTORY.length, tone: "" },
               { label: "Successful",      value: successCount,         tone: "text-success" },
               { label: "Suspicious",      value: flaggedCount,         tone: "text-destructive" },
             ].map(({ label, value, tone }) => (
-              <Card key={label} className="p-4">
-                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+              <Card key={label} className="p-3 sm:p-4">
+                <p className="truncate text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground sm:text-[11px] sm:tracking-[0.12em]">
                   {label}
                 </p>
-                <p className={`mt-1.5 text-2xl font-semibold ${tone || "text-foreground"}`}>
+                <p className={`mt-1 text-lg font-semibold sm:mt-1.5 sm:text-2xl ${tone || "text-foreground"}`}>
                   {value}
                 </p>
               </Card>
@@ -418,20 +418,22 @@ export default function LoginHistoryPage() {
 
           {/* Flagged warning */}
           {flaggedCount > 0 && (
-            <div className="flex items-start gap-3 rounded-2xl border border-border bg-destructive/5 p-4">
-              <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  {flaggedCount} suspicious login{flaggedCount > 1 ? "s" : ""} detected
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  We detected logins from unfamiliar locations. If you don&apos;t recognise these,
-                  change your password and enable 2FA immediately.
-                </p>
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-destructive/5 p-4 sm:flex-row sm:items-start">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">
+                    {flaggedCount} suspicious login{flaggedCount > 1 ? "s" : ""} detected
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    We detected logins from unfamiliar locations. If you don&apos;t recognise these,
+                    change your password and enable 2FA immediately.
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowFlaggedOnly((v) => !v)}
-                className={`shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                className={`shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-semibold transition-colors sm:self-start ${
                   showFlaggedOnly
                     ? "bg-foreground text-background"
                     : "bg-muted text-foreground hover:bg-muted/70"
@@ -464,22 +466,24 @@ export default function LoginHistoryPage() {
               )}
             </div>
 
-            {/* Sort */}
-            <button
-              onClick={() => setSortDesc((v) => !v)}
-              className="flex items-center gap-1.5 rounded-2xl border border-border px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
-            >
-              <ChevronDown
-                className={`size-3.5 transition-transform ${sortDesc ? "" : "rotate-180"}`}
-              />
-              {sortDesc ? "Newest First" : "Oldest First"}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Sort */}
+              <button
+                onClick={() => setSortDesc((v) => !v)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground sm:flex-none"
+              >
+                <ChevronDown
+                  className={`size-3.5 shrink-0 transition-transform ${sortDesc ? "" : "rotate-180"}`}
+                />
+                <span className="whitespace-nowrap">{sortDesc ? "Newest First" : "Oldest First"}</span>
+              </button>
 
-            {/* Export */}
-            <button className="flex items-center gap-1.5 rounded-2xl border border-border px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground">
-              <Download className="size-3.5" />
-              Export CSV
-            </button>
+              {/* Export */}
+              <button className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground sm:flex-none">
+                <Download className="size-3.5 shrink-0" />
+                <span className="whitespace-nowrap">Export CSV</span>
+              </button>
+            </div>
           </div>
 
           {/* Status filter tabs */}
@@ -537,7 +541,7 @@ export default function LoginHistoryPage() {
                   return (
                     <div
                       key={event.id}
-                      className={`flex items-center justify-between rounded-2xl border p-3.5 transition-colors ${
+                      className={`flex flex-col gap-3 rounded-2xl border p-3.5 transition-colors xs:flex-row xs:items-center xs:justify-between ${
                         event.flagged ? "border-destructive/30 bg-destructive/5" : "border-border"
                       }`}
                     >
@@ -555,15 +559,15 @@ export default function LoginHistoryPage() {
                             </span>
                             <Badge label={statusLabel(event.status)} tone={statusTone(event.status)} />
                             {event.flagged && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
                                 <ShieldAlert className="size-2.5" />
                                 Suspicious
                               </span>
                             )}
                           </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
-                              <Globe className="size-3" />
+                              <Globe className="size-3 shrink-0" />
                               {event.location}
                             </span>
                             <span className="hidden sm:inline">·</span>
@@ -575,9 +579,11 @@ export default function LoginHistoryPage() {
                       </div>
 
                       {/* Right side */}
-                      <div className="ml-3 flex shrink-0 flex-col items-end gap-1.5">
-                        <span className="text-[11px] text-muted-foreground">{date}</span>
-                        <span className="text-[11px] font-medium text-foreground">{time}</span>
+                      <div className="ml-12 flex shrink-0 items-center justify-between gap-3 xs:ml-3 xs:flex-col xs:items-end xs:gap-1.5">
+                        <div className="flex items-center gap-2 xs:flex-col xs:items-end xs:gap-1.5">
+                          <span className="text-[11px] text-muted-foreground">{date}</span>
+                          <span className="text-[11px] font-medium text-foreground">{time}</span>
+                        </div>
                         <button
                           onClick={() => setModalEvent(event)}
                           className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
