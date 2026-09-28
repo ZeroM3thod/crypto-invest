@@ -8,9 +8,11 @@ function diceBearGlassUrl(seed: string) {
 export function AccountDot({
   account,
   size = 28,
+  className,
 }: {
   account: Account;
   size?: number;
+  className?: string;
 }) {
   return (
     <img
@@ -19,6 +21,7 @@ export function AccountDot({
       style={{ width: size, height: size }}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full bg-muted object-cover",
+        className,
       )}
     />
   );

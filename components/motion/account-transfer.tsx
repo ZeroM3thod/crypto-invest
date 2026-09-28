@@ -61,12 +61,14 @@ export function AccountTransfer({
   return (
     <div
       className={cn(
-        "relative isolate w-full max-w-[420px] overflow-hidden rounded-3xl",
+        // Fluid width: full on phones, grows gently on larger screens.
+        "relative isolate mx-auto w-full overflow-hidden rounded-2xl sm:rounded-3xl",
+        "max-w-full sm:max-w-[460px] md:max-w-[520px] lg:max-w-[560px]",
         "border border-border/20 bg-card",
         className,
       )}
     >
-      <div className="flex flex-col gap-1.5 rounded-2xl border border-border/40 p-4">
+      <div className="flex flex-col gap-1.5 rounded-xl border border-border/40 p-3 sm:gap-2 sm:rounded-2xl sm:p-4 md:p-5">
         <Field
           side="from"
           account={from}
