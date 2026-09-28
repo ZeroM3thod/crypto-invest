@@ -42,7 +42,7 @@ interface MilestoneTier {
 
 /* Placeholder data — wire these to your real API/backend later */
 const REFERRAL_CODE = "HASAN2026";
-const REFERRAL_LINK = `https://valutx.com/join?ref=${REFERRAL_CODE}`;
+const REFERRAL_LINK = `https://MULTIMOD.com/join?ref=${REFERRAL_CODE}`;
 
 const COMMISSION_RATE = 0.05;
 
