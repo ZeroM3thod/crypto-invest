@@ -66,13 +66,7 @@ export function AccountTransfer({
         className,
       )}
     >
-      <div className="flex h-12 items-center justify-between border-b border-border/50 px-3">
-        <span className="px-2 text-sm font-semibold tracking-tight text-foreground">
-          Transfer
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-1.5 p-4">
+      <div className="flex flex-col gap-1.5 rounded-2xl border border-border/40 p-4">
         <Field
           side="from"
           account={from}

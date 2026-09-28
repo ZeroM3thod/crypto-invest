@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 import { SPRING_PANEL } from "@/lib/ease";
 import { cn } from "@/lib/utils";
 import { EASE } from "./constants";
@@ -27,17 +27,6 @@ export function AccountPicker({
   onClose: () => void;
   reduce: boolean;
 }) {
-  const [q, setQ] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    requestAnimationFrame(() => {
-      setQ("");
-      inputRef.current?.focus({ preventScroll: true });
-    });
-  }, [open]);
-
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -46,10 +35,6 @@ export function AccountPicker({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
-
-  const filtered = accounts.filter((a) =>
-    a.name.toLowerCase().includes(q.trim().toLowerCase()),
-  );
 
   return (
     <AnimatePresence>
@@ -82,15 +67,7 @@ export function AccountPicker({
               <span className="h-1 w-9 rounded-full bg-muted" />
             </div>
 
-            <div className="flex items-center gap-2 border-b border-border px-4 pb-3">
-              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <input
-                ref={inputRef}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search account"
-                className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
-              />
+            <div className="flex items-center justify-end border-b border-border px-4 pb-3">
               <button
                 type="button"
                 onClick={onClose}
@@ -103,12 +80,12 @@ export function AccountPicker({
 
             <div className="flex-1 overflow-y-auto px-3 pb-4 pt-3">
               <ul className="flex flex-col gap-0.5">
-                {filtered.length === 0 ? (
+                {accounts.length === 0 ? (
                   <li className="py-8 text-center text-xs text-muted-foreground">
                     No accounts found
                   </li>
                 ) : null}
-                {filtered.map((a) => {
+                {accounts.map((a) => {
                   const active = a.id === selectedId;
                   return (
                     <li key={a.id}>

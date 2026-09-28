@@ -1,11 +1,10 @@
 "use client";
 
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { ArrowDownUp } from "lucide-react";
-import { SPRING_PRESS } from "@/lib/ease";
 import { cn } from "@/lib/utils";
+import { SlideActionButton } from "@/components/motion/slide-action-button";
 import type { Account } from "./types";
-import { EASE } from "./constants";
 
 export function FlipButton({
   rotation,
@@ -52,35 +51,25 @@ export function ActionButton({
     : sameAccount
       ? "Choose a different account"
       : overBalance
-        ? `Insufficient balance`
-        : `Transfer to ${to.name}`;
+        ? "Insufficient balance"
+        : `Slide to transfer to ${to.name}`;
   const disabled = noAmount || overBalance || sameAccount;
 
   return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      whileTap={disabled ? undefined : { scale: 0.97 }}
-      transition={SPRING_PRESS}
-      disabled={disabled}
+    <SlideActionButton
+      completeLabel="Sent"
+      onComplete={() => {
+        if (disabled) return;
+        onClick?.();
+      }}
       className={cn(
-        "mt-3 inline-flex h-12 w-full items-center justify-center rounded-2xl text-sm font-semibold transition-colors",
-        disabled
-          ? "cursor-not-allowed bg-muted text-muted-foreground"
-          : "bg-primary text-primary-foreground hover:bg-primary/90",
+        "mt-3 w-full bg-white/10",
+        disabled && "pointer-events-none opacity-50",
       )}
+      thumbClassName="bg-white text-black"
+      fillClassName="bg-white"
     >
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span
-          key={label}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.14, ease: EASE }}
-        >
-          {label}
-        </motion.span>
-      </AnimatePresence>
-    </motion.button>
+      {label}
+    </SlideActionButton>
   );
 }
