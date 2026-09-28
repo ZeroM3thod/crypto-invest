@@ -14,11 +14,20 @@ import {
   ShieldCheck,
   PackageCheck,
   RadioTower,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "motion/react";
 import { BouncyAccordion } from "@/components/motion/bouncy-accordion";
 import { Table } from "@/components/motion/table";
 import { StatefulButton, type ButtonState } from "@/components/motion/button";
+import { SlideActionButton } from "@/components/motion/slide-action-button";
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+const fmt = (n: number) =>
+  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // ── Shared primitives ────────────────────────────────────────────────────
 
@@ -114,6 +123,8 @@ type Strategy = {
   currentProfit?: number;
 };
 
+const AI_TRADING_BALANCE = 1820.3;
+
 const STRATEGIES: Strategy[] = [
   {
     id: "s1",
@@ -165,14 +176,303 @@ const STRATEGIES: Strategy[] = [
   },
 ];
 
-function StrategyCard({ strategy }: { strategy: Strategy }) {
+// ── Invest dialog ────────────────────────────────────────────────────────
+
+function InvestDialogContent({
+  strategy,
+  balance,
+  onClose,
+  onConfirm,
+}: {
+  strategy: Strategy;
+  balance: number;
+  onClose: () => void;
+  onConfirm: (amount: number) => void;
+}) {
+  const [amount, setAmount] = useState(String(strategy.minStake));
+  const [done, setDone] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const sliderWrapRef = useRef<HTMLDivElement>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const value = parseFloat(amount);
+  const maxAmount = Math.floor(balance);
+
+  let error: string | null = null;
+  if (!amount || Number.isNaN(value) || value <= 0) error = "Enter an amount to invest";
+  else if (value < strategy.minStake) error = `Minimum stake is $${fmt(strategy.minStake)}`;
+  else if (value > balance) error = "Amount exceeds your AI Trading balance";
+  const valid = error === null;
+
+  const unlockDate = new Date(Date.now() + strategy.lockDays * 24 * 60 * 60 * 1000);
+  const unlockLabel = unlockDate.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const quickAmounts = [
+    { label: "Min", value: strategy.minStake },
+    { label: "2×", value: strategy.minStake * 2 },
+    { label: "5×", value: strategy.minStake * 5 },
+    { label: "Max", value: maxAmount },
+  ].filter((q) => q.value >= strategy.minStake && q.value <= balance);
+
+  // Focus input on open
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  // Escape to close + lock body scroll
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !done) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [done, onClose]);
+
+  // Block the slider (pointer + keyboard) until the amount is valid
+  useEffect(() => {
+    const el = sliderWrapRef.current;
+    if (!el) return;
+    if (valid) el.removeAttribute("inert");
+    else el.setAttribute("inert", "");
+  }, [valid]);
+
+  useEffect(
+    () => () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    },
+    [],
+  );
+
+  const handleComplete = () => {
+    if (!valid || done) return;
+    setDone(true);
+    // Let the "Invested" state show briefly before closing
+    confirmTimerRef.current = setTimeout(() => onConfirm(value), 900);
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={() => {
+          if (!done) onClose();
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Panel */}
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="invest-dialog-title"
+        className="relative w-full max-w-md rounded-t-4xl border border-border bg-card p-6 shadow-xl sm:rounded-4xl"
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24, scale: 0.97 }}
+        transition={{ type: "spring", stiffness: 380, damping: 32 }}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-foreground/5 text-foreground">
+              <Bot className="size-4" />
+            </div>
+            <div>
+              <h3 id="invest-dialog-title" className="text-sm font-semibold text-card-foreground">
+                Invest in {strategy.name}
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                {strategy.exchange} · min ${fmt(strategy.minStake)}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={done}
+            aria-label="Close"
+            className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Amount input */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor="invest-amount"
+              className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+            >
+              Amount (USDT)
+            </label>
+            <span className="text-[11px] text-muted-foreground">
+              Available: <span className="font-medium text-foreground">${fmt(balance)}</span>
+            </span>
+          </div>
+
+          <div
+            className={`mt-2 flex items-center gap-2 rounded-2xl border bg-background px-4 py-3 transition-colors focus-within:ring-2 focus-within:ring-ring ${
+              error && amount ? "border-destructive/60" : "border-border"
+            }`}
+          >
+            <span className="text-lg font-semibold text-muted-foreground">$</span>
+            <input
+              ref={inputRef}
+              id="invest-amount"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="0.00"
+              value={amount}
+              disabled={done}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (/^\d*\.?\d{0,2}$/.test(next)) setAmount(next);
+              }}
+              aria-invalid={!valid}
+              aria-describedby="invest-amount-help"
+              className="w-full bg-transparent text-lg font-semibold text-foreground outline-none placeholder:text-muted-foreground/50 disabled:opacity-60"
+            />
+          </div>
+
+          <p
+            id="invest-amount-help"
+            className={`mt-2 min-h-4 text-xs font-medium ${error ? "text-destructive" : "text-muted-foreground"}`}
+          >
+            {error ?? "You can withdraw once the lock period ends."}
+          </p>
+
+          {/* Quick picks */}
+          {quickAmounts.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {quickAmounts.map((q) => (
+                <button
+                  key={q.label}
+                  type="button"
+                  disabled={done}
+                  onClick={() => setAmount(String(q.value))}
+                  className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                >
+                  {q.label}
+                  <span className="ml-1 text-muted-foreground">${fmt(q.value)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Summary */}
+        <div className="mt-5 space-y-2 rounded-2xl bg-background p-3">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Lock period</span>
+            <span className="font-medium text-foreground">{strategy.lockDays} days</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Withdrawal opens</span>
+            <span className="font-medium text-foreground">{unlockLabel}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Historical ROI</span>
+            <span className="font-medium text-success">+{strategy.roiPct.toFixed(1)}%</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Balance after</span>
+            <span className="font-medium text-foreground">
+              ${fmt(valid ? balance - value : balance)}
+            </span>
+          </div>
+        </div>
+
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Your stake is locked for {strategy.lockDays} days from today. Past performance does not
+          guarantee future results.
+        </p>
+
+        {/* Slide to confirm */}
+        <div
+          ref={sliderWrapRef}
+          className={`mt-5 transition-opacity ${valid ? "opacity-100" : "opacity-50"}`}
+        >
+          <SlideActionButton
+            className="w-full"
+            completeLabel="Invested"
+            resetDelay={5000}
+            onComplete={handleComplete}
+          >
+            {`Slide to invest $${valid ? fmt(value) : "0.00"}`}
+          </SlideActionButton>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function InvestDialog({
+  strategy,
+  balance,
+  onClose,
+  onConfirm,
+}: {
+  strategy: Strategy | null;
+  balance: number;
+  onClose: () => void;
+  onConfirm: (strategy: Strategy, amount: number) => void;
+}) {
+  // Portal target only exists on the client
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {strategy && (
+        <InvestDialogContent
+          key={strategy.id}
+          strategy={strategy}
+          balance={balance}
+          onClose={onClose}
+          onConfirm={(amount) => onConfirm(strategy, amount)}
+        />
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+// ── Strategy card ────────────────────────────────────────────────────────
+
+function StrategyCard({
+  strategy,
+  onInvest,
+}: {
+  strategy: Strategy;
+  onInvest: (strategy: Strategy) => void;
+}) {
   const isLocked = strategy.status === "running";
   const isUnlocked = strategy.status === "unlocked";
   const isEmpty = strategy.status === "not-invested";
   const daysLeft = Math.max(0, strategy.lockDays - strategy.daysElapsed);
   const [state, setState] = useState<ButtonState>("idle");
 
-  const runAction = async () => {
+  const runWithdraw = async () => {
     if (state === "loading") return;
     setState("loading");
     await new Promise((r) => setTimeout(r, 800));
@@ -244,8 +544,8 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
           <StatefulButton
             className="h-10 w-full text-xs"
             variant="success"
-            state={state}
-            onClick={runAction}
+            state="idle"
+            onClick={() => onInvest(strategy)}
           >
             Invest from ${strategy.minStake}
           </StatefulButton>
@@ -264,7 +564,7 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
             className="h-10 w-full text-xs"
             variant="destructive"
             state={state}
-            onClick={runAction}
+            onClick={runWithdraw}
           >
             Withdraw
           </StatefulButton>
@@ -307,9 +607,28 @@ const AI_TRADE_COLUMNS = [
 
 export default function AiTradingPage() {
   const loading = false;
-  const totalInvested = STRATEGIES.reduce((sum, s) => sum + (s.invested ?? 0), 0);
-  const totalProfit = STRATEGIES.reduce((sum, s) => sum + (s.currentProfit ?? 0), 0);
-  const activeCount = STRATEGIES.filter((s) => s.status !== "not-invested").length;
+
+  const [strategies, setStrategies] = useState<Strategy[]>(STRATEGIES);
+  const [balance, setBalance] = useState(AI_TRADING_BALANCE);
+  const [investing, setInvesting] = useState<Strategy | null>(null);
+
+  const totalInvested = strategies.reduce((sum, s) => sum + (s.invested ?? 0), 0);
+  const totalProfit = strategies.reduce((sum, s) => sum + (s.currentProfit ?? 0), 0);
+  const activeCount = strategies.filter((s) => s.status !== "not-invested").length;
+
+  // TODO: replace with your real API call (e.g. POST /api/ai-trading/invest)
+  // and only update local state after it succeeds.
+  const handleInvest = (strategy: Strategy, amount: number) => {
+    setStrategies((prev) =>
+      prev.map((s) =>
+        s.id === strategy.id
+          ? { ...s, status: "running", invested: amount, currentProfit: 0, daysElapsed: 0 }
+          : s,
+      ),
+    );
+    setBalance((b) => Math.round((b - amount) * 100) / 100);
+    setInvesting(null);
+  };
 
   return (
     <UserShell active="AI Trading">
@@ -327,7 +646,7 @@ export default function AiTradingPage() {
         <section aria-label="AI Trading Summary">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Card>
-              <Stat label="AI Trading Balance" value="$1,820.30" icon={<Wallet className="size-3.5" />} loading={loading} />
+              <Stat label="AI Trading Balance" value={`$${fmt(balance)}`} icon={<Wallet className="size-3.5" />} loading={loading} />
             </Card>
             <Card>
               <Stat label="Total Invested" value={`$${totalInvested.toFixed(2)}`} icon={<Bot className="size-3.5" />} loading={loading} />
@@ -350,8 +669,8 @@ export default function AiTradingPage() {
         <section aria-label="Strategies">
           <SectionHeader title="Strategies" />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {STRATEGIES.map((s) => (
-              <StrategyCard key={s.id} strategy={s} />
+            {strategies.map((s) => (
+              <StrategyCard key={s.id} strategy={s} onInvest={setInvesting} />
             ))}
           </div>
           <p className="mt-3 text-[11px] text-muted-foreground">
@@ -401,6 +720,14 @@ export default function AiTradingPage() {
 
         <div className="h-20" />
       </div>
+
+      {/* ── Invest dialog ───────────────────────────────── */}
+      <InvestDialog
+        strategy={investing}
+        balance={balance}
+        onClose={() => setInvesting(null)}
+        onConfirm={handleInvest}
+      />
     </UserShell>
   );
 }
