@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 import { BouncyAccordion } from "@/components/motion/bouncy-accordion";
 import { WalletCard } from "@/components/motion/wallet-card";
+import { useRouter } from "next/navigation";
 import {
   ReturnsCalendar,
   ReturnsCalendarGrid,
@@ -130,8 +131,6 @@ const WALLET_ACCOUNTS = [
   { id: "trading",    name: "Trading Wallet",     address: "0x1a2B3c4D5e6F7a8B9c0D1e2F3a4B5c6D7e8F9a0B" },
   { id: "refer",      name: "Referral Wallet",    address: "0x9F8e7D6c5B4a3E2d1C0b9A8f7E6d5C4b3A2e1F0d" },
 ];
-
-const RECENT_SEARCHES = ["vitalik.eth", "0xA0b8…6EB4", "Uniswap", "Send to Trading"];
 
 // ── Recent Transactions data ────────────────────────────────────────────────
 
@@ -492,6 +491,7 @@ function ActivityOverviewTabs() {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [walletBalance] = useState(12480.32);
   const loading = false;
 
@@ -516,8 +516,8 @@ export default function DashboardPage() {
               accounts={WALLET_ACCOUNTS}
               balance={walletBalance}
               defaultChange={124.5}
-              searchRecent={RECENT_SEARCHES}
               hasNotifications
+              onNotifications={() => router.push("/community/announcements")}
               onDeposit={() => {}}
               onWithdraw={() => {}}
               onTransfer={() => {}}

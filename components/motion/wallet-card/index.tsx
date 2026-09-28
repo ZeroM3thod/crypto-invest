@@ -9,17 +9,15 @@ import { cn } from "@/lib/utils";
 import { AccountSwitcher } from "./account-switcher";
 import { WalletActions } from "./actions";
 import { BalanceDelta } from "./balance-delta";
-import { SearchBar } from "./search-bar";
 import type { WalletCardProps } from "./types";
 
 export type { WalletAccount, WalletCardProps } from "./types";
 
 /**
  * Composed wallet overview card: an account switcher whose trigger morphs open
- * into a full-width panel, a search icon that morphs into a search bar, a
- * rolling balance with a transient change indicator, and Send / Deposit
- * actions. Actions and search are plain callbacks — the resulting flow is left
- * to the consumer.
+ * into a full-width panel, a rolling balance with a transient change
+ * indicator, and Send / Deposit actions. Actions are plain callbacks — the
+ * resulting flow is left to the consumer.
  */
 export function WalletCard({
   accounts,
@@ -34,10 +32,6 @@ export function WalletCard({
   onWithdraw,
   onTransfer,
   onInvest,
-  searchPlaceholder,
-  searchRecent,
-  onSearchChange,
-  onSearchSubmit,
   hasNotifications = false,
   onNotifications,
   className,
@@ -78,12 +72,6 @@ export function WalletCard({
         />
 
         <div className="flex shrink-0 items-center gap-1">
-          <SearchBar
-            placeholder={searchPlaceholder}
-            recent={searchRecent}
-            onChange={onSearchChange}
-            onSubmit={onSearchSubmit}
-          />
           <Button
             variant="ghost"
             size="icon"

@@ -20,10 +20,6 @@ export interface WalletCardProps {
   onWithdraw?: () => void;
   onTransfer?: () => void;
   onInvest?: () => void;
-  searchPlaceholder?: string;
-  searchRecent?: string[];
-  onSearchChange?: (value: string) => void;
-  onSearchSubmit?: (value: string) => void;
   hasNotifications?: boolean;
   onNotifications?: () => void;
   className?: string;
