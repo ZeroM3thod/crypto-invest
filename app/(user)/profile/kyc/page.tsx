@@ -36,7 +36,7 @@ import {
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-4xl border border-border bg-card p-6 ${className}`}>
+    <div className={`min-w-0 rounded-3xl border border-border bg-card p-4 sm:rounded-4xl sm:p-6 ${className}`}>
       {children}
     </div>
   );
@@ -44,13 +44,13 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
 
 function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "destructive" | "muted" }) {
   const colors: Record<string, string> = {
-    default:     "bg-primary/10 text-primary",
+    default:     "bg-foreground/10 text-foreground",
     success:     "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
     muted:       "bg-muted text-muted-foreground",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}>
+    <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[tone]}`}>
       {label}
     </span>
   );
@@ -66,13 +66,13 @@ function SectionHeader({ title }: { title: string }) {
 
 // ── Button styles (same feel as the dashboard's PANEL_BTN) ──────────────────
 
-const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-foreground/60";
 const BTN_PRIMARY =
-  `flex flex-1 items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-3 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS}`;
+  `flex flex-1 items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-3 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm ${FOCUS}`;
 const BTN_VERIFY =
-  `flex flex-1 items-center justify-center gap-2 rounded-xl bg-success px-4 py-3 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS}`;
+  `flex flex-1 items-center justify-center gap-2 rounded-xl bg-success px-4 py-3 text-xs font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm ${FOCUS}`;
 const BTN_SECONDARY =
-  `flex items-center justify-center gap-2 rounded-xl bg-muted px-4 py-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 ${FOCUS}`;
+  `flex items-center justify-center gap-2 rounded-xl bg-muted px-4 py-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 sm:text-sm ${FOCUS}`;
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
@@ -234,7 +234,7 @@ function useObjectUrl(file: File | null) {
 // ── Form fields ─────────────────────────────────────────────────────────────
 
 const inputCls = (error?: string, readOnly?: boolean) =>
-  `w-full rounded-xl border px-3.5 py-2.5 text-sm text-foreground transition-colors placeholder:text-muted-foreground ${FOCUS} ${
+  `w-full min-w-0 rounded-xl border px-3.5 py-2.5 text-base text-foreground sm:text-sm transition-colors placeholder:text-muted-foreground ${FOCUS} ${
     error ? "border-destructive" : "border-border"
   } ${readOnly ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-background"}`;
 
@@ -379,7 +379,7 @@ function CountrySelect({
               id="country-listbox"
               role="listbox"
               aria-label="Countries"
-              className="absolute left-0 right-0 top-full z-20 mt-2 max-h-56 overflow-y-auto rounded-2xl border border-border bg-card p-1 shadow-lg"
+              className="absolute left-0 right-0 top-full z-20 mt-2 max-h-52 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-1 shadow-lg sm:max-h-56"
             >
               {results.length === 0 ? (
                 <li className="px-3 py-3 text-sm text-muted-foreground">No countries found</li>
@@ -410,13 +410,13 @@ function CountrySelect({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className={`flex w-full items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/5 px-3.5 py-2.5 text-left transition-colors hover:bg-primary/10 ${FOCUS}`}
+            className={`flex w-full items-center justify-between gap-3 rounded-xl border border-foreground/30 bg-muted/40 px-3.5 py-2.5 text-left transition-colors hover:bg-muted ${FOCUS}`}
           >
-            <span className="flex items-center gap-3 text-sm font-medium text-foreground">
+            <span className="flex min-w-0 items-center gap-3 text-sm font-medium text-foreground">
               <CountryChip code={value.code} />
-              {value.name}
+              <span className="truncate">{value.name}</span>
             </span>
-            <span className="flex items-center gap-1 text-xs font-medium text-primary">
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-foreground">
               Change
               <ChevronDown aria-hidden="true" className="size-3.5" />
             </span>
@@ -462,10 +462,10 @@ function UploadZone({
   const state = file
     ? "border-solid border-success/50 bg-success/5"
     : drag
-      ? "border-dashed border-primary bg-primary/5"
+      ? "border-dashed border-foreground bg-muted"
       : error
         ? "border-dashed border-destructive/60 bg-muted/40"
-        : "border-dashed border-border bg-muted/40 hover:border-primary/50";
+        : "border-dashed border-border bg-muted/40 hover:border-foreground/50";
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -488,7 +488,7 @@ function UploadZone({
           if (f) onSelect(f);
         }}
         className={`relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border-2 px-4 text-center transition-colors ${
-          isSelfie ? "py-10" : "py-8"
+          isSelfie ? "py-8 sm:py-10" : "py-6 sm:py-8"
         } ${state}`}
       >
         <input
@@ -511,8 +511,8 @@ function UploadZone({
                 alt={`${title} preview`}
                 className={
                   isSelfie
-                    ? "size-28 rounded-full border-2 border-success object-cover"
-                    : "max-h-32 w-full rounded-xl border border-border object-cover"
+                    ? "size-24 rounded-full border-2 border-success object-cover sm:size-28"
+                    : "max-h-28 w-full rounded-xl border border-border object-cover sm:max-h-32"
                 }
               />
             ) : (
@@ -538,7 +538,7 @@ function UploadZone({
           </>
         ) : (
           <>
-            <div className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
+            <div className="grid size-10 place-items-center rounded-xl bg-foreground/10 text-foreground">
               {isSelfie ? <Camera aria-hidden="true" className="size-5" /> : <Upload aria-hidden="true" className="size-5" />}
             </div>
             <p className="text-sm font-medium text-foreground">{title}</p>
@@ -559,7 +559,7 @@ function UploadZone({
 
 function Guidelines({ title, dos, donts }: { title: string; dos: string[]; donts: string[] }) {
   return (
-    <div className="rounded-2xl bg-muted p-5">
+    <div className="rounded-2xl bg-muted p-4 sm:p-5">
       <p className="mb-3 text-xs font-semibold text-foreground">{title}</p>
       <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
         {dos.map((text) => (
@@ -589,40 +589,64 @@ function Progress({ step }: { step: number }) {
   const ratio = step / (STEPS.length - 1);
   return (
     <nav aria-label="KYC progress">
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between sm:mb-5">
         <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
           Step {step + 1} of {STEPS.length}
         </p>
         <p className="text-xs font-semibold text-foreground">{Math.round(ratio * 100)}%</p>
       </div>
-      <ol className="relative flex items-start justify-between sm:pb-6">
-        <span aria-hidden="true" className="absolute left-4 right-4 top-4 h-px bg-border" />
-        <span
-          aria-hidden="true"
-          className="absolute left-4 top-4 h-px bg-primary transition-[width] duration-500"
-          style={{ width: `calc((100% - 2rem) * ${ratio})` }}
-        />
+
+      {/* Mobile: current step name + slim segmented bar */}
+      <div className="sm:hidden">
+        <p className="mb-3 text-sm font-semibold text-foreground">{STEPS[step]}</p>
+        <div className="flex gap-1.5" aria-hidden="true">
+          {STEPS.map((label, i) => (
+            <span
+              key={label}
+              className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
+                i <= step ? "bg-foreground" : "bg-border"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Tablet + desktop: numbered stepper with connectors between circles */}
+      <ol className="hidden items-start sm:flex">
         {STEPS.map((label, i) => {
           const done = i < step;
           const current = i === step;
+          const last = i === STEPS.length - 1;
           return (
-            <li key={label} className="relative w-8" aria-current={current ? "step" : undefined}>
-              <span
-                className={`relative z-10 grid size-8 place-items-center rounded-full text-xs font-semibold transition-colors ${
-                  current
-                    ? "bg-foreground text-background"
-                    : done
-                      ? "bg-primary/10 text-primary"
-                      : "border border-border bg-card text-muted-foreground"
-                }`}
-              >
-                {done ? <Check aria-hidden="true" className="size-4" /> : i + 1}
-                <span className="sr-only">{`${label}${done ? " (completed)" : current ? " (current)" : ""}`}</span>
-              </span>
+            <li
+              key={label}
+              aria-current={current ? "step" : undefined}
+              className={`flex min-w-0 flex-col items-center ${last ? "" : "flex-1"}`}
+            >
+              <div className="flex w-full items-center">
+                <span
+                  className={`grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold transition-colors ${
+                    current
+                      ? "bg-foreground text-background"
+                      : done
+                        ? "bg-foreground text-background"
+                        : "border border-border bg-card text-muted-foreground"
+                  }`}
+                >
+                  {done ? <Check aria-hidden="true" className="size-4" /> : i + 1}
+                  <span className="sr-only">{`${label}${done ? " (completed)" : current ? " (current)" : ""}`}</span>
+                </span>
+                {!last && (
+                  <span
+                    aria-hidden="true"
+                    className={`mx-2 h-px flex-1 transition-colors duration-500 ${done ? "bg-foreground" : "bg-border"}`}
+                  />
+                )}
+              </div>
               <span
                 aria-hidden="true"
-                className={`absolute left-1/2 top-full mt-2 hidden -translate-x-1/2 whitespace-nowrap text-[11px] font-medium sm:block ${
-                  current ? "text-foreground" : done ? "text-primary" : "text-muted-foreground"
+                className={`mt-2 self-start text-[11px] font-medium leading-tight ${
+                  current ? "text-foreground" : done ? "text-foreground/70" : "text-muted-foreground"
                 }`}
               >
                 {label}
@@ -639,8 +663,8 @@ function Progress({ step }: { step: number }) {
 
 function StepHeader({ title, description }: { title: string; description: string }) {
   return (
-    <div className="mb-6">
-      <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+    <div className="mb-5 sm:mb-6">
+      <h2 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">{title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{description}</p>
     </div>
   );
@@ -773,12 +797,12 @@ export default function KycPage() {
 
   return (
     <UserShell active="KYC Verification">
-      <div className="space-y-8 overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
+      <div className="mx-auto w-full max-w-7xl space-y-6 overflow-x-hidden overflow-y-auto px-4 py-5 sm:space-y-8 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
 
         {/* ── Header ────────────────────────────────────── */}
         <div ref={topRef} className="scroll-mt-6">
           <p className="text-xs font-medium text-muted-foreground">Profile</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl lg:text-3xl">
             Verify your identity
           </h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
@@ -786,10 +810,10 @@ export default function KycPage() {
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-5 sm:gap-6 lg:grid-cols-3">
 
           {/* ── Main flow ─────────────────────────────── */}
-          <div className="space-y-6 lg:col-span-2">
+          <div className="min-w-0 space-y-5 sm:space-y-6 lg:col-span-2">
             <section aria-label="Progress">
               <Card>
                 <Progress step={step} />
@@ -797,7 +821,7 @@ export default function KycPage() {
             </section>
 
             <section aria-label="Verification form">
-              <Card className="sm:p-8">
+              <Card className="sm:p-6 lg:p-8">
 
                 {/* Step 0 — Country */}
                 {step === 0 && (
@@ -806,7 +830,7 @@ export default function KycPage() {
                       title="Where was your ID issued?"
                       description="Select the country of the document you'll upload."
                     />
-                    <div className="min-h-64">
+                    <div className="min-h-56 sm:min-h-64">
                       <CountrySelect
                         value={country}
                         error={errors.country}
@@ -826,7 +850,7 @@ export default function KycPage() {
                       title="Choose your document"
                       description="Pick one government-issued ID. It must be valid and in your name."
                     />
-                    <div role="group" aria-label="Document type" className="grid gap-3 sm:grid-cols-3">
+                    <div role="group" aria-label="Document type" className="grid gap-3 md:grid-cols-3">
                       {DOC_TYPES.map(({ id, label, description, icon: Icon }) => {
                         const selected = docType === id;
                         return (
@@ -839,25 +863,25 @@ export default function KycPage() {
                               clearError("docType");
                               if (id === "passport") clearFile("back");
                             }}
-                            className={`relative flex flex-col items-center gap-3 rounded-2xl border p-5 text-center transition-colors ${FOCUS} ${
+                            className={`relative flex flex-row items-center gap-4 rounded-2xl border p-4 text-left transition-colors md:flex-col md:gap-3 md:p-5 md:text-center ${FOCUS} ${
                               selected
-                                ? "border-primary bg-primary/5"
-                                : "border-border bg-muted/40 hover:border-primary/40 hover:bg-muted"
+                                ? "border-foreground bg-muted"
+                                : "border-border bg-muted/40 hover:border-foreground/40 hover:bg-muted"
                             }`}
                           >
                             {selected && (
-                              <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-primary/10 text-primary">
+                              <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-foreground text-background">
                                 <Check aria-hidden="true" className="size-3" />
                               </span>
                             )}
                             <span
-                              className={`grid size-10 place-items-center rounded-xl ${
-                                selected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                              className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+                                selected ? "bg-foreground/10 text-foreground" : "bg-muted text-muted-foreground"
                               }`}
                             >
                               <Icon aria-hidden="true" className="size-5" />
                             </span>
-                            <span>
+                            <span className="min-w-0 pr-6 md:pr-0">
                               <span className="block text-sm font-semibold text-foreground">{label}</span>
                               <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
                             </span>
@@ -901,7 +925,7 @@ export default function KycPage() {
 
                       <Input id="address1" label="Street address" autoComplete="address-line1" value={form.address1} error={errors.address1} onChange={(v) => setField("address1", v)} />
                       <Input id="address2" label="Apartment, suite, etc." optional autoComplete="address-line2" value={form.address2} onChange={(v) => setField("address2", v)} />
-                      <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                         <Input id="city" label="City" autoComplete="address-level2" value={form.city} error={errors.city} onChange={(v) => setField("city", v)} />
                         <Input id="state" label="State / region" optional autoComplete="address-level1" value={form.state} onChange={(v) => setField("state", v)} />
                         <Input id="postal" label="Postal code" autoComplete="postal-code" value={form.postal} error={errors.postal} onChange={(v) => setField("postal", v)} />
@@ -921,7 +945,7 @@ export default function KycPage() {
                           : "We need a clear photo of the photo page. JPG, PNG, WEBP or PDF, up to 5 MB."
                       }
                     />
-                    <div className={`mb-6 grid gap-4 ${needsBack ? "sm:grid-cols-2" : ""}`}>
+                    <div className={`mb-5 grid gap-4 sm:mb-6 ${needsBack ? "sm:grid-cols-2" : ""}`}>
                       <UploadZone
                         id="doc-front"
                         title={needsBack ? "Front side" : "Photo page"}
@@ -981,15 +1005,15 @@ export default function KycPage() {
                 {/* Step 5 — Review / pending */}
                 {step === REVIEW_STEP && (
                   <div className="flex flex-col items-center text-center">
-                    <div className="relative mb-6 grid size-24 place-items-center">
-                      <span aria-hidden="true" className="absolute inset-0 animate-ping rounded-full bg-primary/10" />
-                      <span aria-hidden="true" className="absolute inset-3 rounded-full border border-primary/30" />
-                      <div className="relative grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+                    <div className="relative mb-5 grid size-20 place-items-center sm:mb-6 sm:size-24">
+                      <span aria-hidden="true" className="absolute inset-0 animate-ping rounded-full bg-foreground/10" />
+                      <span aria-hidden="true" className="absolute inset-3 rounded-full border border-foreground/25" />
+                      <div className="relative grid size-12 place-items-center rounded-2xl bg-foreground/10 text-foreground sm:size-14">
                         <ShieldCheck aria-hidden="true" className="size-7" />
                       </div>
                     </div>
                     <Badge label="Pending review" />
-                    <h2 className="mt-3 text-xl font-semibold tracking-tight text-foreground">
+                    <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
                       Your documents are under review
                     </h2>
                     <p className="mt-2 max-w-md text-sm text-muted-foreground">
@@ -1002,15 +1026,17 @@ export default function KycPage() {
                         { label: "Face match", icon: Camera },
                         { label: "Final review", icon: ShieldCheck },
                       ].map(({ label, icon: Icon }) => (
-                        <div key={label} className="rounded-2xl bg-muted p-4 text-left">
-                          <div className="mb-3 grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
+                        <div key={label} className="flex items-center gap-3 rounded-2xl bg-muted p-4 text-left sm:block">
+                          <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-foreground/10 text-foreground sm:mb-3">
                             <Icon aria-hidden="true" className="size-4" />
                           </div>
-                          <p className="text-xs text-muted-foreground">{label}</p>
-                          <p className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                            <span aria-hidden="true" className="inline-block size-1.5 animate-pulse rounded-full bg-primary" />
-                            In queue
-                          </p>
+                          <div>
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                            <p className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                              <span aria-hidden="true" className="inline-block size-1.5 animate-pulse rounded-full bg-foreground" />
+                              In queue
+                            </p>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1023,7 +1049,7 @@ export default function KycPage() {
                       <button
                         type="button"
                         onClick={handleCopy}
-                        className={`flex shrink-0 items-center gap-1.5 rounded-lg text-xs font-medium text-primary transition-opacity hover:opacity-75 ${FOCUS}`}
+                        className={`flex shrink-0 items-center gap-1.5 rounded-lg px-1 py-1 text-xs font-medium text-foreground transition-opacity hover:opacity-75 ${FOCUS}`}
                       >
                         {copied ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
                         {copied ? "Copied" : "Copy"}
@@ -1079,13 +1105,13 @@ export default function KycPage() {
           </div>
 
           {/* ── Sidebar ──────────────────────────────── */}
-          <aside className="space-y-6 lg:self-start">
-            <section aria-label="Verification status">
+          <aside className="grid min-w-0 gap-5 sm:grid-cols-2 sm:gap-6 lg:sticky lg:top-6 lg:grid-cols-1 lg:self-start">
+            <section aria-label="Verification status" className="min-w-0">
               <SectionHeader title="Verification Status" />
               <Card>
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <div className="grid size-8 place-items-center rounded-xl bg-foreground/10 text-foreground">
                       <ShieldCheck aria-hidden="true" className="size-4" />
                     </div>
                     <p className="text-sm font-semibold text-card-foreground">KYC</p>
@@ -1105,7 +1131,7 @@ export default function KycPage() {
                             Done
                           </span>
                         ) : current ? (
-                          <span className="flex items-center gap-1 font-medium text-primary">
+                          <span className="flex items-center gap-1 font-medium text-foreground">
                             <Clock aria-hidden="true" className="size-3" />
                             In progress
                           </span>
@@ -1119,7 +1145,7 @@ export default function KycPage() {
               </Card>
             </section>
 
-            <section aria-label="Why verify">
+            <section aria-label="Why verify" className="min-w-0">
               <SectionHeader title="Why Verify" />
               <Card>
                 <ul className="space-y-3">
@@ -1135,7 +1161,7 @@ export default function KycPage() {
               </Card>
             </section>
 
-            <section aria-label="Help">
+            <section aria-label="Help" className="min-w-0 sm:col-span-2 lg:col-span-1">
               <Card>
                 <p className="text-sm font-semibold text-card-foreground">Need help?</p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1149,7 +1175,7 @@ export default function KycPage() {
           </aside>
         </div>
 
-        <div className="h-20" />
+        <div className="h-16 sm:h-20" />
       </div>
     </UserShell>
   );
