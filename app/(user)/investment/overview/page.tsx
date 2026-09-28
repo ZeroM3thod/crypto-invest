@@ -6,12 +6,13 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   TrendingUp,
+  CloudLightning,
   Plus,
   Eye,
   X,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Table } from "@/components/motion/table";
 
 // ── Shared primitives (same as dashboard) ───────────────────────────────────
@@ -152,59 +153,154 @@ function ProgressBar({ value }: { value: number }) {
   );
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(n: number, decimals = 2) {
+  return "$" + n.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 // ── Data ─────────────────────────────────────────────────────────────────────
 
 type PlanStatus = "Active" | "Paused" | "Completed" | "Expired";
 
-type ActivePlan = {
-  id: string;
-  name: string;
-  tier: string;
-  invested: string;
-  dailyRate: string;
-  startDate: string;
-  endDate: string;
-  earned: string;
-  status: PlanStatus;
-  progress: number;
+type PackageKind = "Daily Profit" | "Cloud Mining";
+
+type DetailRow = {
+  label: string;
+  value: string;
+  tone?: "success" | "strong";
 };
 
-const ACTIVE_PLANS: ActivePlan[] = [
+// One shape for every package the user bought / invested in
+type InvestedPackage = {
+  id: string;
+  kind: PackageKind;
+  name: string;
+  tier: string;
+  status: PlanStatus;
+  invested: number;      // amount invested (Daily Profit) or price paid (Cloud Mining)
+  rateLabel: string;     // "Daily Rate" | "Hash Rate"
+  rateValue: string;     // "2.1%" | "30 TH/s"
+  startDate: string;
+  endDate: string;       // "Ongoing" for Daily Profit plans
+  earned: number;        // returns so far
+  progress?: number;     // only for packages with a fixed duration (Cloud Mining)
+  details: DetailRow[];  // rows shown inside the View Details dialog
+};
+
+// NOTE: this is the same mock data used on the Daily Profit and Cloud Mining pages.
+// When you connect real data, build this list from those two sources.
+const INVESTED_PACKAGES: InvestedPackage[] = [
+  // ── Daily Profit ──────────────────────────────────────────────
   {
-    id: "p1",
-    name: "Growth Pro",
-    tier: "Pro",
-    invested: "$2,000.00",
-    dailyRate: "1.2%",
-    startDate: "2025-06-01",
-    endDate: "2025-08-01",
-    earned: "+$548.80",
+    id: "dp-ap1",
+    kind: "Daily Profit",
+    name: "Growth Plan",
+    tier: "Growth",
     status: "Active",
-    progress: 72,
+    invested: 100,
+    rateLabel: "Daily Rate",
+    rateValue: "2.1%",
+    startDate: "2025-07-18",
+    endDate: "Ongoing",
+    earned: 4.2,
+    details: [
+      { label: "Package Type",      value: "Daily Profit" },
+      { label: "Plan",              value: "Growth Plan" },
+      { label: "Amount Invested",   value: fmt(100), tone: "strong" },
+      { label: "Daily Rate",        value: "2.1%" },
+      { label: "Profit Per Cycle",  value: "+" + fmt(2.1), tone: "success" },
+      { label: "Credits Received",  value: "2" },
+      { label: "Total Earned",      value: "+" + fmt(4.2), tone: "success" },
+      { label: "Started",           value: "2025-07-18" },
+      { label: "Payout",            value: "Principal + profits" },
+      { label: "Cancel Policy",     value: "After 24 hours" },
+      { label: "Wallet Credited",   value: "Investment Wallet" },
+    ],
   },
   {
-    id: "p2",
-    name: "Starter Pack",
+    id: "dp-ap2",
+    kind: "Daily Profit",
+    name: "Starter Plan",
     tier: "Starter",
-    invested: "$1,500.00",
-    dailyRate: "0.8%",
-    startDate: "2025-07-01",
-    endDate: "2025-09-01",
-    earned: "+$288.00",
     status: "Active",
-    progress: 45,
+    invested: 50,
+    rateLabel: "Daily Rate",
+    rateValue: "1.7%",
+    startDate: "2025-07-19",
+    endDate: "Ongoing",
+    earned: 0,
+    details: [
+      { label: "Package Type",      value: "Daily Profit" },
+      { label: "Plan",              value: "Starter Plan" },
+      { label: "Amount Invested",   value: fmt(50), tone: "strong" },
+      { label: "Daily Rate",        value: "1.7%" },
+      { label: "Profit Per Cycle",  value: "+" + fmt(0.85), tone: "success" },
+      { label: "Credits Received",  value: "0" },
+      { label: "Total Earned",      value: "+" + fmt(0), tone: "success" },
+      { label: "Started",           value: "2025-07-19" },
+      { label: "Payout",            value: "Principal + profits" },
+      { label: "Cancel Policy",     value: "After 24 hours" },
+      { label: "Wallet Credited",   value: "Investment Wallet" },
+    ],
+  },
+
+  // ── Cloud Mining ──────────────────────────────────────────────
+  {
+    id: "cm-mc1",
+    kind: "Cloud Mining",
+    name: "Pro Miner",
+    tier: "Pro",
+    status: "Active",
+    invested: 499,
+    rateLabel: "Hash Rate",
+    rateValue: "30 TH/s",
+    startDate: "2025-06-15",
+    endDate: "2025-09-15",
+    earned: 178.2,
+    progress: 55,
+    details: [
+      { label: "Package Type",          value: "Cloud Mining" },
+      { label: "Contract ID",           value: "MC-881" },
+      { label: "Plan",                  value: "Pro Miner" },
+      { label: "Hash Rate",             value: "30 TH/s" },
+      { label: "Price Paid",            value: fmt(499), tone: "strong" },
+      { label: "Daily Earnings",        value: "+" + fmt(5.4), tone: "success" },
+      { label: "Total Earned",          value: "+" + fmt(178.2), tone: "success" },
+      { label: "Est. Total Return",     value: "+" + fmt(486), tone: "success" },
+      { label: "Duration",              value: "90 days" },
+      { label: "Start Date",            value: "2025-06-15" },
+      { label: "Expiry Date",           value: "2025-09-15" },
+      { label: "Wallet Credited",       value: "Mining Wallet" },
+    ],
   },
   {
-    id: "p3",
-    name: "Elite Bundle",
+    id: "cm-mc2",
+    kind: "Cloud Mining",
+    name: "Elite Rig",
     tier: "Elite",
-    invested: "$1,500.00",
-    dailyRate: "1.8%",
-    startDate: "2025-07-10",
-    endDate: "2025-10-10",
-    earned: "+$403.20",
-    status: "Paused",
-    progress: 28,
+    status: "Active",
+    invested: 249,
+    rateLabel: "Hash Rate",
+    rateValue: "15 TH/s",
+    startDate: "2025-07-01",
+    endDate: "2025-10-01",
+    earned: 47.6,
+    progress: 35,
+    details: [
+      { label: "Package Type",          value: "Cloud Mining" },
+      { label: "Contract ID",           value: "MC-882" },
+      { label: "Plan",                  value: "Elite Rig" },
+      { label: "Hash Rate",             value: "15 TH/s" },
+      { label: "Price Paid",            value: fmt(249), tone: "strong" },
+      { label: "Daily Earnings",        value: "+" + fmt(2.8), tone: "success" },
+      { label: "Total Earned",          value: "+" + fmt(47.6), tone: "success" },
+      { label: "Est. Total Return",     value: "+" + fmt(252), tone: "success" },
+      { label: "Duration",              value: "90 days" },
+      { label: "Start Date",            value: "2025-07-01" },
+      { label: "Expiry Date",           value: "2025-10-01" },
+      { label: "Wallet Credited",       value: "Mining Wallet" },
+    ],
   },
 ];
 
@@ -260,64 +356,78 @@ const HISTORY_COLUMNS = [
   },
 ];
 
-// ── Active Plan Card ─────────────────────────────────────────────────────────
+// ── Package Card (Daily Profit + Cloud Mining) ───────────────────────────────
 
-function ActivePlanCard({ plan }: { plan: ActivePlan }) {
+function PackageCard({
+  pkg,
+  onView,
+}: {
+  pkg: InvestedPackage;
+  onView: (pkg: InvestedPackage) => void;
+}) {
+  const Icon = pkg.kind === "Cloud Mining" ? CloudLightning : TrendingUp;
+
   return (
     <Card>
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <p className="text-sm font-semibold text-foreground">{plan.name}</p>
-            <Badge label={plan.tier} tone="default" />
+            <p className="text-sm font-semibold text-foreground">{pkg.name}</p>
+            <Badge label={pkg.tier} tone="default" />
           </div>
-          <Badge label={plan.status} tone={statusTone(plan.status)} />
+          <div className="flex items-center gap-2">
+            <Badge label={pkg.status} tone={statusTone(pkg.status)} />
+            <Badge label={pkg.kind} tone="muted" />
+          </div>
         </div>
         <div className="grid size-8 place-items-center rounded-xl bg-muted text-muted-foreground shrink-0">
-          <TrendingUp className="size-4" />
+          <Icon className="size-4" />
         </div>
       </div>
 
       <div className="space-y-2 mb-4">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Invested</span>
-          <span className="font-medium text-foreground">{plan.invested}</span>
+          <span className="font-medium text-foreground">{fmt(pkg.invested)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Daily Rate</span>
-          <span className="font-medium text-foreground">{plan.dailyRate}</span>
+          <span className="text-muted-foreground">{pkg.rateLabel}</span>
+          <span className="font-medium text-foreground">{pkg.rateValue}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Start Date</span>
-          <span className="font-medium text-foreground">{plan.startDate}</span>
+          <span className="font-medium text-foreground">{pkg.startDate}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">End Date</span>
-          <span className="font-medium text-foreground">{plan.endDate}</span>
+          <span className="font-medium text-foreground">{pkg.endDate}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Returns So Far</span>
-          <span className="font-semibold text-success">{plan.earned}</span>
+          <span className="font-semibold text-success">+{fmt(pkg.earned)}</span>
         </div>
       </div>
 
-      <div className="mb-4">
-        <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
-          <span>Duration elapsed</span>
-          <span>{plan.progress}%</span>
+      {typeof pkg.progress === "number" && (
+        <div className="mb-4">
+          <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
+            <span>Duration elapsed</span>
+            <span>{pkg.progress}%</span>
+          </div>
+          <ProgressBar value={pkg.progress} />
         </div>
-        <ProgressBar value={plan.progress} />
-      </div>
+      )}
 
       <div className="flex gap-2">
         <button
           type="button"
+          onClick={() => onView(pkg)}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Eye className="size-3" />
           View Details
         </button>
-        {plan.status === "Active" || plan.status === "Paused" ? (
+        {pkg.status === "Active" || pkg.status === "Paused" ? (
           <button
             type="button"
             className="flex items-center justify-center gap-1.5 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20 outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -331,16 +441,125 @@ function ActivePlanCard({ plan }: { plan: ActivePlan }) {
   );
 }
 
+// ── Package Details Dialog ───────────────────────────────────────────────────
+
+function PackageDetailsDialog({
+  pkg,
+  onClose,
+}: {
+  pkg: InvestedPackage;
+  onClose: () => void;
+}) {
+  // Close on Esc + lock background scroll while open
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  const valueClass = (tone?: DetailRow["tone"]) =>
+    tone === "success"
+      ? "font-semibold text-success"
+      : tone === "strong"
+      ? "font-semibold text-foreground"
+      : "font-medium text-foreground";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${pkg.name} details`}
+        className="w-full max-w-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Card className="max-h-[90vh] overflow-y-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-foreground">Package Details</h3>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="grid size-7 place-items-center rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          {/* Title */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-sm font-semibold text-foreground">{pkg.name}</p>
+              <Badge label={pkg.tier} tone="default" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge label={pkg.status} tone={statusTone(pkg.status)} />
+              <Badge label={pkg.kind} tone="muted" />
+            </div>
+          </div>
+
+          {/* Details */}
+          <div className="space-y-3 mb-6">
+            {pkg.details.map((row) => (
+              <div key={row.label} className="flex justify-between gap-4 text-xs">
+                <span className="text-muted-foreground">{row.label}</span>
+                <span className={`text-right ${valueClass(row.tone)}`}>{row.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Progress (only for fixed-duration packages) */}
+          {typeof pkg.progress === "number" && (
+            <div className="mb-6">
+              <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
+                <span>Duration elapsed</span>
+                <span>{pkg.progress}%</span>
+              </div>
+              <ProgressBar value={pkg.progress} />
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-xl bg-muted py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Close
+          </button>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InvestmentOverviewPage() {
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("All");
+  const [selectedPackage, setSelectedPackage] = useState<InvestedPackage | null>(null);
   const loading = false;
 
   const filteredHistory =
     historyFilter === "All"
       ? INVESTMENT_HISTORY
       : INVESTMENT_HISTORY.filter((r) => r.status === historyFilter);
+
+  // Summary stats derived from the packages shown below
+  const totalInvested = INVESTED_PACKAGES.reduce((s, p) => s + p.invested, 0);
+  const totalEarned   = INVESTED_PACKAGES.reduce((s, p) => s + p.earned, 0);
+  const activeCount   = INVESTED_PACKAGES.filter((p) => p.status === "Active").length;
+  const roi           = totalInvested > 0 ? (totalEarned / totalInvested) * 100 : 0;
 
   return (
     <UserShell active="Overview">
@@ -360,10 +579,10 @@ export default function InvestmentOverviewPage() {
         <section aria-label="Investment Summary">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Total Invested",       value: "$5,000.00", delta: { value: "Across 3 plans",  positive: true  } },
-              { label: "Total Returns Earned", value: "+$1,240.00", delta: { value: "All time",        positive: true  } },
-              { label: "Active Plans",         value: "3",          delta: { value: "Running now",     positive: true  } },
-              { label: "ROI %",                value: "+24.8%",     delta: { value: "Lifetime return", positive: true  } },
+              { label: "Total Invested",       value: fmt(totalInvested),        delta: { value: `Across ${INVESTED_PACKAGES.length} packages`, positive: true } },
+              { label: "Total Returns Earned", value: `+${fmt(totalEarned)}`,    delta: { value: "All time",                                     positive: true } },
+              { label: "Active Plans",         value: String(activeCount),       delta: { value: "Running now",                                  positive: true } },
+              { label: "ROI %",                value: `+${roi.toFixed(1)}%`,     delta: { value: "Lifetime return",                              positive: true } },
             ].map((item) => (
               <Card key={item.label}>
                 <Stat
@@ -388,10 +607,10 @@ export default function InvestmentOverviewPage() {
           </button>
         </div>
 
-        {/* ── Active Plans ────────────────────────── */}
+        {/* ── Active Plans (Daily Profit + Cloud Mining) ── */}
         <section aria-label="Active Investment Plans">
           <SectionHeader title="Active Plans" actionLabel="View all plans" action={() => {}} />
-          {ACTIVE_PLANS.length === 0 ? (
+          {INVESTED_PACKAGES.length === 0 ? (
             <Card>
               <EmptyState
                 icon={TrendingUp}
@@ -401,8 +620,8 @@ export default function InvestmentOverviewPage() {
             </Card>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {ACTIVE_PLANS.map((plan) => (
-                <ActivePlanCard key={plan.id} plan={plan} />
+              {INVESTED_PACKAGES.map((pkg) => (
+                <PackageCard key={pkg.id} pkg={pkg} onView={setSelectedPackage} />
               ))}
             </div>
           )}
@@ -449,6 +668,14 @@ export default function InvestmentOverviewPage() {
 
         <div className="h-20" />
       </div>
+
+      {/* ── Package Details Dialog ──────────────── */}
+      {selectedPackage && (
+        <PackageDetailsDialog
+          pkg={selectedPackage}
+          onClose={() => setSelectedPackage(null)}
+        />
+      )}
     </UserShell>
   );
 }
