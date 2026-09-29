@@ -1,629 +1,610 @@
-Here is every file in full, followed by the guide. Copy each file into your project.
+Now that I can see your real `Table`, `ui.tsx` and `finance-ui.tsx`, here is the page rebuilt on them. It uses your `Table` from `@/components/motion/table` and your existing `Badge`, `Btn`, `StatCard`, `Drawer`, `InfoRow` and `api` helpers. It also follows the same pattern as your deposit and withdraw pages: click a row for a drawer, and API routes under `/api/owner/...`.
 
-## Folder structure
+Your `Table` shows no built-in row selection in what you sent, so I did selection with a checkbox column plus row click. If it does support selection, tell me and I'll switch to it.
 
-```
-components/
-  account-transfer.tsx            ← updated
-  account-transfer/
-    account-badges.tsx            ← updated
-    account-picker.tsx            ← updated
-    constants.ts                  ← unchanged
-    controls.tsx                  ← updated
-    data.ts                       ← unchanged
-    field.tsx                     ← updated
-    summary-row.tsx               ← updated
-    types.ts                      ← unchanged
-    utils.ts                      ← unchanged
-```
+## Step 1: Shell (`super-admin-shell.tsx`)
 
-`action-swap.tsx` and `slide-action-button.tsx` are unchanged.
-
----
-
-## 1. `account-transfer.tsx`
+You already have "Settings → Admins & Roles", which should stay for roles and permissions. Add this as its own top-level item:
 
 ```tsx
-"use client";
+// lucide-react import: add UserCog
+import { ..., UserCog } from "lucide-react";
 
-import { useState } from "react";
-import { useReducedMotion } from "motion/react";
-import { cn } from "@/lib/utils";
-import { ACCOUNTS } from "./account-transfer/data";
-import { ActionButton, FlipButton } from "./account-transfer/controls";
-import { Field } from "./account-transfer/field";
-import { SummaryRow } from "./account-transfer/summary-row";
-import { AccountPicker } from "./account-transfer/account-picker";
-import type { Account, AccountSide } from "./account-transfer/types";
+// ROUTES (top-level block)
+"Admin Management": "/owner/admin-management",
 
-export type { Account } from "./account-transfer/types";
-
-export interface AccountTransferProps {
-  accounts?: Account[];
-  defaultFromId?: string;
-  defaultToId?: string;
-  className?: string;
-  onConfirm?: (params: { fromId: string; toId: string; amount: number }) => void;
-}
-
-export function AccountTransfer({
-  accounts = ACCOUNTS,
-  defaultFromId = "main",
-  defaultToId = "investment",
-  className,
-  onConfirm,
-}: AccountTransferProps) {
-  const reduce = useReducedMotion();
-  const [fromId, setFromId] = useState(defaultFromId);
-  const [toId, setToId] = useState(defaultToId);
-  const [amount, setAmount] = useState("");
-  const [flipRot, setFlipRot] = useState(0);
-  const [picking, setPicking] = useState<AccountSide | null>(null);
-
-  if (!accounts.length) return null;
-
-  const from = findAccount(accounts, fromId);
-  const to = findAccount(accounts, toId);
-  const numericAmount = Number(amount) || 0;
-
-  const flip = () => {
-    setFlipRot((r) => r + 180);
-    setFromId(toId);
-    setToId(fromId);
-  };
-
-  const pickAccount = (id: string) => {
-    if (!picking) return;
-    if (picking === "from") {
-      if (id === toId) setToId(fromId);
-      setFromId(id);
-    } else {
-      if (id === fromId) setFromId(toId);
-      setToId(id);
-    }
-    setPicking(null);
-  };
-
-  return (
-    <div
-      className={cn(
-        // Fluid width: full on phones, grows gently on larger screens.
-        "relative isolate mx-auto w-full overflow-hidden rounded-2xl sm:rounded-3xl",
-        "max-w-full sm:max-w-[460px] md:max-w-[520px] lg:max-w-[560px]",
-        "border border-border/20 bg-card",
-        className,
-      )}
-    >
-      <div className="flex flex-col gap-1.5 rounded-xl border border-border/40 p-3 sm:gap-2 sm:rounded-2xl sm:p-4 md:p-5">
-        <Field
-          side="from"
-          account={from}
-          amount={amount}
-          onAmount={setAmount}
-          editable
-          onOpenPicker={() => setPicking("from")}
-        />
-
-        <FlipButton rotation={flipRot} reduce={!!reduce} onClick={flip} />
-
-        <Field
-          side="to"
-          account={to}
-          amount={amount}
-          editable={false}
-          onOpenPicker={() => setPicking("to")}
-        />
-
-        <SummaryRow fee={0} eta="Instant" />
-
-        <ActionButton
-          from={from}
-          to={to}
-          amount={numericAmount}
-          onClick={() => onConfirm?.({ fromId, toId, amount: numericAmount })}
-        />
-      </div>
-
-      <AccountPicker
-        open={picking !== null}
-        side={picking}
-        accounts={accounts}
-        selectedId={picking === "from" ? fromId : toId}
-        onPick={pickAccount}
-        onClose={() => setPicking(null)}
-        reduce={!!reduce}
-      />
-    </div>
-  );
-}
-
-function findAccount(accounts: Account[], id: string) {
-  return accounts.find((a) => a.id === id) ?? accounts[0];
-}
+// destinations, right after Dashboard
+{ label: "Admin Management", icon: UserCog },
 ```
 
----
+## Step 2: One-line change to `finance-ui.tsx`
 
-## 2. `account-transfer/field.tsx`
+Login-as-admin needs a POST, and your `api()` only allows PATCH and DELETE:
 
 ```tsx
+export async function api(url: string, method: "POST" | "PATCH" | "DELETE", body?: unknown) {
+```
+
+## Step 3: Types and data (`lib/admin-data.ts`)
+
+```ts
+// lib/admin-data.ts
+import type { UserRow } from "@/lib/users-data";
+
+export type AdminRow = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: "active" | "suspended";
+  usersManaged: number;
+  lastLogin: string; // "YYYY-MM-DD HH:mm" or ""
+  createdAt: string;
+};
+
+/** Your existing UserRow + whether admins are blocked from seeing it. */
+export type ManagedUser = UserRow & { hiddenFromAdmins: boolean };
+```
+
+For the page's data, reuse whatever you already use to build `UserRow[]` for the Users page and add `hiddenFromAdmins: row.hidden_from_admins` to each item. The Step 6 page has placeholders for this.
+
+## Step 4: The management component
+
+`app/(superadmin)/_components/admin-management.tsx`
+
+```tsx
+// app/(superadmin)/_components/admin-management.tsx
 "use client";
 
-import { useId } from "react";
-import { ChevronDown, Wallet } from "lucide-react";
-import type { Account, AccountSide } from "./types";
-import { AccountDot } from "./account-badges";
-import { sanitizeAmount, formatAmount } from "./utils";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Table, type TableColumn } from "@/components/motion/table";
+import type { AdminRow, ManagedUser } from "@/lib/admin-data";
+import { Badge, Btn, StatCard } from "./ui";
+import { Drawer, InfoRow, api, usd } from "./finance-ui";
 
-export function Field({
-  side,
-  account,
-  amount,
-  onAmount,
-  editable,
-  onOpenPicker,
+const kycTone = { verified: "green", pending: "amber", rejected: "red", not_submitted: "gray" } as const;
+
+/** Columns for both user tables. First column is a checkbox driven by `selected`. */
+function makeUserColumns(selected: Set<string>): TableColumn<ManagedUser>[] {
+  return [
+    {
+      key: "select",
+      header: "",
+      width: "48px",
+      cell: (u) => (
+        // Row click toggles selection, so the checkbox is display-only.
+        <input
+          type="checkbox"
+          readOnly
+          checked={selected.has(u.id)}
+          className="pointer-events-none size-4"
+          aria-label={`Select ${u.name}`}
+        />
+      ),
+    },
+    { key: "id", header: "User ID", sortable: true, width: "120px" },
+    {
+      key: "name",
+      header: "Name",
+      sortable: true,
+      width: "1.2fr",
+      cell: (u) => <span className="font-medium">{u.name}</span>,
+    },
+    { key: "email", header: "Email", sortable: true, width: "1.6fr" },
+    { key: "country", header: "Country", sortable: true, width: "130px" },
+    { key: "joinedAt", header: "Joined", sortable: true, width: "120px" },
+    {
+      key: "kyc",
+      header: "KYC",
+      sortable: true,
+      width: "130px",
+      cell: (u) => <Badge tone={kycTone[u.kyc]}>{u.kyc.replace("_", " ")}</Badge>,
+    },
+    {
+      key: "totalBalance",
+      header: "Balance",
+      sortable: true,
+      align: "right",
+      width: "120px",
+      cell: (u) => <span className="tabular-nums">{usd(u.totalBalance)}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortable: true,
+      width: "110px",
+      cell: (u) => <Badge tone={u.status === "active" ? "green" : "red"}>{u.status}</Badge>,
+    },
+  ];
+}
+
+export function AdminManagement({
+  admins,
+  users: initialUsers,
 }: {
-  side: AccountSide;
-  account: Account;
-  amount: string;
-  onAmount?: (v: string) => void;
-  editable: boolean;
-  onOpenPicker: () => void;
+  admins: AdminRow[];
+  users: ManagedUser[];
 }) {
-  const id = useId();
+  const router = useRouter();
+  const [users, setUsers] = useState<ManagedUser[]>(initialUsers);
+  const [q, setQ] = useState("");
+  const [selVisible, setSelVisible] = useState<Set<string>>(new Set());
+  const [selHidden, setSelHidden] = useState<Set<string>>(new Set());
+  const [openAdmin, setOpenAdmin] = useState<AdminRow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
-  return (
-    <div className="relative rounded-xl border border-border/50 bg-background/40 p-3 sm:rounded-2xl sm:p-3.5 md:p-4">
-      <label
-        htmlFor={id}
-        className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:mb-2 sm:text-[11px] md:text-xs"
-      >
-        {side === "from" ? "From" : "To"}
-      </label>
+  const flash = (m: string) => {
+    setNote(m);
+    setTimeout(() => setNote(null), 3500);
+  };
 
-      <div className="flex items-center justify-between gap-2 sm:gap-3">
-        <div className="min-w-0 flex-1">
-          {editable ? (
-            <input
-              id={id}
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => onAmount?.(sanitizeAmount(e.target.value))}
-              placeholder="0"
-              className="w-full min-w-0 bg-transparent text-xl font-semibold tracking-tight text-foreground tabular-nums outline-none placeholder:text-muted-foreground/60 sm:text-2xl md:text-3xl"
-            />
-          ) : (
-            <div className="flex h-7 items-center gap-2 truncate text-xl font-semibold tracking-tight tabular-nums text-foreground sm:h-8 sm:text-2xl md:h-9 md:text-3xl">
-              {amount || "0"}
-            </div>
-          )}
-          <p className="mt-1 text-[10px] text-muted-foreground tabular-nums sm:text-[11px] md:text-xs">
-            {account.currency}
-          </p>
-        </div>
+  // ---------- derived data ----------
+  const filteredUsers = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return users;
+    return users.filter(
+      (u) =>
+        u.name.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term) ||
+        u.id.toLowerCase().includes(term),
+    );
+  }, [users, q]);
 
-        <button
-          type="button"
-          onClick={onOpenPicker}
-          className="group inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card pl-1 pr-2 text-xs font-semibold text-foreground transition-transform hover:border-border active:scale-[0.97] sm:h-10 sm:gap-2 sm:pr-2.5 sm:text-sm md:h-11 md:text-base"
-        >
-          <AccountDot account={account} />
-          <span className="max-w-[72px] truncate min-[380px]:max-w-[92px] sm:max-w-[110px] md:max-w-[140px]">
-            {account.name}
-          </span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        </button>
-      </div>
+  const visibleRows = useMemo(() => filteredUsers.filter((u) => !u.hiddenFromAdmins), [filteredUsers]);
+  const hiddenRows = useMemo(() => filteredUsers.filter((u) => u.hiddenFromAdmins), [filteredUsers]);
 
-      <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-muted-foreground sm:text-[11px] md:text-xs">
-        <span className="inline-flex min-w-0 items-center gap-1">
-          <Wallet className="h-3 w-3 shrink-0" />
-          <span className="truncate tabular-nums">{formatAmount(account.balance)}</span>
-          <span className="shrink-0">available</span>
-        </span>
-        {side === "from" ? (
+  const stats = useMemo(
+    () => ({
+      admins: admins.length,
+      activeAdmins: admins.filter((a) => a.status === "active").length,
+      visible: users.filter((u) => !u.hiddenFromAdmins).length,
+      hidden: users.filter((u) => u.hiddenFromAdmins).length,
+    }),
+    [admins, users],
+  );
+
+  // ---------- columns ----------
+  const adminColumns = useMemo<TableColumn<AdminRow>[]>(
+    () => [
+      { key: "id", header: "Admin ID", sortable: true, width: "120px" },
+      {
+        key: "name",
+        header: "Admin",
+        sortable: true,
+        width: "1.4fr",
+        cell: (a) => (
+          <div className="flex flex-col leading-tight">
+            <span className="font-medium">{a.name}</span>
+            <span className="text-xs text-muted-foreground">{a.email}</span>
+          </div>
+        ),
+      },
+      { key: "role", header: "Role", sortable: true, width: "130px" },
+      {
+        key: "status",
+        header: "Status",
+        sortable: true,
+        width: "120px",
+        cell: (a) => <Badge tone={a.status === "active" ? "green" : "red"}>{a.status}</Badge>,
+      },
+      { key: "usersManaged", header: "Users", sortable: true, align: "right", width: "90px" },
+      { key: "lastLogin", header: "Last Login", sortable: true, width: "160px" },
+      { key: "createdAt", header: "Created", sortable: true, width: "120px" },
+      {
+        key: "actions",
+        header: "",
+        align: "right",
+        width: "150px",
+        cell: (a) => (
           <button
             type="button"
-            onClick={() => onAmount?.(String(account.balance))}
-            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:bg-muted/60 hover:text-foreground md:text-[11px]"
+            disabled={a.status !== "active" || busy}
+            onClick={(e) => {
+              e.stopPropagation(); // don't also open the drawer
+              loginAsAdmin(a);
+            }}
+            className="h-8 rounded-lg border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
           >
-            Max
+            Login as admin
           </button>
-        ) : null}
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [busy],
+  );
+
+  const visibleColumns = useMemo(() => makeUserColumns(selVisible), [selVisible]);
+  const hiddenColumns = useMemo(() => makeUserColumns(selHidden), [selHidden]);
+
+  // ---------- selection helpers ----------
+  const toggle = (setter: typeof setSelVisible, id: string) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // ---------- actions ----------
+  async function changeVisibility(ids: string[], hidden: boolean) {
+    if (ids.length === 0) return;
+    const msg = hidden
+      ? `Hide ${ids.length} user(s) from all admins? They will disappear from every admin panel.`
+      : `Make ${ids.length} user(s) visible to admins again?`;
+    if (!confirm(msg)) return;
+
+    setBusy(true);
+    try {
+      await api("/api/owner/users/visibility", "PATCH", { userIds: ids, hidden });
+      const set = new Set(ids);
+      setUsers((list) => list.map((u) => (set.has(u.id) ? { ...u, hiddenFromAdmins: hidden } : u)));
+      setSelVisible(new Set());
+      setSelHidden(new Set());
+      flash(hidden ? `${ids.length} user(s) hidden from admins` : `${ids.length} user(s) now visible to admins`);
+    } catch {
+      flash("Request failed. Check your API route.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loginAsAdmin(a: AdminRow) {
+    if (!confirm(`Open the admin panel as ${a.name}? This action is logged.`)) return;
+    setBusy(true);
+    try {
+      await api(`/api/owner/admins/${a.id}/impersonate`, "POST");
+      router.push("/admin"); // <- your admin panel root
+      router.refresh();
+    } catch {
+      flash("Could not start admin session.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-8 p-4 md:p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Admin Management</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage admins, control which users they can see, and open any admin panel.
+          </p>
+        </div>
+        {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
       </div>
-    </div>
-  );
-}
-```
 
----
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Total Admins" value={stats.admins} />
+        <StatCard label="Active Admins" value={stats.activeAdmins} />
+        <StatCard label="Visible to Admins" value={stats.visible.toLocaleString()} hint="Users admins can see" />
+        <StatCard label="Super Admin Only" value={stats.hidden.toLocaleString()} hint="Hidden from every admin" />
+      </div>
 
-## 3. `account-transfer/account-picker.tsx`
+      {/* ---------- admins ---------- */}
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Admins</h2>
+          <p className="text-xs text-muted-foreground">Click a row for details, or use “Login as admin”.</p>
+        </div>
+        <Table
+          data={admins}
+          columns={adminColumns}
+          getRowId={(a) => a.id}
+          resizable
+          defaultSort={{ key: "createdAt", direction: "desc" }}
+          onRowClick={setOpenAdmin}
+          height={360}
+          rowHeight={56}
+          className="rounded-2xl"
+          emptyState="No admins found"
+        />
+      </section>
 
-```tsx
-"use client";
+      {/* ---------- shared search for both user tables ---------- */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Search users (applies to both tables below)</span>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Name, email or user ID"
+          className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring md:w-96"
+        />
+      </div>
 
-import { useEffect } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { X } from "lucide-react";
-import { SPRING_PANEL } from "@/lib/ease";
-import { cn } from "@/lib/utils";
-import { EASE } from "./constants";
-import { AccountDot } from "./account-badges";
-import type { Account, AccountSide } from "./types";
-import { formatAmount } from "./utils";
-
-/**
- * Mobile  (< sm): bottom sheet that slides up.
- * Desktop (>= sm): centered modal that scales/fades in.
- * Positioning is pure CSS so it adapts live on resize / rotation.
- */
-export function AccountPicker({
-  open,
-  side,
-  accounts,
-  selectedId,
-  onPick,
-  onClose,
-  reduce,
-}: {
-  open: boolean;
-  side: AccountSide | null;
-  accounts: Account[];
-  selectedId: string;
-  onPick: (id: string) => void;
-  onClose: () => void;
-  reduce: boolean;
-}) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  return (
-    <AnimatePresence>
-      {open ? (
-        <>
-          <motion.button
-            key="backdrop"
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: EASE }}
-            className="absolute inset-0 z-10 cursor-default bg-background/40 backdrop-blur-sm"
-          />
-
-          {/* Wrapper handles layout only; the motion child handles animation. */}
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center sm:items-center sm:p-4">
-            <motion.div
-              key="sheet"
-              initial={
-                reduce
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: 40, scale: 0.98 }
-              }
-              animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
-              exit={
-                reduce
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: 40, scale: 0.98 }
-              }
-              transition={reduce ? { duration: 0.18, ease: EASE } : SPRING_PANEL}
-              className={cn(
-                "pointer-events-auto flex w-full flex-col bg-card shadow-2xl",
-                // mobile: bottom sheet
-                "max-h-[85%] rounded-t-3xl border-t border-border",
-                // desktop: centered modal card
-                "sm:max-h-[min(80%,520px)] sm:max-w-sm sm:rounded-2xl sm:border md:max-w-md",
-              )}
-              role="dialog"
-              aria-modal="true"
-              aria-label={`Select ${side === "from" ? "from" : "to"} account`}
-            >
-              {/* Drag handle: mobile only */}
-              <div className="flex justify-center pb-1 pt-2.5 sm:hidden">
-                <span className="h-1 w-9 rounded-full bg-muted" />
-              </div>
-
-              <div className="flex items-center justify-between border-b border-border px-4 pb-3 pt-1 sm:pt-3.5">
-                <h2 className="text-sm font-semibold text-foreground md:text-base">
-                  Select {side === "from" ? "source" : "destination"} account
-                </h2>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  aria-label="Close"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/60 hover:text-foreground md:h-8 md:w-8"
-                >
-                  <X className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 pt-3">
-                <ul className="flex flex-col gap-0.5">
-                  {accounts.length === 0 ? (
-                    <li className="py-8 text-center text-xs text-muted-foreground">
-                      No accounts found
-                    </li>
-                  ) : null}
-                  {accounts.map((a) => {
-                    const active = a.id === selectedId;
-                    return (
-                      <li key={a.id}>
-                        <button
-                          type="button"
-                          onClick={() => onPick(a.id)}
-                          className={cn(
-                            "flex w-full items-center justify-between gap-3 rounded-xl px-2 py-2 text-left transition-colors active:scale-[0.97] md:px-3 md:py-2.5",
-                            active ? "bg-muted/60" : "hover:bg-muted/60",
-                          )}
-                        >
-                          <span className="flex min-w-0 items-center gap-2.5">
-                            <AccountDot account={a} size={32} />
-                            <span className="flex min-w-0 flex-col">
-                              <span className="truncate text-sm font-semibold text-foreground md:text-base">
-                                {a.name}
-                              </span>
-                              <span className="truncate text-[11px] text-muted-foreground md:text-xs">
-                                {a.currency}
-                              </span>
-                            </span>
-                          </span>
-                          <span className="shrink-0 text-right text-[11px] tabular-nums text-muted-foreground md:text-xs">
-                            {formatAmount(a.balance)}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </motion.div>
+      {/* ---------- visible users ---------- */}
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">
+              Users visible to admins <span className="text-sm font-normal opacity-60">{visibleRows.length}</span>
+            </h2>
+            <p className="text-xs text-muted-foreground">Click rows to select, then hide them from admins.</p>
           </div>
-        </>
-      ) : null}
-    </AnimatePresence>
+          <div className="flex flex-wrap gap-2">
+            <Btn
+              onClick={() =>
+                setSelVisible(selVisible.size ? new Set() : new Set(visibleRows.map((u) => u.id)))
+              }
+              disabled={busy || visibleRows.length === 0}
+            >
+              {selVisible.size ? "Clear" : `Select all (${visibleRows.length})`}
+            </Btn>
+            <Btn
+              tone="danger"
+              onClick={() => changeVisibility([...selVisible], true)}
+              disabled={busy || selVisible.size === 0}
+            >
+              Hide from admins ({selVisible.size})
+            </Btn>
+          </div>
+        </div>
+        <Table
+          data={visibleRows}
+          columns={visibleColumns}
+          getRowId={(u) => u.id}
+          resizable
+          defaultSort={{ key: "joinedAt", direction: "desc" }}
+          onRowClick={(u) => toggle(setSelVisible, u.id)}
+          height={420}
+          rowHeight={52}
+          className="rounded-2xl"
+          emptyState="No visible users"
+        />
+      </section>
+
+      {/* ---------- hidden users ---------- */}
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">
+              Super admin only users <span className="text-sm font-normal opacity-60">{hiddenRows.length}</span>
+            </h2>
+            <p className="text-xs text-muted-foreground">Admins cannot see these users anywhere.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Btn
+              onClick={() =>
+                setSelHidden(selHidden.size ? new Set() : new Set(hiddenRows.map((u) => u.id)))
+              }
+              disabled={busy || hiddenRows.length === 0}
+            >
+              {selHidden.size ? "Clear" : `Select all (${hiddenRows.length})`}
+            </Btn>
+            <Btn
+              tone="primary"
+              onClick={() => changeVisibility([...selHidden], false)}
+              disabled={busy || selHidden.size === 0}
+            >
+              Make visible ({selHidden.size})
+            </Btn>
+          </div>
+        </div>
+        <Table
+          data={hiddenRows}
+          columns={hiddenColumns}
+          getRowId={(u) => u.id}
+          resizable
+          defaultSort={{ key: "joinedAt", direction: "desc" }}
+          onRowClick={(u) => toggle(setSelHidden, u.id)}
+          height={420}
+          rowHeight={52}
+          className="rounded-2xl"
+          emptyState="No hidden users"
+        />
+      </section>
+
+      {/* ---------- admin details drawer ---------- */}
+      <Drawer
+        open={!!openAdmin}
+        onClose={() => setOpenAdmin(null)}
+        title={openAdmin ? openAdmin.name : ""}
+        subtitle={openAdmin ? `${openAdmin.id} · ${openAdmin.email}` : undefined}
+        footer={
+          openAdmin ? (
+            <div className="flex justify-end gap-2">
+              <Btn onClick={() => setOpenAdmin(null)} disabled={busy}>Close</Btn>
+              <Btn
+                tone="primary"
+                onClick={() => loginAsAdmin(openAdmin)}
+                disabled={busy || openAdmin.status !== "active"}
+              >
+                {busy ? "Opening..." : "Login as admin"}
+              </Btn>
+            </div>
+          ) : null
+        }
+      >
+        {openAdmin ? (
+          <div className="flex flex-col gap-5">
+            <Badge tone={openAdmin.status === "active" ? "green" : "red"}>{openAdmin.status}</Badge>
+            <div className="divide-y divide-border rounded-xl border border-border px-3">
+              <InfoRow label="Admin ID" value={openAdmin.id} />
+              <InfoRow label="Name" value={openAdmin.name} />
+              <InfoRow label="Email" value={openAdmin.email} />
+              <InfoRow label="Role" value={openAdmin.role} />
+              <InfoRow label="Users managed" value={openAdmin.usersManaged} />
+              <InfoRow label="Last login" value={openAdmin.lastLogin} />
+              <InfoRow label="Created" value={openAdmin.createdAt} />
+            </div>
+            {openAdmin.status !== "active" ? (
+              <p className="rounded-lg bg-amber-500/10 p-2 text-xs text-amber-600 dark:text-amber-400">
+                This admin is suspended, so you can&apos;t open their panel.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </Drawer>
+    </div>
   );
 }
 ```
 
----
+## Step 5: API routes (same style as your deposit/withdraw routes)
 
-## 4. `account-transfer/controls.tsx`
+Replace `requireOwner` with your own owner guard. It must check the session on the server.
+
+**`app/api/owner/users/visibility/route.ts`**
+
+```ts
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { requireOwner } from "@/lib/auth/require-owner";
+
+export async function PATCH(req: Request) {
+  await requireOwner();
+
+  const { userIds, hidden } = await req.json();
+  if (
+    !Array.isArray(userIds) ||
+    userIds.length === 0 ||
+    userIds.length > 500 ||
+    !userIds.every((id) => typeof id === "string") ||
+    typeof hidden !== "boolean"
+  ) {
+    return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  }
+
+  const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const { error } = await db.from("profiles").update({ hidden_from_admins: hidden }).in("id", userIds);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}
+```
+
+**`app/api/owner/admins/[id]/impersonate/route.ts`**
+
+```ts
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+import { requireOwner } from "@/lib/auth/require-owner";
+
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const owner = await requireOwner();
+  const { id } = await params;
+
+  const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const { data: target } = await db.from("profiles").select("id, role, status").eq("id", id).single();
+  if (!target || target.role !== "admin" || target.status !== "active") {
+    return NextResponse.json({ error: "Not an active admin" }, { status: 400 });
+  }
+
+  await db.from("impersonation_log").insert({ owner_id: owner.id, admin_id: id });
+
+  (await cookies()).set("impersonating_admin_id", id, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60,
+  });
+  return NextResponse.json({ ok: true });
+}
+```
+
+**`app/api/owner/impersonation/route.ts`** (exit)
+
+```ts
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+export async function DELETE() {
+  (await cookies()).delete("impersonating_admin_id");
+  return NextResponse.json({ ok: true });
+}
+```
+
+## Step 6: The page
+
+`app/(superadmin)/owner/admin-management/page.tsx`
+
+```tsx
+// Owner-only area. Add your owner auth guard here (server-side) before rendering.
+import { AdminManagement } from "../../_components/admin-management";
+import { SuperAdminShell } from "../../_components/super-admin-shell";
+import { requireOwner } from "@/lib/auth/require-owner";
+import type { AdminRow, ManagedUser } from "@/lib/admin-data";
+
+// TODO: replace with your real queries (Supabase). Column names are guesses.
+async function getAdmins(): Promise<AdminRow[]> {
+  return [
+    { id: "ADM-001", name: "Sarah Khan", email: "sarah@example.com", role: "Admin", status: "active", usersManaged: 128, lastLogin: "2026-09-28 14:20", createdAt: "2026-01-12" },
+    { id: "ADM-002", name: "Tanvir Ahmed", email: "tanvir@example.com", role: "Admin", status: "suspended", usersManaged: 54, lastLogin: "2026-08-02 09:05", createdAt: "2026-03-04" },
+  ];
+}
+
+async function getManagedUsers(): Promise<ManagedUser[]> {
+  // Use the same query/mapper as your Users page, then add:
+  //   hiddenFromAdmins: row.hidden_from_admins
+  return [];
+}
+
+export default async function AdminManagementPage() {
+  await requireOwner();
+  const [admins, users] = await Promise.all([getAdmins(), getManagedUsers()]);
+
+  return (
+    <SuperAdminShell active="Admin Management">
+      <AdminManagement admins={admins} users={users} />
+    </SuperAdminShell>
+  );
+}
+```
+
+## Step 7: Finish the admin side
+
+1. **Database:** run the SQL from my earlier message. It adds `profiles.hidden_from_admins`, the restrictive RLS policy that blocks admins from reading hidden users, and the `impersonation_log` table.
+2. **Admin panel identity:** in your admin layout or auth helper, resolve the effective admin like this:
+
+```ts
+import { cookies } from "next/headers";
+
+export async function getEffectiveAdminId() {
+  const session = await getSessionUser(); // your existing helper
+  const imp = (await cookies()).get("impersonating_admin_id")?.value;
+  if (imp && session?.role === "owner") return { id: imp, impersonating: true };
+  return { id: session?.id, impersonating: false };
+}
+```
+
+The cookie only counts if the real session is the owner, so a forged cookie does nothing.
+
+3. **Data layer:** while impersonating, queries run under the owner's session, so RLS sees an owner. The admin panel's queries must therefore also filter `hidden_from_admins = false` explicitly, so the owner sees exactly what that admin would see.
+4. **Exit banner:** add this to the admin layout when `impersonating` is true:
 
 ```tsx
 "use client";
+import { useRouter } from "next/navigation";
+import { api } from "@/app/(superadmin)/_components/finance-ui";
 
-import { motion } from "motion/react";
-import { ArrowDownUp } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { SlideActionButton } from "@/components/motion/slide-action-button";
-import type { Account } from "./types";
-
-export function FlipButton({
-  rotation,
-  reduce,
-  onClick,
-}: {
-  rotation: number;
-  reduce: boolean;
-  onClick: () => void;
-}) {
+export function ImpersonationBanner({ adminName }: { adminName: string }) {
+  const router = useRouter();
   return (
-    <div className="relative -my-3.5 flex justify-center sm:-my-4" style={{ zIndex: 1 }}>
-      <motion.button
+    <div className="flex items-center justify-between gap-3 bg-amber-500/15 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+      <span>Viewing as {adminName}</span>
+      <button
         type="button"
-        onClick={onClick}
-        aria-label="Swap accounts"
-        whileTap={reduce ? undefined : { scale: 0.9 }}
-        animate={reduce ? undefined : { rotate: rotation }}
-        transition={{ type: "spring", stiffness: 380, damping: 26, mass: 0.6 }}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full border-[3px] border-card bg-muted text-foreground backdrop-blur sm:h-9 sm:w-9 md:h-10 md:w-10"
+        className="rounded-lg border border-current px-3 py-1 text-xs font-medium"
+        onClick={async () => {
+          await api("/api/owner/impersonation", "DELETE");
+          router.push("/owner/admin-management");
+          router.refresh();
+        }}
       >
-        <ArrowDownUp className="h-3.5 w-3.5 md:h-4 md:w-4" />
-      </motion.button>
-    </div>
-  );
-}
-
-export function ActionButton({
-  from,
-  to,
-  amount,
-  onClick,
-}: {
-  from: Account;
-  to: Account;
-  amount: number;
-  onClick?: () => void;
-}) {
-  const noAmount = amount <= 0;
-  const overBalance = amount > from.balance;
-  const sameAccount = from.id === to.id;
-  const label = noAmount
-    ? "Enter an amount"
-    : sameAccount
-      ? "Choose a different account"
-      : overBalance
-        ? "Insufficient balance"
-        : `Slide to transfer to ${to.name}`;
-  const disabled = noAmount || overBalance || sameAccount;
-
-  return (
-    <SlideActionButton
-      completeLabel="Sent"
-      onComplete={() => {
-        if (disabled) return;
-        onClick?.();
-      }}
-      className={cn(
-        // Track shrinks a little on phones; label truncates instead of overflowing.
-        "mt-2 h-14 w-full max-w-full bg-white/10 sm:mt-3 sm:h-16",
-        "[&_span.grid]:truncate [&_span.grid]:px-2 [&_span.grid]:text-xs sm:[&_span.grid]:text-sm",
-        disabled && "pointer-events-none opacity-50",
-      )}
-      thumbClassName="!size-12 sm:!size-14 bg-white text-black"
-      fillClassName="bg-white"
-    >
-      {label}
-    </SlideActionButton>
-  );
-}
-```
-
----
-
-## 5. `account-transfer/summary-row.tsx`
-
-```tsx
-export function SummaryRow({ fee = 0, eta = "Instant" }: { fee?: number; eta?: string }) {
-  return (
-    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 text-[11px] sm:mt-3 sm:px-3.5 md:px-4 md:py-3 md:text-xs">
-      <span className="text-muted-foreground">Fee</span>
-      <span className="text-right tabular-nums text-foreground">
-        {fee === 0 ? "Free" : `$${fee.toFixed(2)}`}
-      </span>
-      <span className="text-muted-foreground">Speed</span>
-      <span className="text-right text-foreground">{eta}</span>
+        Exit
+      </button>
     </div>
   );
 }
 ```
 
----
+## Notes
 
-## 6. `account-transfer/account-badges.tsx`
-
-```tsx
-import { cn } from "@/lib/utils";
-import type { Account } from "./types";
-
-function diceBearGlassUrl(seed: string) {
-  return `https://api.dicebear.com/9.x/glass/svg?seed=${encodeURIComponent(seed)}`;
-}
-
-export function AccountDot({
-  account,
-  size = 28,
-  className,
-}: {
-  account: Account;
-  size?: number;
-  className?: string;
-}) {
-  return (
-    <img
-      src={diceBearGlassUrl(account.id)}
-      alt={account.name}
-      style={{ width: size, height: size }}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full bg-muted object-cover",
-        className,
-      )}
-    />
-  );
-}
-```
-
----
-
-## Guide
-
-### 1. How responsive works here
-
-Tailwind is mobile first. A class with no prefix applies to every screen. A prefixed class applies from that width upward and overrides the unprefixed one.
-
-| Prefix | Applies from | Typical device |
-|---|---|---|
-| (none) | 0px | Phones |
-| `min-[380px]:` | 380px | Larger phones |
-| `sm:` | 640px | Large phones, small tablets |
-| `md:` | 768px | Tablets, small laptops |
-| `lg:` | 1024px | Desktops |
-
-Example: `text-xl sm:text-2xl md:text-3xl` means small text on phones, medium from 640px, large from 768px.
-
-### 2. What changed in each file
-
-**`account-transfer.tsx` (the card)**
-- Width is `w-full` on phones, then capped at 460px (`sm`), 520px (`md`) and 560px (`lg`).
-- `mx-auto` centers the card.
-- Padding is `p-3` → `sm:p-4` → `md:p-5`.
-- Corners are `rounded-2xl` → `sm:rounded-3xl`.
-
-**`field.tsx` (From / To boxes)**
-
-| Element | Phone | `sm` | `md` |
-|---|---|---|---|
-| Amount text | `text-xl` | `text-2xl` | `text-3xl` |
-| Box padding | `p-3` | `p-3.5` | `p-4` |
-| Label text | 10px | 11px | `text-xs` |
-| Account button height | `h-9` | `h-10` | `h-11` |
-| Account name max width | 72px (92px from 380px) | 110px | 140px |
-
-- `min-w-0` on the input and the `truncate` classes stop long numbers and long names from breaking the layout.
-- `shrink-0` keeps the account button and the Max button from squeezing.
-
-**`account-picker.tsx` (account list)**
-- Below 640px it is a bottom sheet: pinned to the bottom, rounded top corners, with a drag handle.
-- From 640px it is a centered modal: `sm:items-center`, full rounded corners, `sm:max-w-sm`, then `md:max-w-md`.
-- A wrapper `div` does the layout (CSS only). The `motion.div` inside does the animation. This split is why it adapts live on resize or rotation.
-- I added a title: "Select source account" or "Select destination account".
-- `overscroll-contain` stops the page behind from scrolling while you scroll the list.
-
-**`controls.tsx` (swap and slide)**
-- Swap button: `h-8 w-8` → `h-9 w-9` → `h-10 w-10`.
-- Slide track: `h-14` on phones, `sm:h-16` above.
-- Slide thumb: `!size-12` on phones, `sm:!size-14` above. The `!` forces the override because the base component sets its own size.
-- Slide label: truncates and uses `text-xs` → `sm:text-sm` so "Choose a different account" fits.
-
-**`summary-row.tsx`**
-- Text is 11px, then `md:text-xs`. Padding grows at `md`.
-
-**`account-badges.tsx`**
-- Added an optional `className` prop. Nothing else changed.
-
-### 3. Values you can tweak
-
-| I want to... | Change this |
-|---|---|
-| Make the card wider on desktop | `lg:max-w-[560px]` in `account-transfer.tsx` (try `lg:max-w-[640px]`) |
-| Make the card narrower | Lower the three `max-w-[...]` values |
-| Make the amount text bigger | `md:text-3xl` in `field.tsx` (try `md:text-4xl`) |
-| Widen the picker modal | `md:max-w-md` in `account-picker.tsx` (try `md:max-w-lg`) |
-| Always use a bottom sheet | Delete `sm:items-center`, `sm:max-w-sm`, `sm:rounded-2xl`, `sm:border`, `md:max-w-md` |
-| Allow longer account names | The `max-w-[...]` values on the name `span` in `field.tsx` |
-
-### 4. Install steps
-
-1. Replace `account-transfer.tsx` with the code above.
-2. Replace `field.tsx`, `account-picker.tsx`, `controls.tsx`, `summary-row.tsx` and `account-badges.tsx` inside your `account-transfer/` folder.
-3. Leave `types.ts`, `data.ts`, `utils.ts`, `constants.ts`, `action-swap.tsx` and `slide-action-button.tsx` as they are.
-4. Restart your dev server if styles look stale.
-
-### 5. How to test
-
-1. Open the page and press **F12**.
-2. Turn on the device toolbar (**Ctrl+Shift+M**).
-3. Try widths **320**, **375**, **640**, **768** and **1280**.
-4. At each width, check:
-   - No sideways scrolling.
-   - A long amount like `123456789.12` stays inside the field.
-   - Tapping an account button opens a bottom sheet below 640px and a centered modal above.
-   - The slide button label fits and the thumb is not clipped.
-   - Rotating the device or resizing the window switches the picker style live.
-
-### 6. Known limits
-
-- **Slide button overrides:** I used `!size-12` and the `[&_span.grid]` selector so I didn't edit your shared `slide-action-button.tsx`. The cleaner fix is adding `size` props to that component. Ask me if you want that.
-- **Picker scope:** the modal is positioned inside the card, not over the whole page. On desktop it appears inside the card's bounds. For a full-page overlay it needs a portal and `fixed` positioning.
-- **Untested:** I haven't run this in a browser, so check the widths above.
-
-If you'd like the full-page overlay or the cleaner slide button, tell me which one and I'll write the code.
+- **Your `Table` API is assumed to re-render cells when `columns` changes.** The checkboxes rely on this. If the checks don't update on click, tell me and I'll adjust.
+- **The row actions button uses a plain `<button>`** rather than `Btn`, because `Btn.onClick` takes no event and I needed `stopPropagation` so it doesn't also open the drawer.
+- **`/admin` in `router.push("/admin")` is a placeholder** for your admin panel's root route.
+- **Block money-moving routes while impersonating.** Consider rejecting deposit and withdrawal approvals when `impersonating` is true, so an audit trail never shows the admin approving something the owner did.

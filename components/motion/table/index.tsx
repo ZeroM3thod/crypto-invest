@@ -44,7 +44,7 @@ export function Table<T>({
   onSelectionChange, sort: sortProp, defaultSort = null, onSortChange, resizable = false,
   minColumnWidth = 64, onColumnResize, reorderable = false, onColumnOrderChange, onCellEdit,
   onColumnRename, onInsertRow, onDeleteRow, onInsertColumn, onDeleteColumn,
-  rowHeight = 48, height = 440, overscan = 10, onEndReached, loading = false,
+  rowHeight = 48, height = 440, overscan = 10, onEndReached, onRowClick, loading = false,
   skeletonRows = 3, emptyState = "No data", className,
 }: TableProps<T>) {
   const reduce = useReducedMotion();
@@ -211,16 +211,18 @@ export function Table<T>({
                       ref={(el) => { rowRefs.current[entry.id] = el; }}
                       data-selected={isSelected}
                       style={{ height: rowHeight }}
+                      onClick={onRowClick ? () => onRowClick(entry.row) : undefined}
                       onPointerEnter={hasRowMenu ? () => activateRow(entry.id, vItem.index) : undefined}
                       onPointerLeave={hasRowMenu ? deactivateRow : undefined}
                       className={cn(
                         "border-border/60 border-b transition-colors",
                         "data-[selected=true]:bg-primary/5",
                         "hover:bg-muted/50",
+                        onRowClick && "cursor-pointer",
                       )}
                     >
                       {selectable ? (
-                        <td className="text-center">
+                        <td className="text-center" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center">
                             <Checkbox
                               checked={isSelected}

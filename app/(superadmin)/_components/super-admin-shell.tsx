@@ -21,6 +21,7 @@ import {
   Settings,
   ShieldCheck,
   User,
+  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -58,6 +59,7 @@ import {
 const ROUTES: Record<string, string> = {
   // Top-level
   "Dashboard": "/owner",
+  "Admin Management": "/owner/admin-management",
 
   // Users
   "Users": "/owner/users",
@@ -109,6 +111,7 @@ const ROUTES: Record<string, string> = {
 
 const destinations = [
   { label: "Dashboard", icon: Home },
+  { label: "Admin Management", icon: UserCog },
   {
     label: "Users",
     icon: Users,

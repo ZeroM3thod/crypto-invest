@@ -46,6 +46,8 @@ export interface TableProps<T> {
   height?: number;
   overscan?: number;
   onEndReached?: () => void;
+  /** Fires when a body row is clicked. */
+  onRowClick?: (row: T) => void;
   loading?: boolean;
   skeletonRows?: number;
   emptyState?: ReactNode;
