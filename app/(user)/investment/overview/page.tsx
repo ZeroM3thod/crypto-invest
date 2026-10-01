@@ -6,11 +6,10 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   TrendingUp,
-  CloudLightning,
+  Bot,
   Plus,
   Eye,
   X,
-  ChevronRight,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Table } from "@/components/motion/table";
@@ -163,7 +162,7 @@ function fmt(n: number, decimals = 2) {
 
 type PlanStatus = "Active" | "Paused" | "Completed" | "Expired";
 
-type PackageKind = "Daily Profit" | "Cloud Mining";
+type PackageKind = "Daily Profit" | "AI Trading";
 
 type DetailRow = {
   label: string;
@@ -178,17 +177,17 @@ type InvestedPackage = {
   name: string;
   tier: string;
   status: PlanStatus;
-  invested: number;      // amount invested (Daily Profit) or price paid (Cloud Mining)
-  rateLabel: string;     // "Daily Rate" | "Hash Rate"
-  rateValue: string;     // "2.1%" | "30 TH/s"
+  invested: number;      // amount invested (Daily Profit) or amount staked (AI Trading)
+  rateLabel: string;     // "Daily Rate" | "Strategy ROI"
+  rateValue: string;     // "2.1%" | "+24.1%"
   startDate: string;
-  endDate: string;       // "Ongoing" for Daily Profit plans
+  endDate: string;       // "Ongoing" for Daily Profit plans, unlock date for AI Trading
   earned: number;        // returns so far
-  progress?: number;     // only for packages with a fixed duration (Cloud Mining)
+  progress?: number;     // only for packages with a fixed lock period (AI Trading)
   details: DetailRow[];  // rows shown inside the View Details dialog
 };
 
-// NOTE: this is the same mock data used on the Daily Profit and Cloud Mining pages.
+// NOTE: this is the same mock data used on the Daily Profit and AI Trading pages.
 // When you connect real data, build this list from those two sources.
 const INVESTED_PACKAGES: InvestedPackage[] = [
   // ── Daily Profit ──────────────────────────────────────────────
@@ -245,61 +244,61 @@ const INVESTED_PACKAGES: InvestedPackage[] = [
     ],
   },
 
-  // ── Cloud Mining ──────────────────────────────────────────────
+  // ── AI Trading ────────────────────────────────────────────────
   {
-    id: "cm-mc1",
-    kind: "Cloud Mining",
-    name: "Pro Miner",
+    id: "ai-s2",
+    kind: "AI Trading",
+    name: "Momentum Breakout",
     tier: "Pro",
     status: "Active",
-    invested: 499,
-    rateLabel: "Hash Rate",
-    rateValue: "30 TH/s",
-    startDate: "2025-06-15",
-    endDate: "2025-09-15",
-    earned: 178.2,
-    progress: 55,
+    invested: 40,
+    rateLabel: "Strategy ROI",
+    rateValue: "+24.1%",
+    startDate: "2025-07-09",
+    endDate: "2025-07-24",
+    earned: 9.64,
+    progress: 60,
     details: [
-      { label: "Package Type",          value: "Cloud Mining" },
-      { label: "Contract ID",           value: "MC-881" },
-      { label: "Plan",                  value: "Pro Miner" },
-      { label: "Hash Rate",             value: "30 TH/s" },
-      { label: "Price Paid",            value: fmt(499), tone: "strong" },
-      { label: "Daily Earnings",        value: "+" + fmt(5.4), tone: "success" },
-      { label: "Total Earned",          value: "+" + fmt(178.2), tone: "success" },
-      { label: "Est. Total Return",     value: "+" + fmt(486), tone: "success" },
-      { label: "Duration",              value: "90 days" },
-      { label: "Start Date",            value: "2025-06-15" },
-      { label: "Expiry Date",           value: "2025-09-15" },
-      { label: "Wallet Credited",       value: "Mining Wallet" },
+      { label: "Package Type",      value: "AI Trading" },
+      { label: "Strategy",          value: "Momentum Breakout" },
+      { label: "Exchange",          value: "Binance" },
+      { label: "Amount Staked",     value: fmt(40), tone: "strong" },
+      { label: "Strategy ROI",      value: "+24.1%", tone: "success" },
+      { label: "Total Profit",      value: "+" + fmt(9.64), tone: "success" },
+      { label: "Lock Period",       value: "15 days" },
+      { label: "Days Elapsed",      value: "9 of 15" },
+      { label: "Start Date",        value: "2025-07-09" },
+      { label: "Unlock Date",       value: "2025-07-24" },
+      { label: "Payout",            value: "Stake + profits after lock" },
+      { label: "Wallet Credited",   value: "AI Trading Wallet" },
     ],
   },
   {
-    id: "cm-mc2",
-    kind: "Cloud Mining",
-    name: "Elite Rig",
-    tier: "Elite",
+    id: "ai-s1",
+    kind: "AI Trading",
+    name: "9 EMA Strategy",
+    tier: "Starter",
     status: "Active",
-    invested: 249,
-    rateLabel: "Hash Rate",
-    rateValue: "15 TH/s",
-    startDate: "2025-07-01",
-    endDate: "2025-10-01",
-    earned: 47.6,
-    progress: 35,
+    invested: 20,
+    rateLabel: "Strategy ROI",
+    rateValue: "+18.4%",
+    startDate: "2025-07-03",
+    endDate: "2025-07-18",
+    earned: 3.68,
+    progress: 100,
     details: [
-      { label: "Package Type",          value: "Cloud Mining" },
-      { label: "Contract ID",           value: "MC-882" },
-      { label: "Plan",                  value: "Elite Rig" },
-      { label: "Hash Rate",             value: "15 TH/s" },
-      { label: "Price Paid",            value: fmt(249), tone: "strong" },
-      { label: "Daily Earnings",        value: "+" + fmt(2.8), tone: "success" },
-      { label: "Total Earned",          value: "+" + fmt(47.6), tone: "success" },
-      { label: "Est. Total Return",     value: "+" + fmt(252), tone: "success" },
-      { label: "Duration",              value: "90 days" },
-      { label: "Start Date",            value: "2025-07-01" },
-      { label: "Expiry Date",           value: "2025-10-01" },
-      { label: "Wallet Credited",       value: "Mining Wallet" },
+      { label: "Package Type",      value: "AI Trading" },
+      { label: "Strategy",          value: "9 EMA Strategy" },
+      { label: "Exchange",          value: "Binance" },
+      { label: "Amount Staked",     value: fmt(20), tone: "strong" },
+      { label: "Strategy ROI",      value: "+18.4%", tone: "success" },
+      { label: "Total Profit",      value: "+" + fmt(3.68), tone: "success" },
+      { label: "Lock Period",       value: "15 days" },
+      { label: "Days Elapsed",      value: "15 of 15" },
+      { label: "Start Date",        value: "2025-07-03" },
+      { label: "Unlock Date",       value: "2025-07-18" },
+      { label: "Payout",            value: "Stake + profits after lock" },
+      { label: "Wallet Credited",   value: "AI Trading Wallet" },
     ],
   },
 ];
@@ -356,7 +355,7 @@ const HISTORY_COLUMNS = [
   },
 ];
 
-// ── Package Card (Daily Profit + Cloud Mining) ───────────────────────────────
+// ── Package Card (Daily Profit + AI Trading) ─────────────────────────────────
 
 function PackageCard({
   pkg,
@@ -365,7 +364,9 @@ function PackageCard({
   pkg: InvestedPackage;
   onView: (pkg: InvestedPackage) => void;
 }) {
-  const Icon = pkg.kind === "Cloud Mining" ? CloudLightning : TrendingUp;
+  const Icon = pkg.kind === "AI Trading" ? Bot : TrendingUp;
+  const isAiTrading = pkg.kind === "AI Trading";
+  const lockElapsed = typeof pkg.progress === "number" && pkg.progress >= 100;
 
   return (
     <Card>
@@ -387,7 +388,7 @@ function PackageCard({
 
       <div className="space-y-2 mb-4">
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Invested</span>
+          <span className="text-muted-foreground">{isAiTrading ? "Staked" : "Invested"}</span>
           <span className="font-medium text-foreground">{fmt(pkg.invested)}</span>
         </div>
         <div className="flex justify-between text-xs">
@@ -399,11 +400,11 @@ function PackageCard({
           <span className="font-medium text-foreground">{pkg.startDate}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">End Date</span>
+          <span className="text-muted-foreground">{isAiTrading ? "Unlock Date" : "End Date"}</span>
           <span className="font-medium text-foreground">{pkg.endDate}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">Returns So Far</span>
+          <span className="text-muted-foreground">{isAiTrading ? "Profit So Far" : "Returns So Far"}</span>
           <span className="font-semibold text-success">+{fmt(pkg.earned)}</span>
         </div>
       </div>
@@ -411,7 +412,7 @@ function PackageCard({
       {typeof pkg.progress === "number" && (
         <div className="mb-4">
           <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
-            <span>Duration elapsed</span>
+            <span>{lockElapsed ? "Lock period ended" : "Lock period elapsed"}</span>
             <span>{pkg.progress}%</span>
           </div>
           <ProgressBar value={pkg.progress} />
@@ -427,7 +428,8 @@ function PackageCard({
           <Eye className="size-3" />
           View Details
         </button>
-        {pkg.status === "Active" || pkg.status === "Paused" ? (
+        {/* AI Trading stakes are locked for 15 days, so only Daily Profit plans can be cancelled */}
+        {!isAiTrading && (pkg.status === "Active" || pkg.status === "Paused") ? (
           <button
             type="button"
             className="flex items-center justify-center gap-1.5 rounded-xl bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20 outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -519,11 +521,11 @@ function PackageDetailsDialog({
             ))}
           </div>
 
-          {/* Progress (only for fixed-duration packages) */}
+          {/* Progress (only for fixed lock-period packages) */}
           {typeof pkg.progress === "number" && (
             <div className="mb-6">
               <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
-                <span>Duration elapsed</span>
+                <span>Lock period elapsed</span>
                 <span>{pkg.progress}%</span>
               </div>
               <ProgressBar value={pkg.progress} />
@@ -607,7 +609,7 @@ export default function InvestmentOverviewPage() {
           </button>
         </div>
 
-        {/* ── Active Plans (Daily Profit + Cloud Mining) ── */}
+        {/* ── Active Plans (Daily Profit + AI Trading) ── */}
         <section aria-label="Active Investment Plans">
           <SectionHeader title="Active Plans" actionLabel="View all plans" action={() => {}} />
           {INVESTED_PACKAGES.length === 0 ? (
@@ -625,6 +627,9 @@ export default function InvestmentOverviewPage() {
               ))}
             </div>
           )}
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            AI Trading stakes are locked for 15 days from the day you invest. Past performance does not guarantee future results.
+          </p>
         </section>
 
         {/* ── Investment History ──────────────────── */}
