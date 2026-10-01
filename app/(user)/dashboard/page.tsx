@@ -13,10 +13,12 @@ import {
   ShieldCheck,
   TrendingUp,
   Users,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BouncyAccordion } from "@/components/motion/bouncy-accordion";
 import { WalletCard } from "@/components/motion/wallet-card";
+import { AccountTransfer } from "@/components/motion/account-transfer";
 import { useRouter } from "next/navigation";
 import {
   ReturnsCalendar,
@@ -490,9 +492,63 @@ function ActivityOverviewTabs() {
   );
 }
 
+// ── Transfer dialog ──────────────────────────────────────────────────────────
+
+function TransferDialog({ onClose }: { onClose: () => void }) {
+  // Close on Esc + lock background scroll while open
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Transfer funds"
+        className="w-full max-w-[560px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between px-1">
+          <h3 className="text-sm font-semibold text-foreground">Transfer</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="grid size-7 place-items-center rounded-xl bg-muted text-muted-foreground transition-colors hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="max-h-[85vh] overflow-y-auto">
+          <AccountTransfer
+            onConfirm={() => {
+              // TODO: call your transfer API with { fromId, toId, amount }
+              onClose();
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [walletBalance] = useState(12480.32);
+  const [transferOpen, setTransferOpen] = useState(false);
   const loading = false;
 
   return (
@@ -518,9 +574,9 @@ export default function DashboardPage() {
               defaultChange={124.5}
               hasNotifications
               onNotifications={() => router.push("/community/announcements")}
-              onDeposit={() => {}}
-              onWithdraw={() => {}}
-              onTransfer={() => {}}
+              onDeposit={() => router.push("/fund/deposit")}
+              onWithdraw={() => router.push("/fund/withdraw")}
+              onTransfer={() => setTransferOpen(true)}
               onInvest={() => {}}
             />
           </div>
@@ -636,6 +692,9 @@ export default function DashboardPage() {
 
         <div className="h-20" />
       </div>
+
+      {/* ── Transfer Dialog ─────────────────────── */}
+      {transferOpen && <TransferDialog onClose={() => setTransferOpen(false)} />}
     </UserShell>
   );
 }
