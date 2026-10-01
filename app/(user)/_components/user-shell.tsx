@@ -65,7 +65,7 @@ const ROUTES: Record<string, string> = {
   "Investment": "/investment/overview",
   "Overview":   "/investment/overview",
   "Daily Profit": "/investment/daily-profit",
-  "Cloud Mining": "/investment/cloud-mining",
+  
   // Trading
   "Trade Overview":         "/trading/overview",
   "Trading":          "/trading",
@@ -78,8 +78,7 @@ const ROUTES: Record<string, string> = {
   "Main Wallet":       "/wallet/main",
   "Investment Wallet": "/wallet/investment",
   "Trading Wallet":    "/wallet/trading",
-  "Mining Wallet":     "/wallet/mining",
-  "Referral Wallet":   "/wallet/referral",
+
   "Wallet History":    "/wallet/history",
   // Fund
   "Fund":         "/fund",
@@ -88,7 +87,7 @@ const ROUTES: Record<string, string> = {
   "Send":     "/fund/send",
   "Fund History": "/fund/history",
   // Referral
-  "Referral":           "/referral/dashboard",
+  
   "Referral Dashboard": "/referral/dashboard",
   "Leaderboard":       "/referral/leaderboard",
 
@@ -109,12 +108,12 @@ const destinations = [
   {
     label: "Investment",
     icon: BriefcaseBusiness,
-    children: ["Overview", "Daily Profit", "Cloud Mining"],
+    children: ["Overview", "Daily Profit" , "AI Trading"],
   },
   {
     label: "Trading",
     icon: CandlestickChart,
-    children: [ "Trade Overview" , "AI Trading", "Manual Trading",  "Trade History"],
+    children: [ "Trade Overview" ,  "Manual Trading",  "Trade History"],
   },
   {
     label: "Wallet",
@@ -123,8 +122,8 @@ const destinations = [
       "Main Wallet",
       "Investment Wallet",
       "Trading Wallet",
-      "Mining Wallet",
-      "Referral Wallet",
+      
+      
       "Wallet History",
     ],
   },
