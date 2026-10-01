@@ -115,42 +115,38 @@ const destinations = [
   {
     label: "Users",
     icon: Users,
-    children: ["All Users", "KYC Requests", "Login History"],
+    children: ["All Users", "KYC Requests"],
   },
   {
     label: "Finance",
     icon: Landmark,
-    children: ["Deposits", "Withdrawals", "Transfers", "Fund History"],
+    children: ["Deposits", "Withdrawals", "Fund History"],
   },
   {
-    label: "Investment",
+    label: "Pakage Management",
     icon: BriefcaseBusiness,
-    children: ["Plans", "Daily Profit", "Cloud Mining"],
+    children: [ "Daily Profit", "Cloud Mining" , "AI Trading"],
   },
   {
-    label: "Trading",
+    label: "Manual Trading Management",
     icon: CandlestickChart,
-    children: ["Trade Overview", "AI Trading", "Manual Trading", "Trade History"],
+    children: ["Trade Overview", "Manual Trading", "Trade History"],
   },
-  {
+    {
     label: "Referral",
     icon: Users,
-    children: ["Referral Overview", "Leaderboard"],
+    children: ["Basic Management", "Leaderboard Management"],
   },
-  {
-    label: "Support",
-    icon: HeadsetIcon,
-    children: ["All Tickets", "Ticket Replies"],
-  },
+
   {
     label: "Community",
     icon: MessagesCircle,
     children: ["Chat Moderation", "Announcements"],
   },
   {
-    label: "Settings",
-    icon: Settings,
-    children: ["General", "Admins & Roles", "Security Settings"],
+    label: "Support",
+    icon: HeadsetIcon,
+    
   },
 ] satisfies {
   label: string;

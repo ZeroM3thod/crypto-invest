@@ -99,7 +99,7 @@ const destinations = [
   {
     label: "Users",
     icon: Users,
-    children: ["All Users", "KYC Requests", "Login History"],
+    children: ["All Users", "KYC Requests"],
   },
   {
     label: "Finance",
@@ -107,24 +107,30 @@ const destinations = [
     children: ["Deposits", "Withdrawals", "Fund History"],
   },
   {
-    label: "Investment",
+    label: "Pakage Management",
     icon: BriefcaseBusiness,
-    children: ["Overview", "Daily Profit", "Cloud Mining"],
+    children: [ "Daily Profit", "Cloud Mining" , "AI Trading"],
   },
   {
-    label: "Trading",
+    label: "Manual Trading Management",
     icon: CandlestickChart,
-    children: ["Trade Overview", "AI Trading", "Manual Trading", "Trade History"],
+    children: ["Trade Overview", "Manual Trading", "Trade History"],
   },
-  {
-    label: "Support",
-    icon: HeadsetIcon,
-    children: ["All Tickets", "Ticket Replies"],
+    {
+    label: "Referral",
+    icon: Users,
+    children: ["Basic Management", "Leaderboard Management"],
   },
+
   {
     label: "Community",
     icon: MessagesCircle,
     children: ["Chat Moderation", "Announcements"],
+  },
+  {
+    label: "Support",
+    icon: HeadsetIcon,
+    
   },
 ] satisfies {
   label: string;
