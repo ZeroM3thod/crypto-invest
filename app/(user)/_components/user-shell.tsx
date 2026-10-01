@@ -18,6 +18,7 @@ import {
   Home,
   Landmark,
   LogOut, 
+  Lock,
   PanelLeft,
   Settings,
   ShieldCheck,
@@ -56,6 +57,10 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/motion/context-menu";
+import {
+  AnimatedToastStack,
+  useAnimatedToastStack,
+} from "@/components/motion/animated-toast-stack";
 
 /** Maps every nav label (top-level or child) to its Next.js route. */
 const ROUTES: Record<string, string> = {
@@ -114,6 +119,7 @@ const destinations = [
     label: "Trading",
     icon: CandlestickChart,
     children: [ "Trade Overview" ,  "Manual Trading",  "Trade History"],
+    locked: true, // Coming soon: shown in the sidebar but not clickable
   },
   {
     label: "Wallet",
@@ -154,6 +160,8 @@ const destinations = [
   label: string;
   icon: typeof Users;
   children?: string[];
+  /** Locked items show a "Coming soon" pill and can't be opened. */
+  locked?: boolean;
 }[];
 
 interface UserShellProps {
@@ -169,6 +177,19 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
+  const { toasts, showToast, dismissToast } = useAnimatedToastStack({
+    defaultDuration: 2800,
+    limit: 1, // only one "Coming soon" toast at a time
+  });
+
+  /** Locked items open a "Coming soon" toast instead of navigating. */
+  const showComingSoon = (label: string) => {
+    showToast({
+      status: "info",
+      title: `${label} is coming soon`,
+      description: "This section isn't available yet. Stay tuned!",
+    });
+  };
 
   /** Navigate to the route for a label if one is registered. */
   const navigate = (label: string) => {
@@ -225,44 +246,64 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
             <AnimatedSidebarGroupLabel>User Panel</AnimatedSidebarGroupLabel>
             <AnimatedSidebarGroupContent>
               <AnimatedSidebarMenu>
-                {destinations.map(({ label, icon: Icon, children }) => (
+                {destinations.map(({ label, icon: Icon, children, locked }) => (
                   <AnimatedSidebarMenuItem key={label}>
-                    <AnimatedSidebarMenuButton
-                      isActive={
-                        active === label ||
-                        children?.includes(active) === true
-                      }
-                      ariaExpanded={
-                        children ? openSection === label : undefined
-                      }
-                      icon={<Icon className="size-4" />}
-                      onSelect={() => {
-                        setOpenSection((current) => {
-                          if (!children) {
-                            setActive(label);
-                            navigate(label);
-                            return null;
+                    {locked ? (
+                      <div aria-disabled="true" className="cursor-not-allowed">
+                        <AnimatedSidebarMenuButton
+                          isActive={false}
+                          icon={<Icon className="size-4 opacity-50" />}
+                          onSelect={() => showComingSoon(label)}
+                        >
+                          <span className="flex w-full items-center gap-2 text-muted-foreground/60">
+                            {label}
+                            <Lock
+                              aria-hidden="true"
+                              className="ml-auto size-3.5 shrink-0 group-data-[state=collapsed]/sidebar:hidden"
+                            />
+                          </span>
+                        </AnimatedSidebarMenuButton>
+                      </div>
+                    ) : (
+                      <>
+                        <AnimatedSidebarMenuButton
+                          isActive={
+                            active === label ||
+                            children?.includes(active) === true
                           }
-                          return current === label ? null : label;
-                        });
-                      }}
-                    >
-                      {label}
-                    </AnimatedSidebarMenuButton>
-                    {children ? (
-                      <AnimatedSidebarMenuSub open={openSection === label}>
-                        {children.map((child) => (
-                          <AnimatedSidebarMenuSubItem key={child}>
-                            <AnimatedSidebarMenuSubButton
-                              isActive={active === child}
-                              onSelect={() => { setActive(child); navigate(child); }}
-                            >
-                              {child}
-                            </AnimatedSidebarMenuSubButton>
-                          </AnimatedSidebarMenuSubItem>
-                        ))}
-                      </AnimatedSidebarMenuSub>
-                    ) : null}
+                          ariaExpanded={
+                            children ? openSection === label : undefined
+                          }
+                          icon={<Icon className="size-4" />}
+                          onSelect={() => {
+                            setOpenSection((current) => {
+                              if (!children) {
+                                setActive(label);
+                                navigate(label);
+                                return null;
+                              }
+                              return current === label ? null : label;
+                            });
+                          }}
+                        >
+                          {label}
+                        </AnimatedSidebarMenuButton>
+                        {children ? (
+                          <AnimatedSidebarMenuSub open={openSection === label}>
+                            {children.map((child) => (
+                              <AnimatedSidebarMenuSubItem key={child}>
+                                <AnimatedSidebarMenuSubButton
+                                  isActive={active === child}
+                                  onSelect={() => { setActive(child); navigate(child); }}
+                                >
+                                  {child}
+                                </AnimatedSidebarMenuSubButton>
+                              </AnimatedSidebarMenuSubItem>
+                            ))}
+                          </AnimatedSidebarMenuSub>
+                        ) : null}
+                      </>
+                    )}
                   </AnimatedSidebarMenuItem>
                 ))}
               </AnimatedSidebarMenu>
@@ -357,6 +398,15 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
         {/* Page content goes here */}
         {children}
       </AnimatedSidebarInset>
+
+      <AnimatedToastStack
+        toasts={toasts}
+        onDismiss={dismissToast}
+        position="bottom-right"
+        placement="fixed"
+        maxVisible={1}
+        icons={{ info: <Lock className="h-3.5 w-3.5" /> }}
+      />
     </AnimatedSidebarProvider>
   );
 }
