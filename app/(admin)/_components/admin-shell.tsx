@@ -61,14 +61,14 @@ const ROUTES: Record<string, string> = {
   // Users
   "Users": "/admin/users",
   "All Users": "/admin/users",
-  "KYC Requests": "/admin/users/kyc",
+  "KYC Requests": "/admin/kyc",
   "Login History": "/admin/users/login-history",
 
   // Finance
-  "Finance": "/admin/finance/deposits",
-  "Deposits": "/admin/finance/deposits",
-  "Withdrawals": "/admin/finance/withdrawals",
-  "Fund History": "/admin/finance/history",
+  "Finance": "/admin/deposits",
+  "Deposits": "/admin/deposits",
+  "Withdrawals": "/admin/withdraws",
+  "Fund History": "/admin/history",
 
   // Investment
   "Investment": "/admin/investment/overview",
@@ -84,14 +84,14 @@ const ROUTES: Record<string, string> = {
   "Trade History": "/admin/trading/trade-history",
 
   // Support
-  "Support": "/admin/support/tickets",
-  "All Tickets": "/admin/support/tickets",
+  "Support": "/admin/support",
+  "All Tickets": "/admin/support",
   "Ticket Replies": "/admin/support/replies",
 
   // Community
-  "Community": "/admin/community/chat",
-  "Chat Moderation": "/admin/community/chat",
-  "Announcements": "/admin/community/announcements",
+  "Community": "/admin/community",
+  "Chat Moderation": "/admin/community",
+  "Announcements": "/admin/announcement",
 };
 
 const destinations = [
