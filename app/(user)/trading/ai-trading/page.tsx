@@ -299,7 +299,7 @@ function InvestDialogContent({
                 Invest in {strategy.name}
               </h3>
               <p className="text-[11px] text-muted-foreground">
-                {strategy.exchange} · min ${fmt(strategy.minStake)}
+                Min ${fmt(strategy.minStake)}
               </p>
             </div>
           </div>
@@ -413,6 +413,8 @@ function InvestDialogContent({
         >
           <SlideActionButton
             className="w-full"
+            fillClassName="bg-foreground"
+            thumbClassName="bg-foreground text-background"
             completeLabel="Invested"
             resetDelay={5000}
             onComplete={handleComplete}
@@ -488,7 +490,7 @@ function StrategyCard({
           </div>
           <div>
             <p className="text-sm font-semibold text-card-foreground">{strategy.name}</p>
-            <p className="text-[11px] text-muted-foreground">{strategy.exchange} · min ${strategy.minStake}</p>
+            <p className="text-[11px] text-muted-foreground">Min ${strategy.minStake}</p>
           </div>
         </div>
         {isEmpty && <Badge label="Available" tone="muted" />}
