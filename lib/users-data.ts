@@ -12,6 +12,8 @@ export type Tx = {
 export type WalletKey = "main" | "mining" | "investment" | "trading" | "referral";
 // lockedBalance = non-withdrawable reward principal held in this wallet.
 // Withdrawals may only use balance - lockedBalance; investing may use all of it.
+// If that principal funded a plan, it is burned when the plan ends
+// (see burnLockedPrincipal below).
 export type Wallet = {
   address: string;
   balance: number;
@@ -292,5 +294,21 @@ export function toRow(u: User): UserRow {
     status: u.status,
     referredBy: u.referredBy,
     totalBalance: Object.values(u.wallets).reduce((s, w) => s + w.balance, 0),
+  };
+}
+
+/**
+ * End-of-plan rule for a principal that came from a non-withdrawable reward:
+ * the principal is BURNED — it leaves both balance and lockedBalance (the
+ * daily profit it earned stays withdrawable). Clamped to lockedBalance so no
+ * more than the locked reward can be burned. Call this when an investment
+ * ends; swap for a DB transaction when the investment engine lands.
+ */
+export function burnLockedPrincipal(wallet: Wallet, principal: number): Wallet {
+  const burn = Math.max(0, Math.min(principal, wallet.lockedBalance));
+  return {
+    ...wallet,
+    balance: Math.max(0, wallet.balance - burn),
+    lockedBalance: wallet.lockedBalance - burn,
   };
 }

@@ -122,27 +122,10 @@ const destinations = [
     icon: Landmark,
     children: ["Deposits", "Withdrawals", "Fund History"],
   },
-  {
-    label: "Pakage Management",
-    icon: BriefcaseBusiness,
-    children: [ "Daily Profit", "Cloud Mining" , "AI Trading"],
-  },
-  {
-    label: "Manual Trading Management",
-    icon: CandlestickChart,
-    children: ["Trade Overview", "Manual Trading", "Trade History"],
-  },
-    {
-    label: "Referral",
-    icon: Users,
-    children: ["Basic Management", "Leaderboard Management"],
-  },
 
-  {
-    label: "Community",
-    icon: MessagesCircle,
-    children: ["Chat Moderation", "Announcements"],
-  },
+
+
+  
   {
     label: "Support",
     icon: HeadsetIcon,
