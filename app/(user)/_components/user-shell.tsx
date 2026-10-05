@@ -5,6 +5,7 @@ import Avatar9 from "@/components/base-ui/avatar2";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   BadgeCheck,
   Bell,
@@ -387,12 +388,17 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
       </AnimatedSidebar>
 
       <AnimatedSidebarInset className="bg-background">
-        <header className="flex h-16 shrink-0 items-center gap-3 border-border border-b px-4">
-          <AnimatedSidebarTrigger className="text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <PanelLeft aria-hidden="true" className="size-4" />
-          </AnimatedSidebarTrigger>
-          <div className="h-5 w-px bg-border" />
-          <p className="text-sm font-medium text-foreground">{active}</p>
+        <header className="flex h-16 shrink-0 items-center justify-between border-border border-b px-4">
+          <div className="flex items-center gap-3">
+            <AnimatedSidebarTrigger className="text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+              <PanelLeft aria-hidden="true" className="size-4" />
+            </AnimatedSidebarTrigger>
+            <div className="h-5 w-px bg-border" />
+            <p className="text-sm font-medium text-foreground">{active}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+          </div>
         </header>
 
         {/* Page content goes here */}
