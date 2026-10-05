@@ -121,3 +121,23 @@ export function logImpersonation(ownerId: string, adminId: string): void {
 export function getImpersonationLog(): ImpersonationEntry[] {
   return impersonationLog;
 }
+
+// In-memory wallet balance audit log (swap for the balance_change table).
+export type BalanceChangeEntry = {
+  adminId: string;
+  userId: string;
+  wallet: string;
+  from: number;
+  to: number;
+  at: string;
+};
+const balanceChangeLog: BalanceChangeEntry[] = [];
+
+/** Record who changed a wallet balance, and from which value to which value. */
+export function logBalanceChange(entry: Omit<BalanceChangeEntry, "at">): void {
+  balanceChangeLog.push({ ...entry, at: new Date().toISOString() });
+}
+
+export function getBalanceChangeLog(): BalanceChangeEntry[] {
+  return balanceChangeLog;
+}

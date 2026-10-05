@@ -1,847 +1,878 @@
-Below are the two admin pages, written in the same style as your user referral and leaderboard pages (same Tailwind tokens, `rounded-4xl` cards, black-and-white pills). I didn't have access to the beui.dev source, so I used plain Tailwind primitives to match your existing pages. Everything runs on local state with placeholder data, and the places to connect your API are marked `TODO`.
+I read your `user-detail.tsx`. `page.tsx` and `users-management.tsx` need no changes. I haven't seen `lib/users-data`, so I'm assuming the type additions in step 1.
 
-## Setup guide
+## 1. Add to `lib/users-data.ts`
 
-1. Create two files: `app/(admin)/admin/referral/page.tsx` and `app/(admin)/admin/referral/leaderboard/page.tsx`. These paths match the routes already in your `ROUTES` map (`/admin/referral` and `/admin/referral/leaderboard`).
-2. Each page is wrapped in `AdminShell`, with `active` set to the sidebar label (`"Basic Management"` and `"Leaderboard Management"`).
-3. Everything is local state with placeholder data. Replace the `TODO` comments with your real API calls.
-4. **Bulk script format:** paste one user per line, as `name, referrals`. Commas, tabs, `:`, `|` and `;` all work as separators. A plain space before the number also works.
+```ts
+export type RewardWallet = "main" | "investment";
+export type RewardType = "withdrawable" | "non_withdrawable";
 
----
-
-## 1) Basic Management: `app/(admin)/admin/referral/page.tsx`
-
-```tsx
-"use client";
-
-import { AdminShell } from "@/app/(admin)/_components/admin-shell";
-import { useState } from "react";
-import {
-  Trophy,
-  DollarSign,
-  Users,
-  Plus,
-  Trash2,
-  Check,
-  Save,
-  Bot,
-  Cloud,
-  TrendingUp,
-  Wallet,
-} from "lucide-react";
-
-/* ───────── Types ───────── */
-
-type TabId = "milestones" | "commission" | "top";
-type ProfitSource = "daily" | "aiTrading" | "cloudMining" | "manualTrading";
-
-interface MilestoneDraft {
-  id: number;
-  requiredActive: string;
-  reward: string;
-}
-
-/* ───────── Placeholder data (wire to API) ───────── */
-
-const INITIAL_MILESTONES = [
-  { requiredActive: 5, reward: 5 },
-  { requiredActive: 10, reward: 12 },
-  { requiredActive: 15, reward: 35 },
-  { requiredActive: 20, reward: 30 },
-  { requiredActive: 30, reward: 40 },
-  { requiredActive: 50, reward: 75 },
-  { requiredActive: 100, reward: 170 },
-  { requiredActive: 150, reward: 250 },
-];
-
-const SOURCE_META: Record<
-  ProfitSource,
-  { label: string; icon: typeof TrendingUp; basis: string }
-> = {
-  daily: { label: "Daily Profit", icon: TrendingUp, basis: "% of profit · lifetime" },
-  aiTrading: { label: "AI Trading", icon: Bot, basis: "% of profit · lifetime" },
-  cloudMining: { label: "Cloud Mining", icon: Cloud, basis: "% of profit · lifetime" },
-  manualTrading: { label: "Manual Trading", icon: Wallet, basis: "% of total turnover · lifetime" },
+export type Reward = {
+  id: string;
+  title: string;
+  description: string;
+  amount: number;
+  wallet: RewardWallet;
+  type: RewardType;
+  sentAt: string;
+  sentBy: string;
+  status: "credited";
 };
 
-const INITIAL_RATES: Record<ProfitSource, string> = {
-  daily: "5",
-  aiTrading: "5",
-  cloudMining: "5",
-  manualTrading: "5",
+export type DailyProfit = {
+  id: string;
+  investmentId: string;
+  plan: string;
+  date: string;          // YYYY-MM-DD
+  invested: number;
+  roi: number;           // daily ROI %
+  profit: number;
+  wallet: string;        // where the profit was credited
+  status: "credited" | "pending";
 };
 
-const TOP_REFERRERS = [
-  { userId: "USR90011", name: "Rahim Uddin", email: "rahim@mail.com", totalReferred: 260, active: 214, commission: 4820.5 },
-  { userId: "USR90022", name: "Fatima Islam", email: "fatima@mail.com", totalReferred: 221, active: 187, commission: 3914.2 },
-  { userId: "USR90033", name: "Arjun Patel", email: "arjun@mail.com", totalReferred: 190, active: 165, commission: 3120.75 },
-  { userId: "USR90044", name: "Ling Wei", email: "ling@mail.com", totalReferred: 170, active: 142, commission: 2650.0 },
-  { userId: "USR90055", name: "Carlos Mendez", email: "carlos@mail.com", totalReferred: 150, active: 129, commission: 2210.4 },
-  { userId: "USR90066", name: "Aisha Rahman", email: "aisha@mail.com", totalReferred: 140, active: 118, commission: 1985.9 },
-];
+export type AiTrade = {
+  id: string;
+  strategyId: string;
+  strategy: string;
+  date: string;
+  pair: string;
+  direction: "long" | "short";
+  size: number;
+  entry: number;
+  exit: number;
+  pnl: number;
+  status: string;
+};
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "milestones", label: "Milestones" },
-  { id: "commission", label: "Commission" },
-  { id: "top", label: "Top Referrers" },
-];
-
-const inputCls =
-  "h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-/* ───────── UI primitives ───────── */
-
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-4xl border border-border bg-card p-6 ${className}`}>{children}</div>;
-}
-
-/* ───────── Page ───────── */
-
-export default function AdminReferralPage() {
-  const [tab, setTab] = useState<TabId>("milestones");
-  const [toast, setToast] = useState({ msg: "", show: false });
-
-  // Milestones
-  const [nextId, setNextId] = useState(INITIAL_MILESTONES.length + 1);
-  const [milestones, setMilestones] = useState<MilestoneDraft[]>(
-    INITIAL_MILESTONES.map((m, i) => ({
-      id: i + 1,
-      requiredActive: String(m.requiredActive),
-      reward: String(m.reward),
-    }))
-  );
-  const [milestoneError, setMilestoneError] = useState("");
-
-  // Commission
-  const [rates, setRates] = useState<Record<ProfitSource, string>>(INITIAL_RATES);
-  const [rateError, setRateError] = useState("");
-
-  const showToast = (msg: string) => {
-    setToast({ msg, show: true });
-    setTimeout(() => setToast((t) => ({ ...t, show: false })), 3000);
-  };
-
-  /* ---- Milestone actions ---- */
-  const updateMilestone = (id: number, field: "requiredActive" | "reward", value: string) =>
-    setMilestones((list) => list.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
-
-  const addMilestone = () => {
-    setMilestones((list) => [...list, { id: nextId, requiredActive: "", reward: "" }]);
-    setNextId((n) => n + 1);
-  };
-
-  const removeMilestone = (id: number) => setMilestones((list) => list.filter((m) => m.id !== id));
-
-  const saveMilestones = () => {
-    const parsed = milestones.map((m) => ({
-      requiredActive: Number(m.requiredActive),
-      reward: Number(m.reward),
-    }));
-
-    if (parsed.some((m) => !Number.isInteger(m.requiredActive) || m.requiredActive <= 0)) {
-      return setMilestoneError("Every milestone needs a whole number of active users greater than 0.");
-    }
-    if (parsed.some((m) => Number.isNaN(m.reward) || m.reward < 0)) {
-      return setMilestoneError("Every milestone needs a valid reward amount.");
-    }
-    if (new Set(parsed.map((m) => m.requiredActive)).size !== parsed.length) {
-      return setMilestoneError("Two milestones can't have the same user number.");
-    }
-
-    const sorted = [...parsed].sort((a, b) => a.requiredActive - b.requiredActive);
-    setMilestoneError("");
-    setMilestones(
-      sorted.map((m, i) => ({ id: i + 1, requiredActive: String(m.requiredActive), reward: String(m.reward) }))
-    );
-    setNextId(sorted.length + 1);
-
-    // TODO: await fetch("/api/admin/referral/milestones", { method: "PUT", body: JSON.stringify(sorted) })
-    showToast("Milestones saved");
-  };
-
-  /* ---- Commission actions ---- */
-  const saveRates = () => {
-    const invalid = (Object.keys(rates) as ProfitSource[]).some((k) => {
-      const n = Number(rates[k]);
-      return rates[k].trim() === "" || Number.isNaN(n) || n < 0 || n > 100;
-    });
-    if (invalid) return setRateError("Each rate must be a number between 0 and 100.");
-
-    setRateError("");
-    // TODO: await fetch("/api/admin/referral/commission", { method: "PUT", body: JSON.stringify(rates) })
-    showToast("Commission rates saved");
-  };
-
-  return (
-    <AdminShell active="Basic Management">
-      <div className="relative overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
-        {/* Toast */}
-        {toast.show && (
-          <div className="fixed right-6 top-6 z-[999] flex items-center gap-2 rounded-2xl border border-border bg-foreground px-4 py-3 text-sm font-medium text-background shadow-lg">
-            <Check className="size-4" />
-            {toast.msg}
-          </div>
-        )}
-
-        <div className="mx-auto max-w-3xl space-y-6">
-          {/* Header */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">Referral</p>
-            <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              Basic Management
-            </h1>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {TABS.map((t) => {
-              const isActive = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={[
-                    "shrink-0 rounded-full border px-4 py-2 text-xs font-medium transition-colors",
-                    isActive
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-                  ].join(" ")}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* ── MILESTONES ── */}
-          {tab === "milestones" && (
-            <Card>
-              <div className="mb-1 flex items-center gap-2">
-                <Trophy className="size-4 text-foreground" />
-                <h2 className="text-lg font-semibold text-foreground">Referral Milestones</h2>
-              </div>
-              <p className="mb-5 text-sm text-muted-foreground">
-                Edit the required active users and reward for each tier, or add a new milestone.
-              </p>
-
-              <div className="mb-2 grid grid-cols-[1fr_1fr_40px] gap-2 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                <span>Active Users</span>
-                <span>Reward ($)</span>
-                <span />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {milestones.map((m) => (
-                  <div key={m.id} className="grid grid-cols-[1fr_1fr_40px] items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      inputMode="numeric"
-                      value={m.requiredActive}
-                      onChange={(e) => updateMilestone(m.id, "requiredActive", e.target.value)}
-                      placeholder="e.g. 200"
-                      className={inputCls}
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      inputMode="decimal"
-                      value={m.reward}
-                      onChange={(e) => updateMilestone(m.id, "reward", e.target.value)}
-                      placeholder="e.g. 300"
-                      className={inputCls}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeMilestone(m.id)}
-                      aria-label="Remove milestone"
-                      className="flex size-10 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                ))}
-
-                {milestones.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-                    No milestones yet — add one below.
-                  </div>
-                )}
-              </div>
-
-              {milestoneError && <p className="mt-3 text-xs font-medium text-destructive">{milestoneError}</p>}
-
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={addMilestone}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
-                >
-                  <Plus className="size-4" /> Add Milestone
-                </button>
-                <button
-                  type="button"
-                  onClick={saveMilestones}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-foreground py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
-                >
-                  <Save className="size-4" /> Save Changes
-                </button>
-              </div>
-            </Card>
-          )}
-
-          {/* ── COMMISSION ── */}
-          {tab === "commission" && (
-            <Card>
-              <div className="mb-1 flex items-center gap-2">
-                <DollarSign className="size-4 text-foreground" />
-                <h2 className="text-lg font-semibold text-foreground">Lifetime Commission</h2>
-              </div>
-              <p className="mb-5 text-sm text-muted-foreground">
-                Set the lifetime commission percentage for each source. Manual Trading is calculated on total turnover.
-              </p>
-
-              <div className="flex flex-col gap-2.5">
-                {(Object.keys(SOURCE_META) as ProfitSource[]).map((key) => {
-                  const meta = SOURCE_META[key];
-                  const Icon = meta.icon;
-                  return (
-                    <div key={key} className="flex items-center gap-3 rounded-2xl border border-border p-3.5">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted">
-                        <Icon className="size-4 text-foreground" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-foreground">{meta.label}</div>
-                        <div className="text-xs text-muted-foreground">{meta.basis}</div>
-                      </div>
-                      <div className="relative w-24 shrink-0">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step="0.1"
-                          value={rates[key]}
-                          onChange={(e) => setRates((r) => ({ ...r, [key]: e.target.value }))}
-                          className={`${inputCls} pr-7 text-right`}
-                        />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                          %
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {rateError && <p className="mt-3 text-xs font-medium text-destructive">{rateError}</p>}
-
-              <button
-                type="button"
-                onClick={saveRates}
-                className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-foreground py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
-              >
-                <Save className="size-4" /> Save Commission Rates
-              </button>
-            </Card>
-          )}
-
-          {/* ── TOP REFERRERS ── */}
-          {tab === "top" && (
-            <Card>
-              <div className="mb-1 flex items-center gap-2">
-                <Users className="size-4 text-foreground" />
-                <h2 className="text-lg font-semibold text-foreground">Top Referrers</h2>
-              </div>
-              <p className="mb-5 text-sm text-muted-foreground">Users ranked by active referrals.</p>
-
-              <div className="flex flex-col gap-2">
-                {[...TOP_REFERRERS]
-                  .sort((a, b) => b.active - a.active)
-                  .map((u, i) => (
-                    <div
-                      key={u.userId}
-                      className="flex items-center justify-between rounded-2xl border border-border p-3.5"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div
-                          className={[
-                            "flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-                            i === 0
-                              ? "bg-foreground text-background"
-                              : "border border-border text-muted-foreground",
-                          ].join(" ")}
-                        >
-                          {i + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-foreground">{u.name}</div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {u.email} · {u.totalReferred} referred
-                          </div>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="text-sm font-semibold text-foreground">{u.active} active</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          ${u.commission.toLocaleString(undefined, { minimumFractionDigits: 2 })} earned
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </Card>
-          )}
-        </div>
-      </div>
-    </AdminShell>
-  );
-}
+// inside your existing `User` type add:
+//   rewards: Reward[];
+//   dailyProfits: DailyProfit[];
+//   aiTrades: AiTrade[];
+// (use [] in your mock/DB data until real rows exist)
 ```
 
----
-
-## 2) Leaderboard Management: `app/(admin)/admin/referral/leaderboard/page.tsx`
+## 2. Updated `app/(admin)/_components/user-detail.tsx`
 
 ```tsx
+// app/(admin)/_components/user-detail.tsx
+// Admin user detail: admins can edit profile/KYC data AND wallet balances
+// (Main + Investment only), view full investment / AI trading history,
+// and send rewards to the user.
 "use client";
 
-import { AdminShell } from "@/app/(admin)/_components/admin-shell";
 import { useMemo, useState } from "react";
-import { Trophy, Medal, Crown, Check, Save, Trash2, Search, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Table, type TableColumn } from "@/components/motion/table";
+import { Checkbox } from "@/components/motion/checkbox";
+import { cn } from "@/lib/utils";
+import type {
+  AiStrategy,
+  AiTrade,
+  DailyProfit,
+  Investment,
+  LoginRecord,
+  ManualTrade,
+  ReferralMember,
+  Reward,
+  RewardType,
+  RewardWallet,
+  Tx,
+  User,
+} from "@/lib/users-data";
+import { Badge, Btn, Card, Field, SelectField, StatCard } from "./ui";
 
-/* ───────── Types ───────── */
+const TABS = [
+  "Profile",
+  "Wallets",
+  "Referrals",
+  "Investments",
+  "Trading",
+  "Rewards",
+  "Security & Logins",
+] as const;
+type Tab = (typeof TABS)[number];
 
-type BoardType = "monthly" | "weekly";
-
-interface Entry {
-  userId: string;
-  name: string;
-  referrals: number;
-}
-
-interface ParsedLine {
-  name: string;
-  referrals: number;
-}
-
-/* ───────── Placeholder data (wire to API) ───────── */
-
-const INITIAL_ENTRIES: Record<BoardType, Entry[]> = {
-  monthly: [
-    { userId: "USR90011", name: "Rahim Uddin", referrals: 214 },
-    { userId: "USR90022", name: "Fatima Islam", referrals: 187 },
-    { userId: "USR90033", name: "Arjun Patel", referrals: 165 },
-    { userId: "USR90044", name: "Ling Wei", referrals: 142 },
-    { userId: "USR90055", name: "Carlos Mendez", referrals: 129 },
-    { userId: "USR90066", name: "Aisha Rahman", referrals: 118 },
-  ],
-  weekly: [
-    { userId: "USR90055", name: "Carlos Mendez", referrals: 18 },
-    { userId: "USR90011", name: "Rahim Uddin", referrals: 16 },
-    { userId: "USR90077", name: "Kwame Boateng", referrals: 11 },
-    { userId: "USR90022", name: "Fatima Islam", referrals: 9 },
-  ],
+// Only these two wallets exist now (mining / trading / referral removed)
+type WalletKey = "main" | "investment";
+const WALLET_LABELS: Record<WalletKey, string> = {
+  main: "Main Wallet",
+  investment: "Investment Wallet",
 };
 
-const INITIAL_PRIZES: Record<BoardType, string[]> = {
-  monthly: ["1000", "600", "300"],
-  weekly: ["300", "200", "100"],
-};
+const usd = (n: number) =>
+  `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
-const PLACE_LABELS = ["1st Place", "2nd Place", "3rd Place"];
+/** Keep numbers as numbers when a text cell is edited. */
+const coerce = (sample: unknown, value: string) =>
+  typeof sample === "number" ? Number(value) || 0 : value;
 
-const inputCls =
-  "h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
+/** Column helper: every cell is editable + sortable by default. */
+function col<T>(
+  key: keyof T & string,
+  header: string,
+  extra: Partial<TableColumn<T>> = {},
+): TableColumn<T> {
+  return { key, header, editable: true, sortable: true, width: "140px", ...extra };
+}
 
-/* ───────── Helpers ───────── */
+/** Read-only column helper (history / log tables). */
+function ro<T>(
+  key: keyof T & string,
+  header: string,
+  extra: Partial<TableColumn<T>> = {},
+): TableColumn<T> {
+  return col<T>(key, header, { editable: false, ...extra });
+}
 
-function initials(name: string) {
+/** Editable data table used by every section. */
+function Grid<T extends { id: string }>({
+  data,
+  columns,
+  onCellEdit,
+  onDeleteRow,
+  height = 340,
+}: {
+  data: T[];
+  columns: TableColumn<T>[];
+  onCellEdit?: (rowId: string, key: string, value: string) => void;
+  onDeleteRow?: (rowId: string) => void;
+  height?: number;
+}) {
   return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((p) => p[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "?"
+    <Table
+      data={data}
+      columns={columns}
+      getRowId={(r) => r.id}
+      resizable
+      onCellEdit={onCellEdit}
+      onDeleteRow={onDeleteRow ? (id) => onDeleteRow(id) : undefined}
+      height={height}
+      rowHeight={48}
+      className="rounded-xl"
+      emptyState="No records"
+    />
   );
 }
 
-/**
- * Parses pasted lines like:
- *   Rahim Uddin, 214
- *   Fatima Islam<TAB>187
- *   Arjun Patel: 165
- *   Ling Wei 142
- */
-function parseScript(text: string): { rows: ParsedLine[]; bad: string[] } {
-  const rows: ParsedLine[] = [];
-  const bad: string[] = [];
+const rewardInitial = {
+  title: "",
+  description: "",
+  wallet: "main" as RewardWallet,
+  type: "non_withdrawable" as RewardType,
+  amount: "",
+};
 
-  text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .forEach((line) => {
-      const m = line.match(/^(.+?)\s*[,\t:|;]\s*(\d+)$/) || line.match(/^(.+?)\s+(\d+)$/);
-      if (!m) return bad.push(line);
-      rows.push({ name: m[1].trim(), referrals: parseInt(m[2], 10) });
-    });
+export function UserDetail({ initialUser }: { initialUser: User }) {
+  const router = useRouter();
+  const [user, setUser] = useState<User>(initialUser);
+  const [saved, setSaved] = useState<User>(initialUser);
+  const [tab, setTab] = useState<Tab>("Profile");
+  const [walletKey, setWalletKey] = useState<WalletKey>("main");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [invFilter, setInvFilter] = useState("all");
+  const [rf, setRf] = useState(rewardInitial);
+  const [rewardBusy, setRewardBusy] = useState(false);
 
-  return { rows, bad };
-}
+  const dirty = JSON.stringify(user) !== JSON.stringify(saved);
+  const set = <K extends keyof User>(key: K, value: User[K]) =>
+    setUser((u) => ({ ...u, [key]: value }));
 
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1)
-    return (
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
-        <Crown className="size-4" />
-      </div>
+  const flash = (message: string) => {
+    setNote(message);
+    setTimeout(() => setNote(null), 3000);
+  };
+
+  /** Admin can edit wallet balances. */
+  const setBalance = (k: WalletKey, value: number) =>
+    setUser((u) => ({
+      ...u,
+      wallets: { ...u.wallets, [k]: { ...u.wallets[k], balance: value } },
+    }));
+
+  /** Generic cell-edit handler for the editable top-level arrays. */
+  const editList =
+    (list: "referrals" | "investments" | "aiStrategies" | "manualTrades" | "logins") =>
+    (rowId: string, key: string, value: string) =>
+      setUser((u) => ({
+        ...u,
+        [list]: (u[list] as unknown as Record<string, unknown>[]).map((r) =>
+          r.id === rowId ? { ...r, [key]: coerce(r[key], value) } : r,
+        ),
+      }));
+
+  /** Persist to your backend (PATCH). Rewards are NOT sent here — they are
+   *  created only through the rewards endpoint so they can't be double-credited. */
+  async function persist(next: User, message: string) {
+    setBusy(true);
+    try {
+      const { rewards: _rewards, ...payload } = next;
+      void _rewards;
+      const res = await fetch(`/api/admin/users/${next.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setUser(next);
+      setSaved(next);
+      flash(message);
+    } catch {
+      flash("Save failed. Check your API route.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const toggleSuspend = () => {
+    const suspending = user.status === "active";
+    if (!confirm(`${suspending ? "Suspend" : "Activate"} ${user.firstName} ${user.lastName}?`)) return;
+    void persist(
+      { ...user, status: suspending ? "suspended" : "active" },
+      suspending ? "User suspended" : "User activated",
     );
-  if (rank === 2 || rank === 3)
-    return (
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-foreground text-foreground">
-        <Medal className="size-4" />
-      </div>
-    );
+  };
+
+  /** Send a reward: credits the chosen wallet on the server, then mirrors it locally. */
+  async function sendReward() {
+    const amount = Number(rf.amount);
+    if (!rf.title.trim() || !rf.description.trim() || !(amount > 0)) {
+      flash("Add a title, short description and a valid amount");
+      return;
+    }
+    const lockText = rf.type === "withdrawable" ? "withdrawable" : "non-withdrawable (invest only)";
+    if (
+      !confirm(
+        `Send ${usd(amount)} reward "${rf.title.trim()}" to ${user.firstName} ${user.lastName}'s ${WALLET_LABELS[rf.wallet]} as ${lockText}?`,
+      )
+    )
+      return;
+
+    setRewardBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/rewards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: rf.title.trim(),
+          description: rf.description.trim(),
+          wallet: rf.wallet,
+          type: rf.type,
+          amount,
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const { reward } = (await res.json()) as { reward: Reward };
+
+      // apply the same change to both current + saved copies (keeps "dirty" correct)
+      const apply = (u: User): User => ({
+        ...u,
+        rewards: [reward, ...u.rewards],
+        wallets: {
+          ...u.wallets,
+          [reward.wallet]: {
+            ...u.wallets[reward.wallet],
+            balance: u.wallets[reward.wallet].balance + reward.amount,
+          },
+        },
+      });
+      setUser(apply);
+      setSaved(apply);
+      setRf(rewardInitial);
+      flash("Reward sent");
+    } catch {
+      flash("Reward failed. Check your API route.");
+    } finally {
+      setRewardBusy(false);
+    }
+  }
+
+  // ---------- derived numbers ----------
+  const wallet = user.wallets[walletKey];
+  const totalWallets = user.wallets.main.balance + user.wallets.investment.balance;
+
+  const refTotals = useMemo(
+    () => ({
+      count: user.referrals.length,
+      deposit: user.referrals.reduce((s, r) => s + r.totalDeposit, 0),
+      balance: user.referrals.reduce((s, r) => s + r.balance, 0),
+    }),
+    [user.referrals],
+  );
+
+  const invTotals = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      running: user.investments.filter((i) => i.status === "running").length,
+      invested: user.investments.reduce((s, i) => s + i.amount, 0),
+      earned: user.investments.reduce((s, i) => s + i.earned, 0),
+      profitDays: user.dailyProfits.length,
+      today: user.dailyProfits
+        .filter((p) => p.date.startsWith(today))
+        .reduce((s, p) => s + p.profit, 0),
+    };
+  }, [user.investments, user.dailyProfits]);
+
+  const filteredProfits = useMemo(
+    () => (invFilter === "all" ? user.dailyProfits : user.dailyProfits.filter((p) => p.investmentId === invFilter)),
+    [user.dailyProfits, invFilter],
+  );
+  const filteredProfitTotal = useMemo(
+    () => filteredProfits.reduce((s, p) => s + p.profit, 0),
+    [filteredProfits],
+  );
+
+  const ai = useMemo(() => {
+    const s = user.aiStrategies;
+    const allocated = s.reduce((a, x) => a + x.allocated, 0);
+    const net = s.reduce((a, x) => a + x.pnl, 0);
+    return {
+      count: s.length,
+      active: s.filter((x) => x.status === "active" || x.status === "running").length,
+      allocated,
+      net,
+      roi: allocated ? (net / allocated) * 100 : 0,
+      avgWin: s.length ? s.reduce((a, x) => a + x.winRate, 0) / s.length : 0,
+      trades: user.aiTrades.length,
+    };
+  }, [user.aiStrategies, user.aiTrades]);
+
+  const trade = useMemo(() => {
+    const t = user.manualTrades;
+    return {
+      total: t.length,
+      long: t.filter((x) => x.direction === "long").length,
+      short: t.filter((x) => x.direction === "short").length,
+      wins: t.filter((x) => x.pnl > 0).length,
+      losses: t.filter((x) => x.pnl < 0).length,
+      net: t.reduce((s, x) => s + x.pnl, 0),
+    };
+  }, [user.manualTrades]);
+
+  const rewardTotals = useMemo(
+    () => ({
+      count: user.rewards.length,
+      total: user.rewards.reduce((s, r) => s + r.amount, 0),
+      locked: user.rewards.filter((r) => r.type === "non_withdrawable").reduce((s, r) => s + r.amount, 0),
+      free: user.rewards.filter((r) => r.type === "withdrawable").reduce((s, r) => s + r.amount, 0),
+    }),
+    [user.rewards],
+  );
+
+  // ---------- columns ----------
+  const txCols = useMemo<TableColumn<Tx>[]>(
+    () => [
+      ro<Tx>("date", "Date", { width: "170px" }),
+      ro<Tx>("type", "Type", { width: "120px" }),
+      ro<Tx>("amount", "Amount", { width: "120px", align: "right" }),
+      ro<Tx>("status", "Status", { width: "120px" }),
+      ro<Tx>("hash", "Tx Hash / Ref", { width: "1fr" }),
+    ],
+    [],
+  );
+  const refCols = useMemo<TableColumn<ReferralMember>[]>(
+    () => [
+      col<ReferralMember>("id", "User ID", { width: "120px" }),
+      col<ReferralMember>("name", "Name", { width: "1fr" }),
+      col<ReferralMember>("email", "Email", { width: "1.4fr" }),
+      col<ReferralMember>("joinedAt", "Joined", { width: "120px" }),
+      col<ReferralMember>("level", "Level", { width: "90px", align: "right" }),
+      col<ReferralMember>("totalDeposit", "Total Deposit", { width: "140px", align: "right" }),
+      col<ReferralMember>("balance", "Balance", { width: "120px", align: "right" }),
+    ],
+    [],
+  );
+  const invCols = useMemo<TableColumn<Investment>[]>(
+    () => [
+      col<Investment>("id", "ID", { width: "120px" }),
+      col<Investment>("plan", "Plan", { width: "120px" }),
+      col<Investment>("amount", "Amount", { width: "120px", align: "right" }),
+      col<Investment>("dailyRoi", "Daily ROI %", { width: "120px", align: "right" }),
+      col<Investment>("startDate", "Start", { width: "120px" }),
+      col<Investment>("endDate", "End", { width: "120px" }),
+      col<Investment>("earned", "Earned", { width: "110px", align: "right" }),
+      col<Investment>("status", "Status", { width: "120px" }),
+    ],
+    [],
+  );
+  const profitCols = useMemo<TableColumn<DailyProfit>[]>(
+    () => [
+      ro<DailyProfit>("date", "Date", { width: "130px" }),
+      ro<DailyProfit>("investmentId", "Investment ID", { width: "130px" }),
+      ro<DailyProfit>("plan", "Plan", { width: "120px" }),
+      ro<DailyProfit>("invested", "Invested", { width: "120px", align: "right", cell: (r) => <span className="tabular-nums">{usd(r.invested)}</span> }),
+      ro<DailyProfit>("roi", "Daily ROI %", { width: "120px", align: "right" }),
+      ro<DailyProfit>("profit", "Profit", {
+        width: "120px",
+        align: "right",
+        cell: (r) => <span className="tabular-nums text-emerald-500">{usd(r.profit)}</span>,
+      }),
+      ro<DailyProfit>("wallet", "Credited To", { width: "140px" }),
+      ro<DailyProfit>("status", "Status", {
+        width: "120px",
+        cell: (r) => <Badge tone={r.status === "credited" ? "green" : "amber"}>{r.status}</Badge>,
+      }),
+    ],
+    [],
+  );
+  const aiCols = useMemo<TableColumn<AiStrategy>[]>(
+    () => [
+      col<AiStrategy>("id", "ID", { width: "110px" }),
+      col<AiStrategy>("name", "Strategy", { width: "1fr" }),
+      col<AiStrategy>("pair", "Pair", { width: "120px" }),
+      col<AiStrategy>("allocated", "Allocated", { width: "120px", align: "right" }),
+      col<AiStrategy>("pnl", "PnL", { width: "100px", align: "right" }),
+      col<AiStrategy>("winRate", "Win Rate %", { width: "110px", align: "right" }),
+      col<AiStrategy>("status", "Status", { width: "110px" }),
+    ],
+    [],
+  );
+  const aiTradeCols = useMemo<TableColumn<AiTrade>[]>(
+    () => [
+      ro<AiTrade>("id", "ID", { width: "110px" }),
+      ro<AiTrade>("date", "Date", { width: "160px" }),
+      ro<AiTrade>("strategy", "Strategy", { width: "1fr" }),
+      ro<AiTrade>("pair", "Pair", { width: "110px" }),
+      ro<AiTrade>("direction", "Direction", { width: "110px" }),
+      ro<AiTrade>("size", "Size", { width: "100px", align: "right" }),
+      ro<AiTrade>("entry", "Entry", { width: "100px", align: "right" }),
+      ro<AiTrade>("exit", "Exit", { width: "100px", align: "right" }),
+      ro<AiTrade>("pnl", "PnL", {
+        width: "100px",
+        align: "right",
+        cell: (r) => <span className={cn("tabular-nums", r.pnl >= 0 ? "text-emerald-500" : "text-rose-500")}>{usd(r.pnl)}</span>,
+      }),
+      ro<AiTrade>("status", "Status", { width: "100px" }),
+    ],
+    [],
+  );
+  const tradeCols = useMemo<TableColumn<ManualTrade>[]>(
+    () => [
+      col<ManualTrade>("id", "ID", { width: "110px" }),
+      col<ManualTrade>("date", "Date", { width: "160px" }),
+      col<ManualTrade>("pair", "Pair", { width: "110px" }),
+      col<ManualTrade>("direction", "Direction", { width: "110px" }),
+      col<ManualTrade>("size", "Size", { width: "100px", align: "right" }),
+      col<ManualTrade>("entry", "Entry", { width: "100px", align: "right" }),
+      col<ManualTrade>("exit", "Exit", { width: "100px", align: "right" }),
+      col<ManualTrade>("pnl", "PnL", { width: "100px", align: "right" }),
+      col<ManualTrade>("status", "Status", { width: "100px" }),
+    ],
+    [],
+  );
+  const rewardCols = useMemo<TableColumn<Reward>[]>(
+    () => [
+      ro<Reward>("sentAt", "Sent On", { width: "160px" }),
+      ro<Reward>("title", "Title", { width: "1fr" }),
+      ro<Reward>("description", "Description", { width: "1.6fr" }),
+      ro<Reward>("amount", "Amount", {
+        width: "120px",
+        align: "right",
+        cell: (r) => <span className="tabular-nums">{usd(r.amount)}</span>,
+      }),
+      ro<Reward>("wallet", "Wallet", { width: "140px", cell: (r) => WALLET_LABELS[r.wallet] }),
+      ro<Reward>("type", "Type", {
+        width: "170px",
+        cell: (r) => (
+          <Badge tone={r.type === "withdrawable" ? "green" : "amber"}>
+            {r.type === "withdrawable" ? "Withdrawable" : "Invest only"}
+          </Badge>
+        ),
+      }),
+      ro<Reward>("sentBy", "Sent By", { width: "130px" }),
+    ],
+    [],
+  );
+  const loginCols = useMemo<TableColumn<LoginRecord>[]>(
+    () => [
+      col<LoginRecord>("at", "Date & Time", { width: "160px" }),
+      col<LoginRecord>("ip", "IP Address", { width: "140px" }),
+      col<LoginRecord>("device", "Device", { width: "140px" }),
+      col<LoginRecord>("browser", "Browser", { width: "130px" }),
+      col<LoginRecord>("app", "Application", { width: "160px" }),
+      col<LoginRecord>("location", "Location", { width: "130px" }),
+      col<LoginRecord>("status", "Result", { width: "100px" }),
+    ],
+    [],
+  );
+
   return (
-    <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border text-sm font-semibold text-muted-foreground">
-      {rank}
+    <div className="flex flex-col gap-6 p-4 md:p-6">
+      {/* ---------- header + account actions ---------- */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-border p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid size-12 place-items-center rounded-full bg-foreground text-sm font-semibold text-background">
+            {user.firstName[0]}
+            {user.lastName[0]}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-foreground">
+                {user.firstName} {user.lastName}
+              </h1>
+              <Badge tone={user.status === "active" ? "green" : "red"}>{user.status}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {user.id} · {user.email}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
+          <Btn onClick={() => router.push("/admin/users")}>Back</Btn>
+          <Btn tone={user.status === "active" ? "danger" : "default"} onClick={toggleSuspend} disabled={busy}>
+            {user.status === "active" ? "Suspend user" : "Activate user"}
+          </Btn>
+          <Btn tone="primary" onClick={() => persist(user, "Saved")} disabled={!dirty || busy}>
+            {busy ? "Saving..." : dirty ? "Save changes" : "Saved"}
+          </Btn>
+        </div>
+      </div>
+
+      {/* ---------- tabs ---------- */}
+      <div className="flex gap-1 overflow-x-auto rounded-xl bg-muted p-1">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={cn(
+              "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+              tab === t
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* ---------- PROFILE ---------- */}
+      {tab === "Profile" && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card title="Personal Information">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="First Name" value={user.firstName} onChange={(v) => set("firstName", v)} />
+              <Field label="Last Name" value={user.lastName} onChange={(v) => set("lastName", v)} />
+              <Field label="User ID" value={user.id} onChange={(v) => set("id", v)} />
+              <Field label="First Join Date" type="date" value={user.joinedAt} onChange={(v) => set("joinedAt", v)} />
+              <Field label="Email ID" type="email" value={user.email} onChange={(v) => set("email", v)} />
+              <Field label="Date of Birth" type="date" value={user.dob} onChange={(v) => set("dob", v)} />
+              <Field label="Country" value={user.country} onChange={(v) => set("country", v)} />
+              <Field label="Referred By (User ID or OWNER)" value={user.referredBy} onChange={(v) => set("referredBy", v)} />
+            </div>
+            <div className="mt-4">
+              <Field label="Main Wallet Address" value={user.walletAddress} readOnly />
+            </div>
+          </Card>
+
+          <div className="flex flex-col gap-6">
+            <Card title="KYC Details">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SelectField
+                  label="KYC Status"
+                  value={user.kyc.status}
+                  onChange={(v) => set("kyc", { ...user.kyc, status: v as User["kyc"]["status"] })}
+                  options={[
+                    { value: "verified", label: "Verified" },
+                    { value: "pending", label: "Pending" },
+                    { value: "rejected", label: "Rejected" },
+                    { value: "not_submitted", label: "Not submitted" },
+                  ]}
+                />
+                <Field
+                  label="Document Type"
+                  value={user.kyc.documentType}
+                  onChange={(v) => set("kyc", { ...user.kyc, documentType: v })}
+                />
+                <Field
+                  label="Document Number"
+                  value={user.kyc.documentNumber}
+                  onChange={(v) => set("kyc", { ...user.kyc, documentNumber: v })}
+                />
+                <Field
+                  label="Submitted On"
+                  type="date"
+                  value={user.kyc.submittedAt}
+                  onChange={(v) => set("kyc", { ...user.kyc, submittedAt: v })}
+                />
+              </div>
+            </Card>
+
+            <Card title="Two-Factor Authentication">
+              <Checkbox
+                checked={user.twoFA}
+                onCheckedChange={(v) => set("twoFA", v)}
+                label={user.twoFA ? "2FA is enabled" : "2FA is disabled"}
+              />
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- WALLETS (Main + Investment only, balances editable) ---------- */}
+      {tab === "Wallets" && (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {(Object.keys(WALLET_LABELS) as WalletKey[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setWalletKey(k)}
+                className={cn(
+                  "rounded-2xl border p-4 text-left transition-colors",
+                  walletKey === k ? "border-foreground bg-muted" : "border-border hover:bg-muted/50",
+                )}
+              >
+                <p className="text-xs text-muted-foreground">{WALLET_LABELS[k]}</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">{usd(user.wallets[k].balance)}</p>
+              </button>
+            ))}
+            <StatCard label="Total Balance" value={usd(totalWallets)} />
+          </div>
+
+          <Card title={WALLET_LABELS[walletKey]}>
+            <div
+              className={cn(
+                "grid gap-4",
+                walletKey === "main" ? "md:grid-cols-[1fr_200px]" : "md:grid-cols-[200px]",
+              )}
+            >
+              {/* Investment wallet has no address, so only Main shows one */}
+              {walletKey === "main" ? (
+                <Field label="Wallet Address" value={wallet.address} readOnly />
+              ) : null}
+              <Field
+                label="Balance (USD)"
+                type="number"
+                value={wallet.balance}
+                onChange={(v) => setBalance(walletKey, Number(v) || 0)}
+              />
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Edit the balance, then press “Save changes” at the top to apply it.
+            </p>
+          </Card>
+
+          <Card title={`Transactions (${wallet.transactions.length})`}>
+            <Grid data={wallet.transactions} columns={txCols} />
+          </Card>
+        </div>
+      )}
+
+      {/* ---------- REFERRALS ---------- */}
+      {tab === "Referrals" && (
+        <div className="flex flex-col gap-4">
+          <Card title="Referred By">
+            <div className="max-w-sm">
+              <Field
+                label="Referrer (User ID or OWNER)"
+                value={user.referredBy}
+                onChange={(v) => set("referredBy", v)}
+              />
+            </div>
+          </Card>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard label="Members Referred" value={refTotals.count} />
+            <StatCard label="Total Deposit (Team)" value={usd(refTotals.deposit)} />
+            <StatCard label="Total Balance (Team)" value={usd(refTotals.balance)} />
+          </div>
+          <Card title="Referred Members">
+            <Grid data={user.referrals} columns={refCols} onCellEdit={editList("referrals")} />
+          </Card>
+        </div>
+      )}
+
+      {/* ---------- INVESTMENTS (daily profit details) ---------- */}
+      {tab === "Investments" && (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <StatCard label="Running Plans" value={invTotals.running} />
+            <StatCard label="Total Invested" value={usd(invTotals.invested)} />
+            <StatCard label="Total Earned" value={usd(invTotals.earned)} />
+            <StatCard label="Today's Profit" value={usd(invTotals.today)} />
+            <StatCard label="Profit Credits" value={invTotals.profitDays} hint="Daily payouts so far" />
+          </div>
+
+          <Card title="Investment Plans">
+            <Grid data={user.investments} columns={invCols} onCellEdit={editList("investments")} />
+          </Card>
+
+          <Card title={`Daily Profit History (${filteredProfits.length})`}>
+            <div className="mb-3 grid gap-3 sm:grid-cols-[240px_1fr] sm:items-end">
+              <SelectField
+                label="Investment"
+                value={invFilter}
+                onChange={setInvFilter}
+                options={[
+                  { value: "all", label: "All investments" },
+                  ...user.investments.map((i) => ({ value: i.id, label: `${i.id} · ${i.plan}` })),
+                ]}
+              />
+              <p className="text-sm text-muted-foreground sm:text-right">
+                Total profit shown:{" "}
+                <span className="font-semibold tabular-nums text-emerald-500">{usd(filteredProfitTotal)}</span>
+              </p>
+            </div>
+            <Grid data={filteredProfits} columns={profitCols} height={380} />
+          </Card>
+        </div>
+      )}
+
+      {/* ---------- TRADING (AI strategy details + manual) ---------- */}
+      {tab === "Trading" && (
+        <div className="flex flex-col gap-6">
+          <section className="flex flex-col gap-4">
+            <h2 className="text-sm font-semibold">AI Trading</h2>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+              <StatCard label="Strategies" value={ai.count} hint={`${ai.active} active`} />
+              <StatCard label="Total Invested" value={usd(ai.allocated)} />
+              <StatCard
+                label="Net PnL"
+                value={<span className={ai.net >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(ai.net)}</span>}
+              />
+              <StatCard label="ROI" value={`${ai.roi.toFixed(2)}%`} />
+              <StatCard label="Avg Win Rate" value={`${ai.avgWin.toFixed(1)}%`} />
+              <StatCard label="AI Trades" value={ai.trades} />
+            </div>
+            <Card title="Invested Strategies">
+              <Grid data={user.aiStrategies} columns={aiCols} onCellEdit={editList("aiStrategies")} height={240} />
+            </Card>
+            <Card title={`AI Trade History (${user.aiTrades.length})`}>
+              <Grid data={user.aiTrades} columns={aiTradeCols} height={360} />
+            </Card>
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <h2 className="text-sm font-semibold">Manual Trading</h2>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <StatCard label="Total Trades" value={trade.total} />
+              <StatCard label="Long / Short" value={`${trade.long} / ${trade.short}`} />
+              <StatCard label="Wins / Losses" value={`${trade.wins} / ${trade.losses}`} />
+              <StatCard
+                label="Overall Result"
+                value={<span className={trade.net >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(trade.net)}</span>}
+                hint={trade.net >= 0 ? "In profit" : "In loss"}
+              />
+              <StatCard
+                label="Win Rate"
+                value={`${trade.total ? Math.round((trade.wins / trade.total) * 100) : 0}%`}
+              />
+            </div>
+            <Card title="All Trades">
+              <Grid data={user.manualTrades} columns={tradeCols} onCellEdit={editList("manualTrades")} />
+            </Card>
+          </section>
+        </div>
+      )}
+
+      {/* ---------- REWARDS ---------- */}
+      {tab === "Rewards" && (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Rewards Sent" value={rewardTotals.count} />
+            <StatCard label="Total Rewarded" value={usd(rewardTotals.total)} />
+            <StatCard label="Withdrawable" value={usd(rewardTotals.free)} />
+            <StatCard label="Invest Only" value={usd(rewardTotals.locked)} />
+          </div>
+
+          <Card title="Send Reward">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label="Reward Title"
+                value={rf.title}
+                onChange={(v) => setRf((s) => ({ ...s, title: v }))}
+              />
+              <Field
+                label="Amount (USD)"
+                type="number"
+                value={rf.amount}
+                onChange={(v) => setRf((s) => ({ ...s, amount: v }))}
+              />
+              <SelectField
+                label="Wallet"
+                value={rf.wallet}
+                onChange={(v) => setRf((s) => ({ ...s, wallet: v as RewardWallet }))}
+                options={[
+                  { value: "main", label: "Main Wallet" },
+                  { value: "investment", label: "Investment Wallet" },
+                ]}
+              />
+              <SelectField
+                label="Reward Use"
+                value={rf.type}
+                onChange={(v) => setRf((s) => ({ ...s, type: v as RewardType }))}
+                options={[
+                  { value: "non_withdrawable", label: "Non-withdrawable (invest only, profit withdrawable)" },
+                  { value: "withdrawable", label: "Withdrawable (user can withdraw)" },
+                ]}
+              />
+            </div>
+
+            <label className="mt-4 flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">Short Description</span>
+              <textarea
+                value={rf.description}
+                onChange={(e) => setRf((s) => ({ ...s, description: e.target.value }))}
+                rows={3}
+                maxLength={200}
+                placeholder="Shown to the user with the reward"
+                className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </label>
+
+            <p className="mt-3 text-xs text-muted-foreground">
+              {rf.type === "withdrawable"
+                ? "The user can withdraw this reward like normal balance."
+                : "The user can only invest this reward. Profit earned from it can be withdrawn."}
+            </p>
+
+            <div className="mt-4 flex justify-end">
+              <Btn tone="primary" onClick={sendReward} disabled={rewardBusy}>
+                {rewardBusy ? "Sending..." : "Send reward"}
+              </Btn>
+            </div>
+          </Card>
+
+          <Card title={`Reward History (${user.rewards.length})`}>
+            <Grid data={user.rewards} columns={rewardCols} />
+          </Card>
+        </div>
+      )}
+
+      {/* ---------- SECURITY & LOGINS ---------- */}
+      {tab === "Security & Logins" && (
+        <div className="flex flex-col gap-4">
+          <Card title="Two-Factor Authentication">
+            <Checkbox
+              checked={user.twoFA}
+              onCheckedChange={(v) => set("twoFA", v)}
+              label={user.twoFA ? "2FA is enabled" : "2FA is disabled"}
+            />
+          </Card>
+          <Card title="Login History (IP, device, app, time)">
+            <Grid data={user.logins} columns={loginCols} onCellEdit={editList("logins")} />
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
-
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-4xl border border-border bg-card p-6 ${className}`}>{children}</div>;
-}
-
-/* ───────── Page ───────── */
-
-export default function AdminLeaderboardPage() {
-  const [board, setBoard] = useState<BoardType>("monthly");
-  const [entries, setEntries] = useState(INITIAL_ENTRIES);
-  const [prizes, setPrizes] = useState(INITIAL_PRIZES);
-  const [prizeError, setPrizeError] = useState("");
-
-  const [script, setScript] = useState("");
-  const [replaceAll, setReplaceAll] = useState(false);
-  const [scriptMsg, setScriptMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  const [query, setQuery] = useState("");
-  const [toast, setToast] = useState({ msg: "", show: false });
-
-  const showToast = (msg: string) => {
-    setToast({ msg, show: true });
-    setTimeout(() => setToast((t) => ({ ...t, show: false })), 3000);
-  };
-
-  const ranked = useMemo(
-    () =>
-      [...entries[board]]
-        .sort((a, b) => b.referrals - a.referrals)
-        .map((e, i) => ({ ...e, rank: i + 1 })),
-    [entries, board]
-  );
-
-  const filtered = ranked.filter(
-    (e) =>
-      e.name.toLowerCase().includes(query.toLowerCase()) ||
-      e.userId.toLowerCase().includes(query.toLowerCase())
-  );
-
-  /* ---- Prize actions ---- */
-  const savePrizes = () => {
-    const invalid = prizes[board].some((p) => p.trim() === "" || Number.isNaN(Number(p)) || Number(p) < 0);
-    if (invalid) return setPrizeError("Enter a valid reward amount for all 3 places.");
-
-    setPrizeError("");
-    // TODO: await fetch(`/api/admin/leaderboard/${board}/prizes`, { method: "PUT", body: JSON.stringify(prizes[board].map(Number)) })
-    showToast(`${board === "monthly" ? "Monthly" : "Weekly"} rewards saved`);
-  };
-
-  /* ---- Script import ---- */
-  const runScript = () => {
-    const { rows, bad } = parseScript(script);
-
-    if (rows.length === 0) {
-      return setScriptMsg({ ok: false, text: "No valid lines found. Use the format: name, referrals" });
-    }
-
-    setEntries((prev) => {
-      const base: Entry[] = replaceAll ? [] : [...prev[board]];
-
-      rows.forEach((row, i) => {
-        const idx = base.findIndex((e) => e.name.toLowerCase() === row.name.toLowerCase());
-        if (idx >= 0) {
-          base[idx] = { ...base[idx], referrals: row.referrals };
-        } else {
-          base.push({ userId: `IMP-${Date.now()}-${i}`, name: row.name, referrals: row.referrals });
-        }
-      });
-
-      return { ...prev, [board]: base };
-    });
-
-    // TODO: send `rows` to your API so the backend matches names → real user IDs
-    setScriptMsg({
-      ok: true,
-      text: `${rows.length} user${rows.length > 1 ? "s" : ""} imported${
-        bad.length ? ` · ${bad.length} line${bad.length > 1 ? "s" : ""} skipped` : ""
-      }.`,
-    });
-    setScript("");
-    showToast("Leaderboard updated");
-  };
-
-  /* ---- List actions ---- */
-  const updateReferrals = (userId: string, value: string) => {
-    const n = Math.max(0, parseInt(value || "0", 10) || 0);
-    setEntries((prev) => ({
-      ...prev,
-      [board]: prev[board].map((e) => (e.userId === userId ? { ...e, referrals: n } : e)),
-    }));
-  };
-
-  const removeEntry = (userId: string) =>
-    setEntries((prev) => ({ ...prev, [board]: prev[board].filter((e) => e.userId !== userId) }));
-
-  return (
-    <AdminShell active="Leaderboard Management">
-      <div className="relative overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
-        {toast.show && (
-          <div className="fixed right-6 top-6 z-[999] flex items-center gap-2 rounded-2xl border border-border bg-foreground px-4 py-3 text-sm font-medium text-background shadow-lg">
-            <Check className="size-4" />
-            {toast.msg}
-          </div>
-        )}
-
-        <div className="mx-auto max-w-3xl space-y-6">
-          {/* Header */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">Referral</p>
-            <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              Leaderboard Management
-            </h1>
-          </div>
-
-          {/* Board tabs (50/50) */}
-          <div className="flex w-full items-center gap-2">
-            {(
-              [
-                { id: "monthly", label: "Monthly", icon: Trophy },
-                { id: "weekly", label: "Weekly", icon: Medal },
-              ] as { id: BoardType; label: string; icon: typeof Trophy }[]
-            ).map((t) => {
-              const isActive = board === t.id;
-              const Icon = t.icon;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => {
-                    setBoard(t.id);
-                    setScriptMsg(null);
-                    setPrizeError("");
-                    setQuery("");
-                  }}
-                  className={[
-                    "flex basis-1/2 items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isActive
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-card text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-                  ].join(" ")}
-                >
-                  <Icon className="size-4" />
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* ── REWARDS ── */}
-          <Card>
-            <div className="mb-1 flex items-center gap-2">
-              <Trophy className="size-4 text-foreground" />
-              <h2 className="text-lg font-semibold text-foreground">
-                {board === "monthly" ? "Monthly" : "Weekly"} Rewards
-              </h2>
-            </div>
-            <p className="mb-5 text-sm text-muted-foreground">Set the prize for the top 3 places.</p>
-
-            <div className="grid grid-cols-3 gap-3">
-              {PLACE_LABELS.map((label, i) => (
-                <div key={label}>
-                  <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {label}
-                  </label>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={prizes[board][i]}
-                      onChange={(e) =>
-                        setPrizes((p) => ({
-                          ...p,
-                          [board]: p[board].map((v, idx) => (idx === i ? e.target.value : v)),
-                        }))
-                      }
-                      className={`${inputCls} pl-7`}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {prizeError && <p className="mt-3 text-xs font-medium text-destructive">{prizeError}</p>}
-
-            <button
-              type="button"
-              onClick={savePrizes}
-              className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-foreground py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
-            >
-              <Save className="size-4" /> Save Rewards
-            </button>
-          </Card>
-
-          {/* ── SCRIPT IMPORT ── */}
-          <Card>
-            <div className="mb-1 flex items-center gap-2">
-              <Upload className="size-4 text-foreground" />
-              <h2 className="text-lg font-semibold text-foreground">Bulk Import Script</h2>
-            </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Paste one user per line as <span className="font-mono text-foreground">name, total referrals</span>.
-              Existing names are updated, new names are added to the {board} list automatically.
-            </p>
-
-            <textarea
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              rows={6}
-              placeholder={"Rahim Uddin, 214\nFatima Islam, 187\nArjun Patel, 165"}
-              className="w-full resize-y rounded-2xl border border-border bg-muted/30 p-3 font-mono text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-
-            <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={replaceAll}
-                onChange={(e) => setReplaceAll(e.target.checked)}
-                className="size-4 accent-foreground"
-              />
-              Replace the whole {board} list instead of merging
-            </label>
-
-            {scriptMsg && (
-              <p className={`mt-3 text-xs font-medium ${scriptMsg.ok ? "text-success" : "text-destructive"}`}>
-                {scriptMsg.text}
-              </p>
-            )}
-
-            <button
-              type="button"
-              onClick={runScript}
-              disabled={!script.trim()}
-              className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-foreground py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Upload className="size-4" /> Import to Leaderboard
-            </button>
-          </Card>
-
-          {/* ── USER LIST ── */}
-          <Card>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-foreground">All Users</h2>
-              <span className="text-xs text-muted-foreground">{ranked.length} total</span>
-            </div>
-
-            <div className="relative mb-4">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name or user ID"
-                className={`${inputCls} pl-9`}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              {filtered.map((e) => (
-                <div
-                  key={e.userId}
-                  className={[
-                    "flex items-center justify-between gap-3 rounded-2xl border p-3.5",
-                    e.rank <= 3 ? "border-foreground/30 bg-muted/20" : "border-border",
-                  ].join(" ")}
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <RankBadge rank={e.rank} />
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
-                      {initials(e.name)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-foreground">{e.name}</div>
-                      <div className="truncate font-mono text-[11px] text-muted-foreground">{e.userId}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-2">
-                    <input
-                      type="number"
-                      min={0}
-                      value={e.referrals}
-                      onChange={(ev) => updateReferrals(e.userId, ev.target.value)}
-                      aria-label={`Referrals for ${e.name}`}
-                      className={`${inputCls} w-20 text-right`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeEntry(e.userId)}
-                      aria-label={`Remove ${e.name}`}
-                      className="flex size-10 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {filtered.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
-                  No users found.
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                // TODO: await fetch(`/api/admin/leaderboard/${board}`, { method: "PUT", body: JSON.stringify(entries[board]) })
-                showToast("List saved");
-              }}
-              className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-border py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
-            >
-              <Save className="size-4" /> Save List Changes
-            </button>
-          </Card>
-
-          <div className="h-20" />
-        </div>
-      </div>
-    </AdminShell>
-  );
-}
 ```
 
----
+## 3. Backend changes
 
-## Notes
+- **`PATCH /api/admin/users/[id]`**: it currently rejects wallet balances as owner-only. Allow `wallets.main.balance` and `wallets.investment.balance` for admins, and log each balance change with the admin ID, old value and new value. Ignore `rewards` in this route.
+- **New `POST /api/admin/users/[id]/rewards`**: the body is `{ title, description, wallet, type, amount }`. Do these in one DB transaction:
+  1. Run `requireAdmin()` and validate that `amount` is greater than 0.
+  2. Insert the reward row with `sentBy` set to the admin and `status: "credited"`.
+  3. Add `amount` to the chosen wallet's balance.
+  4. If `type === "non_withdrawable"`, also add `amount` to a `lockedBalance` on that wallet.
+  5. Return `{ reward }`.
+- **Withdrawals**: the available amount should be `balance - lockedBalance`.
+- **Investing**: investing can use the full balance. When a locked reward is invested, the principal stays locked until the plan ends, but the daily profit is withdrawable. Decide whether the locked principal is released or burned after the plan ends, since that is a business rule I can't see from here.
+- **Data**: your `getUser()` must return `rewards`, `dailyProfits` and `aiTrades` (empty arrays are fine). Otherwise the Investments, Trading and Rewards tabs will crash on `.length` or `.reduce`.
 
-- **Ranking is automatic.** The list re-sorts by referral count after every import or edit, so ranks 1–3 always match the reward boxes.
-- **Script import** matches names case-insensitively. Matches are updated, new names get a temporary `IMP-…` ID, and lines that don't parse are skipped and counted in the result message. In your backend, match imported names to real user IDs.
-- **Sidebar fix:** `AdminShell`'s `ROUTES` already maps `Basic Management` and `Leaderboard Management`, so navigation works. One bug in your shell: the `Support` item has no `children` and it navigates correctly, but `Referral` appears in `destinations` with `Users` as its icon (same as the Users section). Swap it for a different Lucide icon like `Trophy` or `Gift` so the two are distinguishable.
-- **Tokens:** I used `text-destructive` and `text-success` for error and success messages. `text-success` already appears in your user page, but check that `destructive` exists in your Tailwind theme. If it doesn't, replace it with `text-red-500`.
-
+The Referrals tab is still there, since you only asked to remove the referral wallet. Tell me if you want the tab gone too. Typing decimals in the balance field may jump a little (for example `12.` becomes `12`). I can switch it to a string-backed input if that bothers you.

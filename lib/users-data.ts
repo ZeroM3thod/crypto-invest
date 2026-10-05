@@ -10,7 +10,14 @@ export type Tx = {
   hash: string;
 };
 export type WalletKey = "main" | "mining" | "investment" | "trading" | "referral";
-export type Wallet = { address: string; balance: number; transactions: Tx[] };
+// lockedBalance = non-withdrawable reward principal held in this wallet.
+// Withdrawals may only use balance - lockedBalance; investing may use all of it.
+export type Wallet = {
+  address: string;
+  balance: number;
+  lockedBalance: number;
+  transactions: Tx[];
+};
 
 export type ReferralMember = {
   id: string;
@@ -62,6 +69,48 @@ export type LoginRecord = {
   status: string;
 };
 
+/** Rewards can only be sent to these two wallets. */
+export type RewardWallet = "main" | "investment";
+export type RewardType = "withdrawable" | "non_withdrawable";
+
+export type Reward = {
+  id: string;
+  title: string;
+  description: string;
+  amount: number;
+  wallet: RewardWallet;
+  type: RewardType;
+  sentAt: string;
+  sentBy: string;
+  status: "credited";
+};
+
+export type DailyProfit = {
+  id: string;
+  investmentId: string;
+  plan: string;
+  date: string; // YYYY-MM-DD
+  invested: number;
+  roi: number; // daily ROI %
+  profit: number;
+  wallet: string; // where the profit was credited
+  status: "credited" | "pending";
+};
+
+export type AiTrade = {
+  id: string;
+  strategyId: string;
+  strategy: string;
+  date: string;
+  pair: string;
+  direction: "long" | "short";
+  size: number;
+  entry: number;
+  exit: number;
+  pnl: number;
+  status: string;
+};
+
 export type User = {
   id: string;
   firstName: string;
@@ -86,6 +135,9 @@ export type User = {
   aiStrategies: AiStrategy[];
   manualTrades: ManualTrade[];
   logins: LoginRecord[];
+  rewards: Reward[];
+  dailyProfits: DailyProfit[];
+  aiTrades: AiTrade[];
 };
 
 export type UserRow = {
@@ -125,6 +177,7 @@ function buildWallet(i: number, k: number): Wallet {
   return {
     address: addr(i * 10 + k + 1),
     balance: 100 + ((i * 37 * (k + 1)) % 9000),
+    lockedBalance: 0,
     transactions: Array.from({ length: 6 }, (_, n) => ({
       id: `TX-${i}-${k}-${n}`,
       date: `${date(i, n + k)} ${pad(8 + n)}:${pad((n * 11) % 60)}`,
@@ -212,6 +265,10 @@ function buildUser(i: number): User {
       at: `${date(i, n)} ${pad(6 + n)}:${pad((n * 13) % 60)}`,
       status: pick(["success", "success", "failed"], i + n),
     })),
+    // No reward / profit-credit / AI-trade rows exist yet — [] until real data does.
+    rewards: [],
+    dailyProfits: [],
+    aiTrades: [],
   };
 }
 

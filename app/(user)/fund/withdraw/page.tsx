@@ -37,6 +37,10 @@ interface ConfirmDetails {
 
 /* Placeholder data — wire these to your real API/backend later */
 const MAIN_WALLET_BALANCE = 1250.0;
+// Non-withdrawable reward principal held in this wallet (mirrors
+// Wallet.lockedBalance in lib/users-data). Withdrawals may only use
+// balance - lockedBalance.
+const LOCKED_BALANCE = 0;
 const WITHDRAW_FEE_RATE = 0.1; // 10%
 
 const COINS: { id: Coin; name: string; symbol: string }[] = [
@@ -147,7 +151,8 @@ export default function WithdrawPage() {
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
   const [submitting, setSubmitting] = useState(false);
 
-  const availableBalance = MAIN_WALLET_BALANCE; // Main wallet balance, shown as-is
+  // Withdrawable amount: balance - lockedBalance (locked rewards stay invested)
+  const availableBalance = MAIN_WALLET_BALANCE - LOCKED_BALANCE;
 
   const parsedAmt = parseFloat(wdAmt) || 0;
   const { fee: previewFee, receive: previewReceive } = calcFeeAndReceive(parsedAmt);
