@@ -240,8 +240,8 @@ export default function WithdrawPage() {
       setWdAddr("");
       setWdNote("");
       setSelectedChip(null);
-    } catch (err: any) {
-      showToast(`Error: ${err.message || "Submission failed"}`);
+    } catch (err) {
+      showToast(`Error: ${err instanceof Error && err.message ? err.message : "Submission failed"}`);
     } finally {
       setSubmitting(false);
     }
@@ -476,7 +476,9 @@ export default function WithdrawPage() {
                         </div>
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {d.date} · {d.wallet}
-                          {d.note && <span className="ml-1.5 italic text-muted-foreground/80">· "{d.note}"</span>}
+                          {d.note && (
+                            <span className="ml-1.5 italic text-muted-foreground/80">· &ldquo;{d.note}&rdquo;</span>
+                          )}
                         </div>
                       </div>
                     </div>
