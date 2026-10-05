@@ -19,6 +19,7 @@ import {
   MessagesCircle,
   PanelLeft,
   ShieldCheck,
+  Trophy,
   User,
   Users,
   X,
@@ -113,7 +114,7 @@ const destinations = [
   {
     label: "Package Management",
     icon: BriefcaseBusiness,
-    children: [ "Daily Profit", "Cloud Mining" , "AI Trading"],
+    children: [ "Daily Profit",  "AI Trading"],
   },
   {
     label: "Manual Trading Management",
@@ -122,7 +123,7 @@ const destinations = [
   },
     {
     label: "Referral",
-    icon: Users,
+    icon: Trophy,
     children: ["Basic Management", "Leaderboard Management"],
   },
 

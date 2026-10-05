@@ -1,13 +1,15 @@
 // app/(admin)/admin/ai-trading/daily-profit/page.tsx
 // Route: /admin/ai-trading/daily-profit
-// TODO: admin-only guard here (middleware + this handler) -> 403 for any other role.
 import { AdminShell } from "../../../_components/admin-shell";
-import { DailyProfitView } from "../../../_components/daily-profit-view";
+import { AiTradingManagement } from "../../../_components/ai-trading-management";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
-export default async function AdminDailyProfitPage() {
+export default async function AdminAiTradingPage() {
+  await requireAdmin();
+
   return (
     <AdminShell active="AI Trading">
-      <DailyProfitView />
+      <AiTradingManagement />
     </AdminShell>
   );
 }

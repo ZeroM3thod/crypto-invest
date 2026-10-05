@@ -1,7 +1,7 @@
 // app/(admin)/admin/referral/leaderboard/page.tsx
 // Access route: /admin/referral/leaderboard
 import { AdminShell } from "../../../_components/admin-shell";
-import { ReferralManagement } from "../../../_components/referral-management";
+import { ReferralLeaderboardManagement } from "../../../_components/referral-leaderboard-management";
 import { requireAdmin } from "@/lib/auth/require-admin";
 
 export default async function AdminReferralLeaderboardPage() {
@@ -9,7 +9,7 @@ export default async function AdminReferralLeaderboardPage() {
 
   return (
     <AdminShell active="Leaderboard Management">
-      <ReferralManagement view="leaderboard" />
+      <ReferralLeaderboardManagement />
     </AdminShell>
   );
 }
