@@ -79,7 +79,7 @@ const ROUTES: Record<string, string> = {
   // Trading
   "Trading": "/admin/trading/overview",
   "Trade Overview": "/admin/trading/overview",
-  "AI Trading": "/admin/trading/ai-trading",
+  "AI Trading": "/admin/ai-trading/daily-profit",
   "Manual Trading": "/admin/trading/manual-trading",
   "Trade History": "/admin/trading/trade-history",
 
@@ -87,6 +87,10 @@ const ROUTES: Record<string, string> = {
   "Support": "/admin/support",
   "All Tickets": "/admin/support",
   "Ticket Replies": "/admin/support/replies",
+
+  // Referral
+  "Basic Management": "/admin/referral",
+  "Leaderboard Management": "/admin/referral/leaderboard",
 
   // Community
   "Community": "/admin/community",
@@ -107,7 +111,7 @@ const destinations = [
     children: ["Deposits", "Withdrawals", "Fund History"],
   },
   {
-    label: "Pakage Management",
+    label: "Package Management",
     icon: BriefcaseBusiness,
     children: [ "Daily Profit", "Cloud Mining" , "AI Trading"],
   },
