@@ -5,8 +5,12 @@ import {
   ArrowDownToLine,
   CheckCircle2,
   Clock,
+  Copy,
   Download,
   ListChecks,
+  Pencil,
+  Wallet,
+  X,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/motion/button";
@@ -33,7 +37,26 @@ import {
 
 type Filter = "all" | ReviewStatus;
 
-export function DepositsView({ initial }: { initial: Deposit[] }) {
+/* ---------- deposit address config ---------- */
+
+const ADDRESS_COINS = ["USDT", "USDC"] as const;
+// NOTE: keep these labels identical to the `network` values used in your deposit data.
+const NETWORKS = ["BEP20", "ERC20", "Aptos", "Polygon POS", "Solana"] as const;
+
+/** key = `${coin}:${network}` -> deposit address */
+export type DepositAddresses = Record<string, string>;
+const addrKey = (coin: string, network: string) => `${coin}:${network}`;
+
+const inputCls =
+  "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground/40";
+
+export function DepositsView({
+  initial,
+  initialAddresses = {},
+}: {
+  initial: Deposit[];
+  initialAddresses?: DepositAddresses;
+}) {
   const { toast, showToast } = useToast();
   const [rows, setRows] = useState(initial);
   const [chip, setChip] = useState<Filter>("all");
@@ -42,6 +65,19 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
   const [dateTo, setDateTo] = useState("");
   const [mode, setMode] = useState<ModalMode>(null);
   const [modalId, setModalId] = useState("");
+
+  // deposit addresses (saved) + unsaved drafts
+  const [addresses, setAddresses] = useState<DepositAddresses>(initialAddresses);
+  const [drafts, setDrafts] = useState<DepositAddresses>({});
+
+  // edit-deposit modal
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    coin: "",
+    amount: "",
+    network: "",
+    hash: "",
+  });
 
   const copyText = useCallback(
     (t: string) => {
@@ -60,6 +96,69 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
     setModalId(id);
     setMode("reject");
   }, []);
+
+  /* ---------- deposit address actions ---------- */
+
+  const saveAddress = (coin: string, network: string) => {
+    const k = addrKey(coin, network);
+    const value = (drafts[k] ?? addresses[k] ?? "").trim();
+    if (!value) {
+      showToast("Please enter a deposit address.");
+      return;
+    }
+    if (value.length < 20) {
+      showToast("That address looks too short.");
+      return;
+    }
+    // TODO: call your API here (save deposit address for coin + network)
+    setAddresses((prev) => ({ ...prev, [k]: value }));
+    setDrafts((prev) => {
+      const next = { ...prev };
+      delete next[k];
+      return next;
+    });
+    showToast(`✓ ${coin} · ${network} address saved`);
+  };
+
+  /* ---------- edit deposit actions ---------- */
+
+  const openEdit = useCallback((d: Deposit) => {
+    setEditId(d.id);
+    setEditForm({
+      coin: d.coin,
+      amount: String(d.amount),
+      network: d.network,
+      hash: d.hash,
+    });
+  }, []);
+
+  const closeEdit = () => setEditId(null);
+
+  const saveEdit = () => {
+    const amount = Number(editForm.amount);
+    if (!editForm.coin) return showToast("Please select a coin.");
+    if (!Number.isFinite(amount) || amount <= 0)
+      return showToast("Amount must be greater than 0.");
+    if (!editForm.network) return showToast("Please select a network.");
+    if (!editForm.hash.trim()) return showToast("Transaction hash is required.");
+
+    // TODO: call your API here (update deposit details + audit log)
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === editId
+          ? {
+              ...r,
+              coin: editForm.coin as Deposit["coin"],
+              amount,
+              network: editForm.network as Deposit["network"],
+              hash: editForm.hash.trim(),
+            }
+          : r,
+      ),
+    );
+    showToast(`✓ ${editId} updated`);
+    closeEdit();
+  };
 
   /* ---------- actions (no DB — local state only) ---------- */
 
@@ -202,7 +301,7 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
       {
         key: "network",
         header: "Network",
-        width: "90px",
+        width: "110px",
         cell: (d) => (
           <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-foreground">
             {d.network}
@@ -235,31 +334,42 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
         key: "actions" as never,
         header: "Action",
         align: "right",
-        width: "230px",
-        cell: (d) =>
-          d.status === "pending" ? (
-            <div className="flex justify-end gap-1.5">
-              <Button size="sm" variant="primary" onClick={() => doConfirm(d)}>
-                Confirm
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => openReject(d.id)}>
-                Reject
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => openView(d.id)}>
-                View
-              </Button>
-            </div>
-          ) : (
-            <Button size="sm" variant="ghost" onClick={() => openView(d.id)}>
-              Details
+        width: "310px",
+        cell: (d) => (
+          <div className="flex justify-end gap-1.5">
+            {d.status === "pending" && (
+              <>
+                <Button size="sm" variant="primary" onClick={() => doConfirm(d)}>
+                  Confirm
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => openReject(d.id)}>
+                  Reject
+                </Button>
+              </>
+            )}
+            <Button size="sm" variant="outline" onClick={() => openEdit(d)}>
+              <Pencil className="size-3.5" />
+              Edit
             </Button>
-          ),
+            <Button size="sm" variant="ghost" onClick={() => openView(d.id)}>
+              {d.status === "pending" ? "View" : "Details"}
+            </Button>
+          </div>
+        ),
       },
     ],
-    [copyText, doConfirm, openReject, openView],
+    [copyText, doConfirm, openReject, openView, openEdit],
   );
 
   const current = rows.find((d) => d.id === modalId);
+  const editing = rows.find((d) => d.id === editId);
+
+  // make sure a legacy network value still shows in the edit dropdown
+  const editNetworks = useMemo(() => {
+    const list: string[] = [...NETWORKS];
+    if (editForm.network && !list.includes(editForm.network)) list.push(editForm.network);
+    return list;
+  }, [editForm.network]);
 
   return (
     <>
@@ -304,6 +414,101 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
         onCopy={copyText}
       />
 
+      {/* ---------- edit deposit modal ---------- */}
+      {editing && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+          onClick={closeEdit}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit deposit"
+            className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Edit deposit</h3>
+                <p className="text-xs text-muted-foreground">
+                  {editing.id} · {editing.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEdit}
+                aria-label="Close"
+                className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Coin</span>
+                <select
+                  className={inputCls}
+                  value={editForm.coin}
+                  onChange={(e) => setEditForm((f) => ({ ...f, coin: e.target.value }))}
+                >
+                  {Array.from(new Set<string>([...ADDRESS_COINS, editForm.coin])).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Network</span>
+                <select
+                  className={inputCls}
+                  value={editForm.network}
+                  onChange={(e) => setEditForm((f) => ({ ...f, network: e.target.value }))}
+                >
+                  {editNetworks.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="col-span-2 flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Amount</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  className={inputCls}
+                  value={editForm.amount}
+                  onChange={(e) => setEditForm((f) => ({ ...f, amount: e.target.value }))}
+                />
+              </label>
+              <label className="col-span-2 flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Transaction hash
+                </span>
+                <input
+                  type="text"
+                  className={`${inputCls} font-mono text-xs`}
+                  value={editForm.hash}
+                  onChange={(e) => setEditForm((f) => ({ ...f, hash: e.target.value }))}
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button size="md" variant="outline" onClick={closeEdit}>
+                Cancel
+              </Button>
+              <Button size="md" variant="primary" onClick={saveEdit}>
+                Save changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -337,6 +542,80 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
             positive
           />
         </div>
+
+        {/* ---------- deposit address settings ---------- */}
+        <section className="rounded-2xl border border-border bg-background p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Wallet className="size-4 text-muted-foreground" />
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Deposit addresses</h2>
+              <p className="text-xs text-muted-foreground">
+                Set the address users deposit to, per coin and network.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {ADDRESS_COINS.map((coin) => (
+              <div key={coin} className="rounded-xl border border-border p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-semibold text-foreground">
+                    {coin}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {NETWORKS.filter((n) => addresses[addrKey(coin, n)]).length}/
+                    {NETWORKS.length} configured
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  {NETWORKS.map((network) => {
+                    const k = addrKey(coin, network);
+                    const saved = addresses[k] ?? "";
+                    const value = drafts[k] ?? saved;
+                    const dirty = value.trim() !== saved;
+                    return (
+                      <div key={k} className="flex flex-col gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {network}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            spellCheck={false}
+                            placeholder={`${coin} address on ${network}`}
+                            className={`${inputCls} font-mono text-xs`}
+                            value={value}
+                            onChange={(e) =>
+                              setDrafts((prev) => ({ ...prev, [k]: e.target.value }))
+                            }
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!saved}
+                            onClick={() => copyText(saved)}
+                            aria-label={`Copy ${coin} ${network} address`}
+                          >
+                            <Copy className="size-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={dirty ? "primary" : "outline"}
+                            disabled={!dirty}
+                            onClick={() => saveAddress(coin, network)}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <section className="rounded-2xl border border-border bg-background p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
