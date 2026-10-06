@@ -10,6 +10,7 @@ import { Input } from "@/components/motion/input";
 import { OTPInput, type OTPStatus } from "@/components/motion/otp-input";
 import { StepCard } from "@/components/motion/step-card";
 import { WizardShell } from "@/components/motion/wizard-shell";
+import { FloatingThemeToggle } from "@/components/theme-toggle";
 import { passwordStrength } from "@/components/motion/signup-form-extended"; // reuse the same scoring fn
 
 const TOTAL_STEPS = 6;
@@ -138,7 +139,9 @@ export default function SignUpWizardPage() {
   const goBack = () => setStep((s) => Math.max(s - 1, 1));
 
   return (
-    <WizardShell shaderSide={shaderSideFor(step)} stepKey={step}>
+    <>
+      <FloatingThemeToggle />
+      <WizardShell shaderSide={shaderSideFor(step)} stepKey={step}>
       {step === 1 ? (
         <StepCard
           title="What's your name?"
@@ -357,5 +360,6 @@ export default function SignUpWizardPage() {
         </div>
       ) : null}
     </WizardShell>
+    </>
   );
 }

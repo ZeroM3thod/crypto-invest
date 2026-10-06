@@ -7,6 +7,7 @@ import { Input } from "@/components/motion/input";
 import { OTPInput, type OTPStatus } from "@/components/motion/otp-input";
 import { StepCard } from "@/components/motion/step-card";
 import { WizardShell } from "@/components/motion/wizard-shell";
+import { FloatingThemeToggle } from "@/components/theme-toggle";
 import { passwordStrength } from "@/components/motion/signup-form-extended"; // reuse the same scoring fn
 
 const TOTAL_STEPS = 3;
@@ -162,7 +163,9 @@ export default function ForgotPasswordWizardPage() {
   };
 
   return (
-    <WizardShell shaderSide={shaderSideFor(step)} stepKey={step}>
+    <>
+      <FloatingThemeToggle />
+      <WizardShell shaderSide={shaderSideFor(step)} stepKey={step}>
       {step === 1 ? (
         <StepCard
           title="Forgot password?"
@@ -321,5 +324,6 @@ export default function ForgotPasswordWizardPage() {
         </StepCard>
       ) : null}
     </WizardShell>
+    </>
   );
 }

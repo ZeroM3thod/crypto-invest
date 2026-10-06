@@ -7,6 +7,7 @@ import { StatefulButton, type ButtonState } from "@/components/motion/button";
 import { Checkbox } from "@/components/motion/checkbox";
 import { Input } from "@/components/motion/input";
 import { WizardShell } from "@/components/motion/wizard-shell";
+import { FloatingThemeToggle } from "@/components/theme-toggle";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -66,7 +67,9 @@ export default function SignInPage() {
   };
 
   return (
-    <WizardShell shaderSide="right" stepKey="signin">
+    <>
+      <FloatingThemeToggle />
+      <WizardShell shaderSide="right" stepKey="signin">
       <div className="flex w-full flex-col gap-5">
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold tracking-tight text-white">Welcome back</h2>
@@ -169,5 +172,6 @@ export default function SignInPage() {
         </div>
       </div>
     </WizardShell>
+    </>
   );
 }
