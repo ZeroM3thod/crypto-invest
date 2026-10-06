@@ -1,16 +1,17 @@
 // app/(superadmin)/owner/users/[userId]/page.tsx
-// TODO: add your owner auth guard here (server-side).
 import { notFound } from "next/navigation";
 import { SuperAdminShell } from "../../../_components/super-admin-shell";
 import { UserDetail } from "../../../_components/user-detail";
 import { getUser } from "@/lib/users-data";
+import { requireOwner } from "@/lib/auth/require-owner";
 
-export default async function UserDetailPage({
+export default async function OwnerUserDetailPage({
   params,
 }: {
   params: Promise<{ userId: string }>;
 }) {
-  const { userId } = await params; // Next 15. On Next 14 use: params.userId directly
+  await requireOwner();
+  const { userId } = await params;
   const user = getUser(userId);
   if (!user) notFound();
 

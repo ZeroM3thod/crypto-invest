@@ -1,13 +1,16 @@
 // app/(superadmin)/owner/finance/withdrawals/page.tsx
-// TODO: add your owner auth guard here (server-side).
 import { SuperAdminShell } from "../../../_components/super-admin-shell";
-import { WithdrawManagement } from "../../../_components/withdraw-management";
-import { getWithdrawals } from "@/lib/finance-data";
+import { WithdrawsView } from "@/app/(admin)/_components/withdraws-view";
+import { getWithdraws } from "@/lib/admin-review-data";
+import { requireOwner } from "@/lib/auth/require-owner";
 
-export default function WithdrawalsPage() {
+export default async function OwnerWithdrawalsPage() {
+  await requireOwner();
+  const withdraws = getWithdraws(); // swap for your own data source
+
   return (
     <SuperAdminShell active="Withdrawals">
-      <WithdrawManagement initial={getWithdrawals()} />
+      <WithdrawsView initial={withdraws} />
     </SuperAdminShell>
   );
 }

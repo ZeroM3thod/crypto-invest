@@ -1,12 +1,17 @@
 // app/(superadmin)/owner/page.tsx
-// Owner-only area. Add your owner auth guard here (server-side) before rendering.
-import { OwnerDashboard } from "../_components/owner-dashboard";
+// Owner dashboard: same view + same data source as the admin dashboard.
 import { SuperAdminShell } from "../_components/super-admin-shell";
+import { DashboardView } from "@/app/(admin)/_components/dashboard-view";
+import { getDashboardData } from "@/lib/admin-dashboard-data";
+import { requireOwner } from "@/lib/auth/require-owner";
 
-export default function AdminDashboardPage() {
+export default async function OwnerDashboardPage() {
+  await requireOwner();
+  const data = getDashboardData(); // swap for your DB / API call
+
   return (
     <SuperAdminShell active="Dashboard">
-      <OwnerDashboard />
+      <DashboardView data={data} />
     </SuperAdminShell>
   );
 }

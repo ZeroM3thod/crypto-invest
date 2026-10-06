@@ -21,7 +21,7 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
       total: rows.length,
       active: rows.filter((r) => r.status === "active").length,
       suspended: rows.filter((r) => r.status === "suspended").length,
-      byMe: rows.filter((r) => r.referredBy === "OWNER").length,
+      byOwner: rows.filter((r) => r.referredBy === "OWNER").length,
       kycVerified: rows.filter((r) => r.kyc === "verified").length,
       kycPending: rows.filter((r) => r.kyc === "pending").length,
       twoFA: rows.filter((r) => r.twoFA).length,
@@ -76,7 +76,7 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
         header: "Referred By",
         sortable: true,
         width: "130px",
-        cell: (r) => (r.referredBy === "OWNER" ? <Badge tone="amber">Me (Owner)</Badge> : r.referredBy),
+        cell: (r) => (r.referredBy === "OWNER" ? <Badge tone="amber">Owner</Badge> : r.referredBy),
       },
       {
         key: "totalBalance",
@@ -106,7 +106,7 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Total Users" value={stats.total.toLocaleString()} />
-        <StatCard label="Referred By Me" value={stats.byMe.toLocaleString()} hint="Direct owner referrals" />
+        <StatCard label="Referred By Owner" value={stats.byOwner.toLocaleString()} hint="Direct owner referrals" />
         <StatCard label="Active / Suspended" value={`${stats.active} / ${stats.suspended}`} />
         <StatCard label="Total User Balance" value={usd(stats.balance)} />
         <StatCard label="KYC Verified" value={stats.kycVerified} />

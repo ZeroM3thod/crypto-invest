@@ -1,4 +1,7 @@
 // app/(superadmin)/_components/user-detail.tsx
+// Admin user detail: admins can edit profile/KYC data AND wallet balances
+// (Main + Investment only), view full investment / AI trading history,
+// and send rewards to the user.
 "use client";
 
 import { useMemo, useState } from "react";
@@ -8,25 +11,36 @@ import { Checkbox } from "@/components/motion/checkbox";
 import { cn } from "@/lib/utils";
 import type {
   AiStrategy,
+  AiTrade,
+  DailyProfit,
   Investment,
   LoginRecord,
   ManualTrade,
   ReferralMember,
+  Reward,
+  RewardType,
+  RewardWallet,
   Tx,
   User,
-  WalletKey,
 } from "@/lib/users-data";
 import { Badge, Btn, Card, Field, SelectField, StatCard } from "./ui";
 
-const TABS = ["Profile", "Wallets", "Referrals", "Investments", "Trading", "Security & Logins"] as const;
+const TABS = [
+  "Profile",
+  "Wallets",
+  "Referrals",
+  "Investments",
+  "Trading",
+  "Rewards",
+  "Security & Logins",
+] as const;
 type Tab = (typeof TABS)[number];
 
+// Only these two wallets exist now (mining / trading / referral removed)
+type WalletKey = "main" | "investment";
 const WALLET_LABELS: Record<WalletKey, string> = {
   main: "Main Wallet",
-  mining: "Mining Wallet",
   investment: "Investment Wallet",
-  trading: "Trading Wallet",
-  referral: "Referral Wallet",
 };
 
 const usd = (n: number) =>
@@ -45,6 +59,15 @@ function col<T>(
   return { key, header, editable: true, sortable: true, width: "140px", ...extra };
 }
 
+/** Read-only column helper (history / log tables). */
+function ro<T>(
+  key: keyof T & string,
+  header: string,
+  extra: Partial<TableColumn<T>> = {},
+): TableColumn<T> {
+  return col<T>(key, header, { editable: false, ...extra });
+}
+
 /** Editable data table used by every section. */
 function Grid<T extends { id: string }>({
   data,
@@ -55,7 +78,7 @@ function Grid<T extends { id: string }>({
 }: {
   data: T[];
   columns: TableColumn<T>[];
-  onCellEdit: (rowId: string, key: string, value: string) => void;
+  onCellEdit?: (rowId: string, key: string, value: string) => void;
   onDeleteRow?: (rowId: string) => void;
   height?: number;
 }) {
@@ -75,6 +98,14 @@ function Grid<T extends { id: string }>({
   );
 }
 
+const rewardInitial = {
+  title: "",
+  description: "",
+  wallet: "main" as RewardWallet,
+  type: "non_withdrawable" as RewardType,
+  amount: "",
+};
+
 export function UserDetail({ initialUser }: { initialUser: User }) {
   const router = useRouter();
   const [user, setUser] = useState<User>(initialUser);
@@ -83,12 +114,27 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
   const [walletKey, setWalletKey] = useState<WalletKey>("main");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [invFilter, setInvFilter] = useState("all");
+  const [rf, setRf] = useState(rewardInitial);
+  const [rewardBusy, setRewardBusy] = useState(false);
 
   const dirty = JSON.stringify(user) !== JSON.stringify(saved);
   const set = <K extends keyof User>(key: K, value: User[K]) =>
     setUser((u) => ({ ...u, [key]: value }));
 
-  /** Generic cell-edit handler for the top-level arrays. */
+  const flash = (message: string) => {
+    setNote(message);
+    setTimeout(() => setNote(null), 3000);
+  };
+
+  /** Admin can edit wallet balances. */
+  const setBalance = (k: WalletKey, value: number) =>
+    setUser((u) => ({
+      ...u,
+      wallets: { ...u.wallets, [k]: { ...u.wallets[k], balance: value } },
+    }));
+
+  /** Generic cell-edit handler for the editable top-level arrays. */
   const editList =
     (list: "referrals" | "investments" | "aiStrategies" | "manualTrades" | "logins") =>
     (rowId: string, key: string, value: string) =>
@@ -99,66 +145,26 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
         ),
       }));
 
-  const editTx = (rowId: string, key: string, value: string) =>
-    setUser((u) => ({
-      ...u,
-      wallets: {
-        ...u.wallets,
-        [walletKey]: {
-          ...u.wallets[walletKey],
-          transactions: u.wallets[walletKey].transactions.map((t) =>
-            t.id === rowId
-              ? { ...t, [key]: coerce((t as Record<string, unknown>)[key], value) }
-              : t,
-          ),
-        },
-      },
-    }));
-
-  const patchWallet = (patch: Partial<User["wallets"][WalletKey]>) =>
-    setUser((u) => ({
-      ...u,
-      wallets: { ...u.wallets, [walletKey]: { ...u.wallets[walletKey], ...patch } },
-    }));
-
-  const addTx = () =>
-    patchWallet({
-      transactions: [
-        {
-          id: `TX-NEW-${Date.now()}`,
-          date: new Date().toISOString().slice(0, 16).replace("T", " "),
-          type: "deposit",
-          amount: 0,
-          status: "completed",
-          hash: "",
-        },
-        ...user.wallets[walletKey].transactions,
-      ],
-    });
-
-  const deleteTx = (rowId: string) =>
-    patchWallet({
-      transactions: user.wallets[walletKey].transactions.filter((t) => t.id !== rowId),
-    });
-
-  /** Persist to your backend. Implement PATCH /api/owner/users/[id]. */
+  /** Persist to your backend (PATCH). Rewards are NOT sent here — they are
+   *  created only through the rewards endpoint so they can't be double-credited. */
   async function persist(next: User, message: string) {
     setBusy(true);
     try {
+      const { rewards: _rewards, ...payload } = next;
+      void _rewards;
       const res = await fetch(`/api/owner/users/${next.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(next),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(String(res.status));
       setUser(next);
       setSaved(next);
-      setNote(message);
+      flash(message);
     } catch {
-      setNote("Save failed. Check your API route.");
+      flash("Save failed. Check your API route.");
     } finally {
       setBusy(false);
-      setTimeout(() => setNote(null), 3000);
     }
   }
 
@@ -171,22 +177,67 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
     );
   };
 
-  /** Impersonation. MUST be implemented server-side with an audit log. */
-  async function loginAsUser() {
-    if (!confirm(`Login as ${user.email}? This action is logged.`)) return;
+  /** Send a reward: credits the chosen wallet on the server, then mirrors it locally. */
+  async function sendReward() {
+    const amount = Number(rf.amount);
+    if (!rf.title.trim() || !rf.description.trim() || !(amount > 0)) {
+      flash("Add a title, short description and a valid amount");
+      return;
+    }
+    const lockText = rf.type === "withdrawable" ? "withdrawable" : "non-withdrawable (invest only)";
+    if (
+      !confirm(
+        `Send ${usd(amount)} reward "${rf.title.trim()}" to ${user.firstName} ${user.lastName}'s ${WALLET_LABELS[rf.wallet]} as ${lockText}?`,
+      )
+    )
+      return;
+
+    setRewardBusy(true);
     try {
-      const res = await fetch(`/api/owner/users/${user.id}/impersonate`, { method: "POST" });
-      if (!res.ok) throw new Error();
-      const { url } = (await res.json()) as { url: string };
-      window.open(url, "_blank", "noopener");
+      const res = await fetch(`/api/owner/users/${user.id}/rewards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: rf.title.trim(),
+          description: rf.description.trim(),
+          wallet: rf.wallet,
+          type: rf.type,
+          amount,
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const { reward } = (await res.json()) as { reward: Reward };
+
+      // apply the same change to both current + saved copies (keeps "dirty" correct)
+      const apply = (u: User): User => ({
+        ...u,
+        rewards: [reward, ...u.rewards],
+        wallets: {
+          ...u.wallets,
+          [reward.wallet]: {
+            ...u.wallets[reward.wallet],
+            balance: u.wallets[reward.wallet].balance + reward.amount,
+            lockedBalance:
+              u.wallets[reward.wallet].lockedBalance +
+              (reward.type === "non_withdrawable" ? reward.amount : 0),
+          },
+        },
+      });
+      setUser(apply);
+      setSaved(apply);
+      setRf(rewardInitial);
+      flash("Reward sent");
     } catch {
-      setNote("Impersonation endpoint not available yet.");
-      setTimeout(() => setNote(null), 3000);
+      flash("Reward failed. Check your API route.");
+    } finally {
+      setRewardBusy(false);
     }
   }
 
   // ---------- derived numbers ----------
   const wallet = user.wallets[walletKey];
+  const totalWallets = user.wallets.main.balance + user.wallets.investment.balance;
+
   const refTotals = useMemo(
     () => ({
       count: user.referrals.length,
@@ -195,14 +246,44 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
     }),
     [user.referrals],
   );
-  const invTotals = useMemo(
-    () => ({
+
+  const invTotals = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return {
       running: user.investments.filter((i) => i.status === "running").length,
       invested: user.investments.reduce((s, i) => s + i.amount, 0),
       earned: user.investments.reduce((s, i) => s + i.earned, 0),
-    }),
-    [user.investments],
+      profitDays: user.dailyProfits.length,
+      today: user.dailyProfits
+        .filter((p) => p.date.startsWith(today))
+        .reduce((s, p) => s + p.profit, 0),
+    };
+  }, [user.investments, user.dailyProfits]);
+
+  const filteredProfits = useMemo(
+    () => (invFilter === "all" ? user.dailyProfits : user.dailyProfits.filter((p) => p.investmentId === invFilter)),
+    [user.dailyProfits, invFilter],
   );
+  const filteredProfitTotal = useMemo(
+    () => filteredProfits.reduce((s, p) => s + p.profit, 0),
+    [filteredProfits],
+  );
+
+  const ai = useMemo(() => {
+    const s = user.aiStrategies;
+    const allocated = s.reduce((a, x) => a + x.allocated, 0);
+    const net = s.reduce((a, x) => a + x.pnl, 0);
+    return {
+      count: s.length,
+      active: s.filter((x) => x.status === "active" || x.status === "running").length,
+      allocated,
+      net,
+      roi: allocated ? (net / allocated) * 100 : 0,
+      avgWin: s.length ? s.reduce((a, x) => a + x.winRate, 0) / s.length : 0,
+      trades: user.aiTrades.length,
+    };
+  }, [user.aiStrategies, user.aiTrades]);
+
   const trade = useMemo(() => {
     const t = user.manualTrades;
     return {
@@ -212,18 +293,27 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
       wins: t.filter((x) => x.pnl > 0).length,
       losses: t.filter((x) => x.pnl < 0).length,
       net: t.reduce((s, x) => s + x.pnl, 0),
-      aiNet: user.aiStrategies.reduce((s, x) => s + x.pnl, 0),
     };
-  }, [user.manualTrades, user.aiStrategies]);
+  }, [user.manualTrades]);
+
+  const rewardTotals = useMemo(
+    () => ({
+      count: user.rewards.length,
+      total: user.rewards.reduce((s, r) => s + r.amount, 0),
+      locked: user.rewards.filter((r) => r.type === "non_withdrawable").reduce((s, r) => s + r.amount, 0),
+      free: user.rewards.filter((r) => r.type === "withdrawable").reduce((s, r) => s + r.amount, 0),
+    }),
+    [user.rewards],
+  );
 
   // ---------- columns ----------
   const txCols = useMemo<TableColumn<Tx>[]>(
     () => [
-      col<Tx>("date", "Date", { width: "170px" }),
-      col<Tx>("type", "Type", { width: "120px" }),
-      col<Tx>("amount", "Amount", { width: "120px", align: "right" }),
-      col<Tx>("status", "Status", { width: "120px" }),
-      col<Tx>("hash", "Tx Hash / Ref", { width: "1fr" }),
+      ro<Tx>("date", "Date", { width: "170px" }),
+      ro<Tx>("type", "Type", { width: "120px" }),
+      ro<Tx>("amount", "Amount", { width: "120px", align: "right" }),
+      ro<Tx>("status", "Status", { width: "120px" }),
+      ro<Tx>("hash", "Tx Hash / Ref", { width: "1fr" }),
     ],
     [],
   );
@@ -252,6 +342,30 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
     ],
     [],
   );
+  const profitCols = useMemo<TableColumn<DailyProfit>[]>(
+    () => [
+      ro<DailyProfit>("date", "Date", { width: "130px" }),
+      ro<DailyProfit>("investmentId", "Investment ID", { width: "130px" }),
+      ro<DailyProfit>("plan", "Plan", { width: "120px" }),
+      ro<DailyProfit>("invested", "Invested", {
+        width: "120px",
+        align: "right",
+        cell: (r) => <span className="tabular-nums">{usd(r.invested)}</span>,
+      }),
+      ro<DailyProfit>("roi", "Daily ROI %", { width: "120px", align: "right" }),
+      ro<DailyProfit>("profit", "Profit", {
+        width: "120px",
+        align: "right",
+        cell: (r) => <span className="tabular-nums text-emerald-500">{usd(r.profit)}</span>,
+      }),
+      ro<DailyProfit>("wallet", "Credited To", { width: "140px" }),
+      ro<DailyProfit>("status", "Status", {
+        width: "120px",
+        cell: (r) => <Badge tone={r.status === "credited" ? "green" : "amber"}>{r.status}</Badge>,
+      }),
+    ],
+    [],
+  );
   const aiCols = useMemo<TableColumn<AiStrategy>[]>(
     () => [
       col<AiStrategy>("id", "ID", { width: "110px" }),
@@ -261,6 +375,29 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
       col<AiStrategy>("pnl", "PnL", { width: "100px", align: "right" }),
       col<AiStrategy>("winRate", "Win Rate %", { width: "110px", align: "right" }),
       col<AiStrategy>("status", "Status", { width: "110px" }),
+    ],
+    [],
+  );
+  const aiTradeCols = useMemo<TableColumn<AiTrade>[]>(
+    () => [
+      ro<AiTrade>("id", "ID", { width: "110px" }),
+      ro<AiTrade>("date", "Date", { width: "160px" }),
+      ro<AiTrade>("strategy", "Strategy", { width: "1fr" }),
+      ro<AiTrade>("pair", "Pair", { width: "110px" }),
+      ro<AiTrade>("direction", "Direction", { width: "110px" }),
+      ro<AiTrade>("size", "Size", { width: "100px", align: "right" }),
+      ro<AiTrade>("entry", "Entry", { width: "100px", align: "right" }),
+      ro<AiTrade>("exit", "Exit", { width: "100px", align: "right" }),
+      ro<AiTrade>("pnl", "PnL", {
+        width: "100px",
+        align: "right",
+        cell: (r) => (
+          <span className={cn("tabular-nums", r.pnl >= 0 ? "text-emerald-500" : "text-rose-500")}>
+            {usd(r.pnl)}
+          </span>
+        ),
+      }),
+      ro<AiTrade>("status", "Status", { width: "100px" }),
     ],
     [],
   );
@@ -275,6 +412,29 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
       col<ManualTrade>("exit", "Exit", { width: "100px", align: "right" }),
       col<ManualTrade>("pnl", "PnL", { width: "100px", align: "right" }),
       col<ManualTrade>("status", "Status", { width: "100px" }),
+    ],
+    [],
+  );
+  const rewardCols = useMemo<TableColumn<Reward>[]>(
+    () => [
+      ro<Reward>("sentAt", "Sent On", { width: "160px" }),
+      ro<Reward>("title", "Title", { width: "1fr" }),
+      ro<Reward>("description", "Description", { width: "1.6fr" }),
+      ro<Reward>("amount", "Amount", {
+        width: "120px",
+        align: "right",
+        cell: (r) => <span className="tabular-nums">{usd(r.amount)}</span>,
+      }),
+      ro<Reward>("wallet", "Wallet", { width: "140px", cell: (r) => WALLET_LABELS[r.wallet] }),
+      ro<Reward>("type", "Type", {
+        width: "170px",
+        cell: (r) => (
+          <Badge tone={r.type === "withdrawable" ? "green" : "amber"}>
+            {r.type === "withdrawable" ? "Withdrawable" : "Invest only"}
+          </Badge>
+        ),
+      }),
+      ro<Reward>("sentBy", "Sent By", { width: "130px" }),
     ],
     [],
   );
@@ -316,7 +476,6 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
         <div className="flex flex-wrap items-center gap-2">
           {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
           <Btn onClick={() => router.push("/owner/users")}>Back</Btn>
-          <Btn onClick={loginAsUser}>Login as this user</Btn>
           <Btn tone={user.status === "active" ? "danger" : "default"} onClick={toggleSuspend} disabled={busy}>
             {user.status === "active" ? "Suspend user" : "Activate user"}
           </Btn>
@@ -357,21 +516,14 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
               <Field label="Email ID" type="email" value={user.email} onChange={(v) => set("email", v)} />
               <Field label="Date of Birth" type="date" value={user.dob} onChange={(v) => set("dob", v)} />
               <Field label="Country" value={user.country} onChange={(v) => set("country", v)} />
-              <Field label="Referred By (User ID or OWNER)" value={user.referredBy} onChange={(v) => set("referredBy", v)} />
+              <Field
+                label="Referred By (User ID or OWNER)"
+                value={user.referredBy}
+                onChange={(v) => set("referredBy", v)}
+              />
             </div>
             <div className="mt-4">
-              <Field
-                label="Main Wallet Address"
-                value={user.walletAddress}
-                onChange={(v) => {
-                  set("walletAddress", v);
-                  setUser((u) => ({
-                    ...u,
-                    walletAddress: v,
-                    wallets: { ...u.wallets, main: { ...u.wallets.main, address: v } },
-                  }));
-                }}
-              />
+              <Field label="Main Wallet Address" value={user.walletAddress} readOnly />
             </div>
           </Card>
 
@@ -419,10 +571,10 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
         </div>
       )}
 
-      {/* ---------- WALLETS ---------- */}
+      {/* ---------- WALLETS (Main + Investment only, balances editable) ---------- */}
       {tab === "Wallets" && (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {(Object.keys(WALLET_LABELS) as WalletKey[]).map((k) => (
               <button
                 key={k}
@@ -437,32 +589,34 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
                 <p className="mt-1 text-lg font-semibold tabular-nums">{usd(user.wallets[k].balance)}</p>
               </button>
             ))}
+            <StatCard label="Total Balance" value={usd(totalWallets)} />
           </div>
 
           <Card title={WALLET_LABELS[walletKey]}>
-            <div className="grid gap-4 md:grid-cols-[1fr_200px]">
-              <Field
-                label="Wallet Address"
-                value={wallet.address}
-                onChange={(v) => patchWallet({ address: v })}
-              />
+            <div
+              className={cn(
+                "grid gap-4",
+                walletKey === "main" ? "md:grid-cols-[1fr_200px]" : "md:grid-cols-[200px]",
+              )}
+            >
+              {/* Investment wallet has no address, so only Main shows one */}
+              {walletKey === "main" ? (
+                <Field label="Wallet Address" value={wallet.address} readOnly />
+              ) : null}
               <Field
                 label="Balance (USD)"
                 type="number"
                 value={wallet.balance}
-                onChange={(v) => patchWallet({ balance: Number(v) || 0 })}
+                onChange={(v) => setBalance(walletKey, Number(v) || 0)}
               />
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Edit the balance, then press “Save changes” at the top to apply it.
+            </p>
           </Card>
 
-          <Card
-            title={`Transactions (${wallet.transactions.length})`}
-            action={<Btn onClick={addTx}>+ Add transaction</Btn>}
-          >
-            <p className="mb-2 text-xs text-muted-foreground">
-              Click any cell to edit. Hover a row and use the handle on its left edge to delete it.
-            </p>
-            <Grid data={wallet.transactions} columns={txCols} onCellEdit={editTx} onDeleteRow={deleteTx} />
+          <Card title={`Transactions (${wallet.transactions.length})`}>
+            <Grid data={wallet.transactions} columns={txCols} />
           </Card>
         </div>
       )}
@@ -490,35 +644,63 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
         </div>
       )}
 
-      {/* ---------- INVESTMENTS ---------- */}
+      {/* ---------- INVESTMENTS (daily profit details) ---------- */}
       {tab === "Investments" && (
         <div className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <StatCard label="Running Plans" value={invTotals.running} />
             <StatCard label="Total Invested" value={usd(invTotals.invested)} />
             <StatCard label="Total Earned" value={usd(invTotals.earned)} />
+            <StatCard label="Today's Profit" value={usd(invTotals.today)} />
+            <StatCard label="Profit Credits" value={invTotals.profitDays} hint="Daily payouts so far" />
           </div>
+
           <Card title="Investment Plans">
             <Grid data={user.investments} columns={invCols} onCellEdit={editList("investments")} />
+          </Card>
+
+          <Card title={`Daily Profit History (${filteredProfits.length})`}>
+            <div className="mb-3 grid gap-3 sm:grid-cols-[240px_1fr] sm:items-end">
+              <SelectField
+                label="Investment"
+                value={invFilter}
+                onChange={setInvFilter}
+                options={[
+                  { value: "all", label: "All investments" },
+                  ...user.investments.map((i) => ({ value: i.id, label: `${i.id} · ${i.plan}` })),
+                ]}
+              />
+              <p className="text-sm text-muted-foreground sm:text-right">
+                Total profit shown:{" "}
+                <span className="font-semibold tabular-nums text-emerald-500">{usd(filteredProfitTotal)}</span>
+              </p>
+            </div>
+            <Grid data={filteredProfits} columns={profitCols} height={380} />
           </Card>
         </div>
       )}
 
-      {/* ---------- TRADING ---------- */}
+      {/* ---------- TRADING (AI strategy details + manual) ---------- */}
       {tab === "Trading" && (
         <div className="flex flex-col gap-6">
           <section className="flex flex-col gap-4">
             <h2 className="text-sm font-semibold">AI Trading</h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <StatCard label="Strategies" value={user.aiStrategies.length} />
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+              <StatCard label="Strategies" value={ai.count} hint={`${ai.active} active`} />
+              <StatCard label="Total Invested" value={usd(ai.allocated)} />
               <StatCard
-                label="Allocated"
-                value={usd(user.aiStrategies.reduce((s, x) => s + x.allocated, 0))}
+                label="Net PnL"
+                value={<span className={ai.net >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(ai.net)}</span>}
               />
-              <StatCard label="Net PnL" value={usd(trade.aiNet)} />
+              <StatCard label="ROI" value={`${ai.roi.toFixed(2)}%`} />
+              <StatCard label="Avg Win Rate" value={`${ai.avgWin.toFixed(1)}%`} />
+              <StatCard label="AI Trades" value={ai.trades} />
             </div>
-            <Card>
-              <Grid data={user.aiStrategies} columns={aiCols} onCellEdit={editList("aiStrategies")} height={220} />
+            <Card title="Invested Strategies">
+              <Grid data={user.aiStrategies} columns={aiCols} onCellEdit={editList("aiStrategies")} height={240} />
+            </Card>
+            <Card title={`AI Trade History (${user.aiTrades.length})`}>
+              <Grid data={user.aiTrades} columns={aiTradeCols} height={360} />
             </Card>
           </section>
 
@@ -542,6 +724,80 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
               <Grid data={user.manualTrades} columns={tradeCols} onCellEdit={editList("manualTrades")} />
             </Card>
           </section>
+        </div>
+      )}
+
+      {/* ---------- REWARDS ---------- */}
+      {tab === "Rewards" && (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Rewards Sent" value={rewardTotals.count} />
+            <StatCard label="Total Rewarded" value={usd(rewardTotals.total)} />
+            <StatCard label="Withdrawable" value={usd(rewardTotals.free)} />
+            <StatCard label="Invest Only" value={usd(rewardTotals.locked)} />
+          </div>
+
+          <Card title="Send Reward">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label="Reward Title"
+                value={rf.title}
+                onChange={(v) => setRf((s) => ({ ...s, title: v }))}
+              />
+              <Field
+                label="Amount (USD)"
+                type="number"
+                value={rf.amount}
+                onChange={(v) => setRf((s) => ({ ...s, amount: v }))}
+              />
+              <SelectField
+                label="Wallet"
+                value={rf.wallet}
+                onChange={(v) => setRf((s) => ({ ...s, wallet: v as RewardWallet }))}
+                options={[
+                  { value: "main", label: "Main Wallet" },
+                  { value: "investment", label: "Investment Wallet" },
+                ]}
+              />
+              <SelectField
+                label="Reward Use"
+                value={rf.type}
+                onChange={(v) => setRf((s) => ({ ...s, type: v as RewardType }))}
+                options={[
+                  { value: "non_withdrawable", label: "Non-withdrawable (invest only, profit withdrawable)" },
+                  { value: "withdrawable", label: "Withdrawable (user can withdraw)" },
+                ]}
+              />
+            </div>
+
+            <label className="mt-4 flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">Short Description</span>
+              <textarea
+                value={rf.description}
+                onChange={(e) => setRf((s) => ({ ...s, description: e.target.value }))}
+                rows={3}
+                maxLength={200}
+                placeholder="Shown to the user with the reward"
+                className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </label>
+
+            <p className="mt-3 text-xs text-muted-foreground">
+              {rf.type === "withdrawable"
+                ? "The user can withdraw this reward like normal balance."
+                : "The user can only invest this reward. Profit earned from it can be withdrawn."}
+            </p>
+
+            <div className="mt-4 flex justify-end">
+              <Btn tone="primary" onClick={sendReward} disabled={rewardBusy}>
+                {rewardBusy ? "Sending..." : "Send reward"}
+              </Btn>
+            </div>
+          </Card>
+
+          <Card title={`Reward History (${user.rewards.length})`}>
+            <Grid data={user.rewards} columns={rewardCols} />
+          </Card>
         </div>
       )}
 

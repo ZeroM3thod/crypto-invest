@@ -1,11 +1,13 @@
 // app/(superadmin)/owner/users/page.tsx
-// TODO: add your owner auth guard here (server-side).
 import { SuperAdminShell } from "../../_components/super-admin-shell";
 import { UsersManagement } from "../../_components/users-management";
 import { getUsers, toRow } from "@/lib/users-data";
+import { requireOwner } from "@/lib/auth/require-owner";
 
-export default function UsersPage() {
+export default async function OwnerUsersPage() {
+  await requireOwner();
   const rows = getUsers().map(toRow);
+
   return (
     <SuperAdminShell active="All Users">
       <UsersManagement rows={rows} />
