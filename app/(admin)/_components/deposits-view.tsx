@@ -12,7 +12,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/motion/button";
 import { Table, type TableColumn } from "@/components/motion/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/motion/tabs";
-import type { Deposit, ReviewStatus } from "@/lib/admin-review-data";
+import type { Coin, Deposit, ReviewStatus } from "@/lib/admin-review-data";
 import {
   PageHeader,
   SearchInput,
@@ -69,7 +69,7 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
       setRows((prev) =>
         prev.map((r) => (r.id === d.id ? { ...r, status: "approved" } : r)),
       );
-      showToast(`✓ ${d.id} confirmed — $${d.amount.toLocaleString()} USDT`);
+      showToast(`✓ ${d.id} confirmed — $${d.amount.toLocaleString()} ${d.coin}`);
       closeModal();
     },
     [showToast],
@@ -98,7 +98,7 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
       (d) =>
         (chip === "all" || d.status === chip) &&
         (!q ||
-          [d.name, d.username, d.id, d.hash, d.network].some((v) =>
+          [d.name, d.username, d.userId, d.id, d.coin, d.hash, d.network].some((v) =>
             v.toLowerCase().includes(q),
           )) &&
         (!dateFrom || d.date >= dateFrom) &&
@@ -112,10 +112,16 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
       showToast("No pending deposits in current view.");
       return;
     }
-    const total = pendingRows.reduce((s, d) => s + d.amount, 0);
+    const byCoin = pendingRows.reduce<Partial<Record<Coin, number>>>((acc, d) => {
+      acc[d.coin] = (acc[d.coin] ?? 0) + d.amount;
+      return acc;
+    }, {});
+    const total = (Object.entries(byCoin) as [Coin, number][])
+      .map(([coin, amt]) => `$${amt.toLocaleString()} ${coin}`)
+      .join(" + ");
     if (
       !window.confirm(
-        `Confirm all ${pendingRows.length} pending deposits? Total: $${total.toLocaleString()}`,
+        `Confirm all ${pendingRows.length} pending deposits? Total: ${total}`,
       )
     )
       return;
@@ -129,9 +135,9 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
 
   const exportCSV = () => {
     downloadCSV(`deposits-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["ID", "User", "Username", "Amount", "Network", "Hash", "Date", "Status", "Reason"],
+      ["ID", "User", "Username", "User ID", "Coin", "Amount", "Network", "Hash", "Date", "Status", "Reason"],
       ...filtered.map((d) => [
-        d.id, d.name, d.username, d.amount, d.network, d.hash, d.date, d.status, d.reason,
+        d.id, d.name, d.username, d.userId, d.coin, d.amount, d.network, d.hash, d.date, d.status, d.reason,
       ]),
     ]);
     showToast(`✓ Exported ${filtered.length} records`);
@@ -178,13 +184,18 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
       },
       {
         key: "amount",
-        header: "Amount (USDT)",
+        header: "Amount",
         sortable: true,
         align: "right",
-        width: "130px",
+        width: "150px",
         cell: (d) => (
-          <span className="font-medium tabular-nums text-(--color-success)">
-            +${fmtAmt(d.amount)}
+          <span className="flex items-center justify-end gap-2">
+            <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-foreground">
+              {d.coin}
+            </span>
+            <span className="font-medium tabular-nums text-(--color-success)">
+              +${fmtAmt(d.amount)}
+            </span>
           </span>
         ),
       },
@@ -271,8 +282,9 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
           current
             ? [
                 { label: "User", value: current.name },
-                { label: "Username", value: current.username },
-                { label: "Amount (USDT)", value: `+$${fmtAmt(current.amount)}`, strong: true },
+                { label: "User ID", value: current.userId },
+                { label: `Amount (${current.coin})`, value: `+$${fmtAmt(current.amount)}`, strong: true },
+                { label: "Coin", value: current.coin },
                 { label: "Network", value: current.network },
                 { label: "Date", value: current.date },
                 { label: "Status", value: current.status },
@@ -282,7 +294,7 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
         }
         summary={
           current
-            ? `You are confirming a deposit of $${fmtAmt(current.amount)} USDT via ${current.network} from ${current.name}. Verify the transaction hash before confirming.`
+            ? `You are confirming a deposit of $${fmtAmt(current.amount)} ${current.coin} via ${current.network} from ${current.name}. Verify the transaction hash before confirming.`
             : ""
         }
         rejectNote="You are about to reject this deposit. A rejection reason is required and is saved with the record."
@@ -318,7 +330,7 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
           <StatCard label="Approved" value={stats.confCount} icon={CheckCircle2} hint={`$${fmtAmt(stats.confAmt)}`} />
           <StatCard label="Total records" value={rows.length} icon={ListChecks} hint="All time" />
           <StatCard
-            label="Total approved (USDT)"
+            label="Total approved"
             value={stats.confAmt}
             format={(n) => `$${(n / 1000).toFixed(1)}K`}
             icon={ArrowDownToLine}
@@ -343,7 +355,7 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
                   <TabsTrigger value="rejected">Rejected</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <SearchInput value={query} onChange={setQuery} placeholder="Search users, hashes…" />
+              <SearchInput value={query} onChange={setQuery} placeholder="Search users, IDs, hashes…" />
               <Button size="md" variant="outline" onClick={confirmAllPending}>
                 Confirm all pending
               </Button>

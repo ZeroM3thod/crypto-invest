@@ -12,7 +12,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/motion/button";
 import { Table, type TableColumn } from "@/components/motion/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/motion/tabs";
-import type { ReviewStatus, Withdraw } from "@/lib/admin-review-data";
+import type { Coin, ReviewStatus, Withdraw } from "@/lib/admin-review-data";
 import {
   PageHeader,
   SearchInput,
@@ -32,6 +32,10 @@ import {
 } from "./review-ui";
 
 type Filter = "all" | ReviewStatus;
+
+const FEE_RATE = 0.1;
+const feeOf = (w: Withdraw) => w.amount * FEE_RATE;
+const netOf = (w: Withdraw) => w.amount - feeOf(w);
 
 export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
   const { toast, showToast } = useToast();
@@ -69,7 +73,7 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
       setRows((prev) =>
         prev.map((r) => (r.id === w.id ? { ...r, status: "approved" } : r)),
       );
-      showToast(`✓ ${w.id} approved — $${(w.amount - w.fee).toLocaleString()} USDT payout`);
+      showToast(`✓ ${w.id} approved — $${netOf(w).toLocaleString()} ${w.coin} payout`);
       closeModal();
     },
     [showToast],
@@ -98,7 +102,7 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
       (w) =>
         (chip === "all" || w.status === chip) &&
         (!q ||
-          [w.name, w.username, w.id, w.address, w.network].some((v) =>
+          [w.name, w.username, w.userId, w.id, w.coin, w.address, w.network].some((v) =>
             v.toLowerCase().includes(q),
           )) &&
         (!dateFrom || w.date >= dateFrom) &&
@@ -112,10 +116,16 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
       showToast("No pending withdrawals in current view.");
       return;
     }
-    const total = pendingRows.reduce((s, w) => s + (w.amount - w.fee), 0);
+    const byCoin = pendingRows.reduce<Partial<Record<Coin, number>>>((acc, w) => {
+      acc[w.coin] = (acc[w.coin] ?? 0) + netOf(w);
+      return acc;
+    }, {});
+    const total = (Object.entries(byCoin) as [Coin, number][])
+      .map(([coin, amt]) => `$${amt.toLocaleString()} ${coin}`)
+      .join(" + ");
     if (
       !window.confirm(
-        `Approve all ${pendingRows.length} pending withdrawals? Total payout: $${total.toLocaleString()}`,
+        `Approve all ${pendingRows.length} pending withdrawals? Total payout: ${total}`,
       )
     )
       return;
@@ -129,9 +139,9 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
 
   const exportCSV = () => {
     downloadCSV(`withdrawals-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["ID", "User", "Username", "Amount", "Fee", "Net", "Network", "Address", "Date", "Status", "Reason"],
+      ["ID", "User", "Username", "User ID", "Coin", "Amount", "Fee", "Net", "Network", "Address", "Date", "Status", "Reason"],
       ...filtered.map((w) => [
-        w.id, w.name, w.username, w.amount, w.fee, w.amount - w.fee,
+        w.id, w.name, w.username, w.userId, w.coin, w.amount, feeOf(w), netOf(w),
         w.network, w.address, w.date, w.status, w.reason,
       ]),
     ]);
@@ -147,8 +157,8 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
       pendCount: pend.length,
       pendAmt: pend.reduce((s, w) => s + w.amount, 0),
       confCount: conf.length,
-      paidOut: conf.reduce((s, w) => s + (w.amount - w.fee), 0),
-      feeProfit: conf.reduce((s, w) => s + w.fee, 0),
+      paidOut: conf.reduce((s, w) => s + netOf(w), 0),
+      feeProfit: conf.reduce((s, w) => s + feeOf(w), 0),
     };
   }, [rows]);
 
@@ -178,8 +188,15 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
         header: "Amount",
         sortable: true,
         align: "right",
-        width: "110px",
-        cell: (w) => <span className="tabular-nums">−${fmtAmt(w.amount)}</span>,
+        width: "150px",
+        cell: (w) => (
+          <span className="flex items-center justify-end gap-2">
+            <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] text-foreground">
+              {w.coin}
+            </span>
+            <span className="tabular-nums">−${fmtAmt(w.amount)}</span>
+          </span>
+        ),
       },
       {
         key: "fee",
@@ -188,7 +205,7 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
         align: "right",
         width: "90px",
         cell: (w) => (
-          <span className="tabular-nums text-(--color-success)">${fmtAmt(w.fee)}</span>
+          <span className="tabular-nums text-(--color-success)">${fmtAmt(feeOf(w))}</span>
         ),
       },
       {
@@ -197,7 +214,7 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
         align: "right",
         width: "120px",
         cell: (w) => (
-          <span className="font-medium tabular-nums">${fmtAmt(w.amount - w.fee)}</span>
+          <span className="font-medium tabular-nums">${fmtAmt(netOf(w))}</span>
         ),
       },
       {
@@ -283,10 +300,11 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
           current
             ? [
                 { label: "User", value: current.name },
-                { label: "Username", value: current.username },
-                { label: "Amount (USDT)", value: `−$${fmtAmt(current.amount)}`, strong: true },
-                { label: "Fee", value: `$${fmtAmt(current.fee)}` },
-                { label: "Net payout", value: `$${fmtAmt(current.amount - current.fee)}`, strong: true },
+                { label: "User ID", value: current.userId },
+                { label: `Amount (${current.coin})`, value: `−$${fmtAmt(current.amount)}`, strong: true },
+                { label: "Fee (10%)", value: `$${fmtAmt(feeOf(current))}` },
+                { label: "Net payout", value: `$${fmtAmt(netOf(current))}`, strong: true },
+                { label: "Coin", value: current.coin },
                 { label: "Network", value: current.network },
                 { label: "Date", value: current.date },
                 { label: "Status", value: current.status },
@@ -296,7 +314,7 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
         }
         summary={
           current
-            ? `You are approving a withdrawal of $${fmtAmt(current.amount)} USDT (net payout $${fmtAmt(current.amount - current.fee)} after the $${fmtAmt(current.fee)} fee) to ${current.name} on ${current.network}. Make sure the payout has been sent to the address below.`
+            ? `You are approving a withdrawal of $${fmtAmt(current.amount)} ${current.coin} (net payout $${fmtAmt(netOf(current))} after the $${fmtAmt(feeOf(current))} fee) to ${current.name} on ${current.network}. Make sure the payout has been sent to the address below.`
             : ""
         }
         rejectNote="You are about to reject this withdrawal. A rejection reason is required and is saved with the record."
@@ -331,7 +349,7 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
           <StatCard label="Pending" value={stats.pendCount} icon={Clock} hint={`$${fmtAmt(stats.pendAmt)}`} />
           <StatCard label="Approved" value={stats.confCount} icon={CheckCircle2} hint="Paid out" />
           <StatCard
-            label="Total paid out (USDT)"
+            label="Total paid out"
             value={stats.paidOut}
             format={(n) => `$${(n / 1000).toFixed(1)}K`}
             icon={ArrowUpFromLine}
@@ -362,7 +380,7 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
                   <TabsTrigger value="rejected">Rejected</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <SearchInput value={query} onChange={setQuery} placeholder="Search users, addresses…" />
+              <SearchInput value={query} onChange={setQuery} placeholder="Search users, IDs, addresses…" />
               <Button size="md" variant="outline" onClick={confirmAllPending}>
                 Approve all pending
               </Button>
