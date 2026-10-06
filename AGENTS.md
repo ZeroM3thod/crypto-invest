@@ -1,1185 +1,1463 @@
-I'll start by reading the uploaded file to see the admin and superadmin code.I'm reading the admin and superadmin code side by side so I can match the superadmin pages to the admin ones exactly. The admin shell is done, so I'm on the superadmin shell next.I'm still reading the admin and superadmin code in detail. So far I've covered the shells, dashboard, users, user detail and the shared UI helpers; the finance, KYC and support views are next.I'm nearly done reading. The last part of the admin user-detail is next, then I'll write up the code.I couldn't run or type-check any of this, because the `lib/*` files and API routes weren't in the upload. The superadmin pages now render the admin components directly, so the dashboard, KYC, deposits, withdrawals, fund history and support pages are the same code as admin. Users list and user detail have their own copies, because admin hardcodes `/admin/...` routes and API calls in them. The sidebar already points at `/owner/users/kyc`, `/owner/finance/history` and `/owner/support/tickets`, so `super-admin-shell.tsx` needs no change.
+I'll start by looking at both files.Now I'll check the existing Next.js project: its Tailwind version, layouts, current home page and global CSS.The repo has no `package.json` or Tailwind config in the pack, so I need to see how the theme provider is used elsewhere so the landing page doesn't break it.Here is the full conversion: no new npm packages, and nothing is left out. I read both files. Your `globals.css` uses Tailwind v4 (`@import "tailwindcss"`), while the HTML was built on the Tailwind v3 CDN, so I rewrote the config as v4 theme tokens. I also scoped the design's colours to the landing page, so your signin, dashboard and admin pages (which use a blue `primary`) are not affected.
 
-## 1. Dashboard
-`app/(superadmin)/owner/page.tsx`
+## File layout
+
+```
+app/
+├─ globals.css                      ← APPEND a block (Step 1)
+└─ (public)/
+   ├─ layout.tsx                    ← REPLACE (Step 2)
+   ├─ page.tsx                      ← REPLACE (Step 3)
+   └─ _components/                  ← NEW folder (Step 4)
+      ├─ data.ts
+      ├─ icon.tsx
+      ├─ section-heading.tsx
+      ├─ icon-card.tsx
+      ├─ theme-toggle.tsx
+      ├─ dividend-countdown.tsx
+      ├─ navbar.tsx
+      ├─ hero.tsx
+      ├─ metrics.tsx
+      ├─ features.tsx
+      ├─ referral.tsx
+      ├─ ai-trading.tsx
+      ├─ how-it-works.tsx
+      ├─ wallets.tsx
+      ├─ pricing.tsx
+      ├─ security.tsx
+      ├─ faq.tsx
+      └─ footer.tsx
+```
+
+---
+
+## Step 1: `app/globals.css` (paste at the very END, keep everything already there)
+
+```css
+/* =====================================================================
+   QOUANTEX LANDING PAGE: design tokens
+   Everything is scoped to the .qx wrapper so the rest of the app
+   (signin, dashboard, admin...) keeps its current colours.
+   ===================================================================== */
+
+/* Light palette (copied 1:1 from the HTML) */
+.qx {
+  --c-surface-container: 238 238 238;
+  --c-secondary-fixed: 228 226 226;
+  --c-inverse-on-surface: 240 241 241;
+  --c-surface-tint: 95 94 94;
+  --c-on-tertiary-fixed: 7 0 108;
+  --c-on-surface: 26 28 28;
+  --c-on-tertiary-fixed-variant: 47 46 190;
+  --c-on-error: 255 255 255;
+  --c-surface-container-highest: 226 226 226;
+  --c-surface-container-high: 232 232 232;
+  --c-tertiary: 21 21 21;
+  --c-on-secondary-container: 98 98 98;
+  --c-secondary-fixed-dim: 199 198 198;
+  --c-on-secondary-fixed-variant: 70 71 71;
+  --c-on-primary: 255 255 255;
+  --c-on-surface-variant: 68 71 72;
+  --c-tertiary-fixed-dim: 192 193 255;
+  --c-on-background: 26 28 28;
+  --c-on-primary-fixed-variant: 71 70 70;
+  --c-primary-fixed-dim: 200 198 197;
+  --c-on-tertiary-container: 112 115 255;
+  --c-outline: 116 120 120;
+  --c-on-secondary: 255 255 255;
+  --c-primary-fixed: 229 226 225;
+  --c-on-error-container: 147 0 10;
+  --c-on-primary-container: 133 131 131;
+  --c-primary-container: 28 27 27;
+  --c-on-tertiary: 255 255 255;
+  --c-inverse-surface: 47 49 49;
+  --c-on-primary-fixed: 28 27 27;
+  --c-secondary-container: 225 223 223;
+  --c-background: 249 249 249;
+  --c-surface-container-lowest: 255 255 255;
+  --c-error: 186 26 26;
+  --c-secondary: 94 94 94;
+  --c-tertiary-container: 7 0 108;
+  --c-outline-variant: 196 199 199;
+  --c-surface-dim: 218 218 218;
+  --c-surface: 249 249 249;
+  --c-tertiary-fixed: 225 224 255;
+  --c-error-container: 255 218 214;
+  --c-surface-bright: 249 249 249;
+  --c-primary: 21 21 21;
+  --c-surface-variant: 226 226 226;
+  --c-inverse-primary: 200 198 197;
+  --c-surface-container-low: 243 243 243;
+  --c-on-secondary-fixed: 27 28 28;
+
+  /* Your app already has a `primary` colour (blue). Inside .qx ONLY,
+     point it at the landing page's primary (near-black / near-white). */
+  --primary: rgb(var(--c-primary));
+
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* Dark palette: your root layout puts the `dark` class on <html> */
+.dark .qx {
+  --c-surface: 21 21 21;
+  --c-background: 21 21 21;
+  --c-surface-dim: 21 21 21;
+  --c-surface-bright: 27 27 27;
+  --c-surface-container-lowest: 15 15 15;
+  --c-surface-container-low: 27 27 27;
+  --c-surface-container: 33 33 33;
+  --c-surface-container-high: 42 42 42;
+  --c-surface-container-highest: 51 51 51;
+  --c-surface-variant: 46 46 46;
+  --c-on-surface: 236 236 236;
+  --c-on-background: 236 236 236;
+  --c-on-surface-variant: 196 199 199;
+  --c-outline: 142 145 146;
+  --c-outline-variant: 58 61 61;
+  --c-primary: 242 242 242;
+  --c-on-primary: 21 21 21;
+  --c-tertiary: 242 242 242;
+  --c-on-tertiary: 21 21 21;
+  --c-inverse-surface: 236 236 236;
+  --c-inverse-on-surface: 21 21 21;
+  --c-secondary: 199 198 198;
+  --c-surface-tint: 200 198 197;
+}
+
+/* The old tailwind.config → Tailwind v4 theme.
+   `primary` and `background` are intentionally NOT redefined here
+   (they already exist in your app). */
+@theme inline {
+  --color-surface-container: rgb(var(--c-surface-container));
+  --color-secondary-fixed: rgb(var(--c-secondary-fixed));
+  --color-inverse-on-surface: rgb(var(--c-inverse-on-surface));
+  --color-surface-tint: rgb(var(--c-surface-tint));
+  --color-on-tertiary-fixed: rgb(var(--c-on-tertiary-fixed));
+  --color-on-surface: rgb(var(--c-on-surface));
+  --color-on-tertiary-fixed-variant: rgb(var(--c-on-tertiary-fixed-variant));
+  --color-on-error: rgb(var(--c-on-error));
+  --color-surface-container-highest: rgb(var(--c-surface-container-highest));
+  --color-surface-container-high: rgb(var(--c-surface-container-high));
+  --color-tertiary: rgb(var(--c-tertiary));
+  --color-on-secondary-container: rgb(var(--c-on-secondary-container));
+  --color-secondary-fixed-dim: rgb(var(--c-secondary-fixed-dim));
+  --color-on-secondary-fixed-variant: rgb(var(--c-on-secondary-fixed-variant));
+  --color-on-primary: rgb(var(--c-on-primary));
+  --color-on-surface-variant: rgb(var(--c-on-surface-variant));
+  --color-tertiary-fixed-dim: rgb(var(--c-tertiary-fixed-dim));
+  --color-on-background: rgb(var(--c-on-background));
+  --color-on-primary-fixed-variant: rgb(var(--c-on-primary-fixed-variant));
+  --color-primary-fixed-dim: rgb(var(--c-primary-fixed-dim));
+  --color-on-tertiary-container: rgb(var(--c-on-tertiary-container));
+  --color-outline: rgb(var(--c-outline));
+  --color-on-secondary: rgb(var(--c-on-secondary));
+  --color-primary-fixed: rgb(var(--c-primary-fixed));
+  --color-on-error-container: rgb(var(--c-on-error-container));
+  --color-on-primary-container: rgb(var(--c-on-primary-container));
+  --color-primary-container: rgb(var(--c-primary-container));
+  --color-on-tertiary: rgb(var(--c-on-tertiary));
+  --color-inverse-surface: rgb(var(--c-inverse-surface));
+  --color-on-primary-fixed: rgb(var(--c-on-primary-fixed));
+  --color-secondary-container: rgb(var(--c-secondary-container));
+  --color-surface-container-lowest: rgb(var(--c-surface-container-lowest));
+  --color-error: rgb(var(--c-error));
+  --color-secondary: rgb(var(--c-secondary));
+  --color-tertiary-container: rgb(var(--c-tertiary-container));
+  --color-outline-variant: rgb(var(--c-outline-variant));
+  --color-surface-dim: rgb(var(--c-surface-dim));
+  --color-surface: rgb(var(--c-surface));
+  --color-tertiary-fixed: rgb(var(--c-tertiary-fixed));
+  --color-error-container: rgb(var(--c-error-container));
+  --color-surface-bright: rgb(var(--c-surface-bright));
+  --color-surface-variant: rgb(var(--c-surface-variant));
+  --color-inverse-primary: rgb(var(--c-inverse-primary));
+  --color-surface-container-low: rgb(var(--c-surface-container-low));
+  --color-on-secondary-fixed: rgb(var(--c-on-secondary-fixed));
+
+  /* Fonts: reuses the Geist you already load with next/font */
+  --font-body: var(--font-geist-sans), "Inter", sans-serif;
+  --font-h1: var(--font-geist-sans), "Inter", sans-serif;
+  --font-h2: var(--font-geist-sans), "Inter", sans-serif;
+  --font-h3: var(--font-geist-sans), "Inter", sans-serif;
+  --font-button: var(--font-geist-sans), "Inter", sans-serif;
+  --font-label-caps: var(--font-geist-sans), "Inter", sans-serif;
+
+  /* Type scale: text-body, text-h1, text-h2, text-h3, text-button, text-label-caps */
+  --text-body: 17px;
+  --text-body--line-height: 1.6;
+  --text-body--letter-spacing: 0em;
+  --text-body--font-weight: 400;
+
+  --text-h3: 28px;
+  --text-h3--line-height: 1.2;
+  --text-h3--letter-spacing: -0.01em;
+  --text-h3--font-weight: 500;
+
+  --text-button: 14px;
+  --text-button--line-height: 1;
+  --text-button--letter-spacing: 0.01em;
+  --text-button--font-weight: 500;
+
+  --text-label-caps: 12px;
+  --text-label-caps--line-height: 1;
+  --text-label-caps--letter-spacing: 0.05em;
+  --text-label-caps--font-weight: 600;
+
+  --text-h1: 84px;
+  --text-h1--line-height: 0.95;
+  --text-h1--letter-spacing: -0.04em;
+  --text-h1--font-weight: 600;
+
+  --text-h2: 48px;
+  --text-h2--line-height: 1.1;
+  --text-h2--letter-spacing: -0.02em;
+  --text-h2--font-weight: 600;
+}
+
+/* Material Symbols icon class.
+   Own class name (qx-icon) on purpose: Google's stylesheet ships an
+   un-layered .material-symbols-outlined { font-size: 24px } that would
+   beat Tailwind v4's layered utilities (text-4xl, text-[20px]...). */
+@layer components {
+  .qx-icon {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  }
+  .qx-icon-filled {
+    font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  }
+}
+
+/* Tailwind v4 buttons default to the arrow cursor; v3 (the HTML) used a pointer */
+@layer base {
+  .qx button:not(:disabled) {
+    cursor: pointer;
+  }
+}
+```
+
+---
+
+## Step 2: `app/(public)/layout.tsx` (replace the whole file)
+
+This loads the icon font. The landing page has its own theme toggle in the navbar, so I removed `FloatingThemeToggle` here to avoid two toggles overlapping.
+
 ```tsx
-// app/(superadmin)/owner/page.tsx
-// Owner dashboard: same view + same data source as the admin dashboard.
-import { SuperAdminShell } from "../_components/super-admin-shell";
-import { DashboardView } from "@/app/(admin)/_components/dashboard-view";
-import { getDashboardData } from "@/lib/admin-dashboard-data";
-import { requireOwner } from "@/lib/auth/require-owner";
+// app/(public)/layout.tsx
+// Public pages: landing, about, pricing, contact etc.
+// No dock here.
 
-export default async function OwnerDashboardPage() {
-  await requireOwner();
-  const data = getDashboardData(); // swap for your DB / API call
-
+export default function PublicLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <SuperAdminShell active="Dashboard">
-      <DashboardView data={data} />
-    </SuperAdminShell>
+    <>
+      {/* Material Symbols icon font used by the landing page */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      />
+      {children}
+    </>
   );
 }
 ```
 
-## 2. Users list
-`app/(superadmin)/owner/users/page.tsx`
+---
+
+## Step 3: `app/(public)/page.tsx` (replace the whole file)
+
 ```tsx
-// app/(superadmin)/owner/users/page.tsx
-import { SuperAdminShell } from "../../_components/super-admin-shell";
-import { UsersManagement } from "../../_components/users-management";
-import { getUsers, toRow } from "@/lib/users-data";
-import { requireOwner } from "@/lib/auth/require-owner";
+// app/(public)/page.tsx
+import type { Metadata } from "next";
+import { Navbar } from "./_components/navbar";
+import { Hero } from "./_components/hero";
+import { Metrics } from "./_components/metrics";
+import { Features } from "./_components/features";
+import { Referral } from "./_components/referral";
+import { AiTrading } from "./_components/ai-trading";
+import { HowItWorks } from "./_components/how-it-works";
+import { Wallets } from "./_components/wallets";
+import { Pricing } from "./_components/pricing";
+import { Security } from "./_components/security";
+import { Faq } from "./_components/faq";
+import { Footer } from "./_components/footer";
 
-export default async function OwnerUsersPage() {
-  await requireOwner();
-  const rows = getUsers().map(toRow);
+export const metadata: Metadata = {
+  title: "Qouantex - Crypto Wealth & Trading Ecosystem",
+};
 
+export default function HomePage() {
   return (
-    <SuperAdminShell active="All Users">
-      <UsersManagement rows={rows} />
-    </SuperAdminShell>
-  );
-}
-```
-
-`app/(superadmin)/_components/users-management.tsx`
-```tsx
-// app/(superadmin)/_components/users-management.tsx
-"use client";
-
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Table, type TableColumn } from "@/components/motion/table";
-import type { UserRow } from "@/lib/users-data";
-import { Badge, SelectField, StatCard } from "./ui";
-
-const kycTone = { verified: "green", pending: "amber", rejected: "red", not_submitted: "gray" } as const;
-const usd = (n: number) => `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-
-export function UsersManagement({ rows }: { rows: UserRow[] }) {
-  const router = useRouter();
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("all");
-  const [kyc, setKyc] = useState("all");
-
-  const stats = useMemo(
-    () => ({
-      total: rows.length,
-      active: rows.filter((r) => r.status === "active").length,
-      suspended: rows.filter((r) => r.status === "suspended").length,
-      byOwner: rows.filter((r) => r.referredBy === "OWNER").length,
-      kycVerified: rows.filter((r) => r.kyc === "verified").length,
-      kycPending: rows.filter((r) => r.kyc === "pending").length,
-      twoFA: rows.filter((r) => r.twoFA).length,
-      balance: rows.reduce((s, r) => s + r.totalBalance, 0),
-    }),
-    [rows],
-  );
-
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    return rows.filter(
-      (r) =>
-        (status === "all" || r.status === status) &&
-        (kyc === "all" || r.kyc === kyc) &&
-        (!term ||
-          r.name.toLowerCase().includes(term) ||
-          r.email.toLowerCase().includes(term) ||
-          r.id.toLowerCase().includes(term)),
-    );
-  }, [rows, q, status, kyc]);
-
-  const columns = useMemo<TableColumn<UserRow>[]>(
-    () => [
-      { key: "id", header: "User ID", sortable: true, width: "120px" },
-      {
-        key: "name",
-        header: "Name",
-        sortable: true,
-        width: "1.2fr",
-        cell: (r) => <span className="font-medium">{r.name}</span>,
-      },
-      { key: "email", header: "Email", sortable: true, width: "1.6fr" },
-      { key: "country", header: "Country", sortable: true, width: "140px" },
-      { key: "joinedAt", header: "Joined", sortable: true, width: "120px" },
-      {
-        key: "kyc",
-        header: "KYC",
-        sortable: true,
-        width: "130px",
-        cell: (r) => <Badge tone={kycTone[r.kyc]}>{r.kyc.replace("_", " ")}</Badge>,
-      },
-      {
-        key: "twoFA",
-        header: "2FA",
-        width: "90px",
-        sortValue: (r) => Number(r.twoFA),
-        sortable: true,
-        cell: (r) => <Badge tone={r.twoFA ? "green" : "gray"}>{r.twoFA ? "On" : "Off"}</Badge>,
-      },
-      {
-        key: "referredBy",
-        header: "Referred By",
-        sortable: true,
-        width: "130px",
-        cell: (r) => (r.referredBy === "OWNER" ? <Badge tone="amber">Owner</Badge> : r.referredBy),
-      },
-      {
-        key: "totalBalance",
-        header: "Balance",
-        sortable: true,
-        align: "right",
-        width: "120px",
-        cell: (r) => <span className="tabular-nums">{usd(r.totalBalance)}</span>,
-      },
-      {
-        key: "status",
-        header: "Status",
-        sortable: true,
-        width: "120px",
-        cell: (r) => <Badge tone={r.status === "active" ? "green" : "red"}>{r.status}</Badge>,
-      },
-    ],
-    [],
-  );
-
-  return (
-    <div className="flex flex-col gap-6 p-4 md:p-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">User Management</h1>
-        <p className="text-sm text-muted-foreground">Click any row to open and edit the user.</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Total Users" value={stats.total.toLocaleString()} />
-        <StatCard label="Referred By Owner" value={stats.byOwner.toLocaleString()} hint="Direct owner referrals" />
-        <StatCard label="Active / Suspended" value={`${stats.active} / ${stats.suspended}`} />
-        <StatCard label="Total User Balance" value={usd(stats.balance)} />
-        <StatCard label="KYC Verified" value={stats.kycVerified} />
-        <StatCard label="KYC Pending" value={stats.kycPending} />
-        <StatCard label="2FA Enabled" value={stats.twoFA} />
-        <StatCard label="2FA Disabled" value={stats.total - stats.twoFA} />
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">Search</span>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Name, email or user ID"
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
-          <SelectField
-            label="Status"
-            value={status}
-            onChange={setStatus}
-            options={[
-              { value: "all", label: "All" },
-              { value: "active", label: "Active" },
-              { value: "suspended", label: "Suspended" },
-            ]}
-          />
-          <SelectField
-            label="KYC"
-            value={kyc}
-            onChange={setKyc}
-            options={[
-              { value: "all", label: "All" },
-              { value: "verified", label: "Verified" },
-              { value: "pending", label: "Pending" },
-              { value: "rejected", label: "Rejected" },
-              { value: "not_submitted", label: "Not submitted" },
-            ]}
-          />
-        </div>
-
-        <p className="px-1 text-xs text-muted-foreground">{filtered.length.toLocaleString()} users</p>
-
-        <Table
-          data={filtered}
-          columns={columns}
-          getRowId={(r) => r.id}
-          resizable
-          reorderable
-          defaultSort={{ key: "joinedAt", direction: "desc" }}
-          onRowClick={(r) => router.push(`/owner/users/${r.id}`)}
-          height={560}
-          rowHeight={52}
-          className="rounded-2xl"
-        />
-      </div>
+    <div className="qx min-h-screen bg-surface font-body text-body text-on-surface">
+      <Navbar />
+      <main className="pt-32 pb-32">
+        <Hero />
+        <Metrics />
+        <Features />
+        <Referral />
+        <AiTrading />
+        <HowItWorks />
+        <Wallets />
+        <Pricing />
+        <Security />
+        <Faq />
+      </main>
+      <Footer />
     </div>
   );
 }
 ```
 
-## 3. User details
-`app/(superadmin)/owner/users/[userId]/page.tsx`
+---
+
+## Step 4: create the `app/(public)/_components/` files
+
+The folder starts with `_`, so Next.js never treats it as a route.
+
+### `data.ts`
+All the text and numbers that the HTML's JavaScript used to render. Edit content here.
+
+```ts
+// app/(public)/_components/data.ts
+
+/** Shared card surface used by most boxes on the page */
+export const CARD = "bg-surface-container-lowest border border-outline-variant";
+
+export type IconItem = { icon: string; title: string; desc: string };
+
+/* ---------- Hero preview card ---------- */
+export const WALLET_TABS = ["Main", "Investment", "Trading", "Mining", "Referral"];
+export const ACTIVE_WALLET_TAB = "Investment";
+
+export const PNL = [
+  { label: "Today", value: "+1.8%" },
+  { label: "7-Day", value: "+9.4%" },
+  { label: "30-Day", value: "+31.2%" },
+  { label: "All-Time", value: "+86.7%" },
+];
+
+/* ---------- Trust strip ---------- */
+export const METRICS = [
+  { value: "$10M+", label: "Total assets managed" },
+  { value: "2.5%", label: "Max daily plan return" },
+  { value: "68.4%", label: "AI trading win rate" },
+  { value: "99.98%", label: "Platform uptime" },
+  { value: "50,000+", label: "Active traders" },
+];
+
+/* ---------- Features ---------- */
+export const FEATURES: (IconItem & { cta: string })[] = [
+  {
+    icon: "trending_up",
+    title: "Automated Daily Profits",
+    desc: "Plans from 1.7% to 2.5% per day, credited every 24 hours to your Investment Wallet.",
+    cta: "Explore plans",
+  },
+  {
+    icon: "smart_toy",
+    title: "Quantitative AI Trading",
+    desc: "Momentum, EMA and grid-scalping strategies with automated risk controls.",
+    cta: "Explore AI trading",
+  },
+  {
+    icon: "memory",
+    title: "Zero-Hardware Cloud Mining",
+    desc: "Daily BTC mining rewards on 30 to 90 day contracts with no machines to manage.",
+    cta: "Explore mining",
+  },
+  {
+    icon: "account_balance_wallet",
+    title: "5-Wallet Smart Partitioning",
+    desc: "Separate trading capital, investment principal and referral earnings into distinct vaults.",
+    cta: "Explore wallets",
+  },
+  {
+    icon: "groups",
+    title: "5% Lifetime Affiliate Program",
+    desc: "Earn 5% on referral profits, milestone cash bonuses and up to $1,000 monthly leaderboard prizes.",
+    cta: "Explore referrals",
+  },
+  {
+    icon: "swap_horiz",
+    title: "Instant Peer-to-Peer Transfers",
+    desc: "Send funds by Email or User ID with instant settlement and a flat $0.10 fee.",
+    cta: "Explore transfers",
+  },
+];
+
+/* ---------- Referral ---------- */
+export const REFERRAL_POINTS = [
+  "Claim at 5 referrals for $5.00, or keep going and skip to a bigger payout.",
+  "Counter resets to 0 after every claim, so you can earn unlimited bonuses.",
+  "Targets run from 5 referrals ($5) up to 150 referrals ($180).",
+];
+
+export const REFERRAL_TIERS = [
+  { referrals: 5, bonus: 5 },
+  { referrals: 10, bonus: 10 },
+  { referrals: 15, bonus: 18 },
+  { referrals: 20, bonus: 25 },
+  { referrals: 30, bonus: 40 },
+  { referrals: 50, bonus: 65 },
+  { referrals: 100, bonus: 120 },
+  { referrals: 150, bonus: 180 },
+];
+
+/* ---------- How it works ---------- */
+export const STEPS: IconItem[] = [
+  {
+    icon: "person_add",
+    title: "1. Create account",
+    desc: "Sign up in under 60 seconds and enable 2FA.",
+  },
+  {
+    icon: "download",
+    title: "2. Deposit crypto",
+    desc: "Fund your Main Wallet with USDT or USDC via TRC-20, BEP-20 or ERC-20.",
+  },
+  {
+    icon: "tune",
+    title: "3. Pick a strategy",
+    desc: "Activate a daily profit plan, AI trading package or mining contract.",
+  },
+  {
+    icon: "payments",
+    title: "4. Collect & withdraw",
+    desc: "Profits credit every 24 hours. Withdraw to your Main Wallet when cycles end.",
+  },
+];
+
+/* ---------- Wallets ---------- */
+export const WALLETS: IconItem[] = [
+  {
+    icon: "account_balance",
+    title: "Main Wallet",
+    desc: "Central hub for deposits and withdrawals.",
+  },
+  {
+    icon: "savings",
+    title: "Investment Wallet",
+    desc: "Daily profit growth and reinvestment.",
+  },
+  {
+    icon: "candlestick_chart",
+    title: "Trading Wallet",
+    desc: "Dedicated margin for AI strategies and manual orders.",
+  },
+  {
+    icon: "memory",
+    title: "Mining Wallet",
+    desc: "Accumulates cloud mining yields.",
+  },
+  {
+    icon: "redeem",
+    title: "Referral Wallet",
+    desc: "Commissions and milestone bonuses.",
+  },
+  {
+    icon: "swap_horiz",
+    title: "Zero-Fee Transfers",
+    desc: "Move funds between your wallets instantly.",
+  },
+];
+
+/* ---------- Pricing ---------- */
+export type Plan = {
+  name: string;
+  price: string;
+  unit: string;
+  desc: string;
+  cta: string;
+  popular?: boolean;
+};
+
+export const PLANS: Plan[] = [
+  {
+    name: "Starter",
+    price: "1.7%",
+    unit: "/day",
+    desc: "Daily profit plan from $30, credited every 24 hours.",
+    cta: "Start Plan",
+  },
+  {
+    name: "Growth",
+    price: "2.1%",
+    unit: "/day",
+    desc: "Higher daily rate with automatic crediting to your Investment Wallet.",
+    cta: "Start Plan",
+  },
+  {
+    name: "AI Trading",
+    price: "$100",
+    unit: "min",
+    desc: "Algorithmic trading with a 15-day lock and daily P&L updates.",
+    cta: "Activate",
+  },
+  {
+    name: "Elite",
+    price: "2.5%",
+    unit: "/day",
+    desc: "Our top daily profit tier with a live dividend countdown.",
+    cta: "Go Elite",
+    popular: true,
+  },
+  {
+    name: "Cloud Mining",
+    price: "5 TH/s",
+    unit: "+",
+    desc: "Rigs from 5 TH/s with 30 to 90 day contracts and daily BTC rewards.",
+    cta: "Buy Rig",
+  },
+];
+
+/* ---------- Security ---------- */
+export const SECURITY = [
+  { title: "2FA", desc: "Google Authenticator" },
+  { title: "KYC", desc: "4-step verification" },
+  { title: "IP Tracking", desc: "Login audit trail" },
+  { title: "24/7", desc: "Ticket support" },
+];
+
+/* ---------- FAQ ---------- */
+export const FAQ = [
+  {
+    q: "Can I claim multiple referral targets simultaneously?",
+    a: "No. Once you claim a target, your counter resets to 0. Claim smaller targets along the way or hold out for higher tier rewards.",
+  },
+  {
+    q: "When are AI trading results credited?",
+    a: "Results are recorded and credited every 24 hours inside your strategy dashboard.",
+  },
+  {
+    q: "Can I cancel my AI Trading Package before 15 days?",
+    a: "No. Funds are deployed in open positions, so capital stays locked for the full 15-day cycle.",
+  },
+  {
+    q: "What is the minimum withdrawal amount?",
+    a: "Once a cycle completes or a bonus is claimed, funds can be withdrawn according to standard platform wallet limits.",
+  },
+];
+
+/* ---------- Footer ---------- */
+export const FOOTER_COLUMNS: Record<string, string[]> = {
+  Products: ["Daily Profit", "AI Trading", "Cloud Mining", "Manual Trading"],
+  Wallets: ["Deposit", "Withdraw", "Transfer", "History"],
+  Community: ["Live Chat", "Announcements", "Referral Leaderboard", "Support"],
+  Legal: ["Privacy", "Terms", "Security"],
+};
+```
+
+### `icon.tsx`
+
 ```tsx
-// app/(superadmin)/owner/users/[userId]/page.tsx
-import { notFound } from "next/navigation";
-import { SuperAdminShell } from "../../../_components/super-admin-shell";
-import { UserDetail } from "../../../_components/user-detail";
-import { getUser } from "@/lib/users-data";
-import { requireOwner } from "@/lib/auth/require-owner";
+// app/(public)/_components/icon.tsx
+type IconProps = {
+  name: string;
+  className?: string;
+  filled?: boolean;
+};
 
-export default async function OwnerUserDetailPage({
-  params,
-}: {
-  params: Promise<{ userId: string }>;
-}) {
-  await requireOwner();
-  const { userId } = await params;
-  const user = getUser(userId);
-  if (!user) notFound();
-
+export function Icon({ name, className = "", filled = false }: IconProps) {
   return (
-    <SuperAdminShell active="All Users">
-      <UserDetail initialUser={user} />
-    </SuperAdminShell>
+    <span
+      aria-hidden="true"
+      className={`qx-icon${filled ? " qx-icon-filled" : ""} ${className}`}
+    >
+      {name}
+    </span>
   );
 }
 ```
 
-`app/(superadmin)/_components/user-detail.tsx`
+### `section-heading.tsx`
+
 ```tsx
-// app/(superadmin)/_components/user-detail.tsx
-// Admin user detail: admins can edit profile/KYC data AND wallet balances
-// (Main + Investment only), view full investment / AI trading history,
-// and send rewards to the user.
-"use client";
-
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Table, type TableColumn } from "@/components/motion/table";
-import { Checkbox } from "@/components/motion/checkbox";
-import { cn } from "@/lib/utils";
-import type {
-  AiStrategy,
-  AiTrade,
-  DailyProfit,
-  Investment,
-  LoginRecord,
-  ManualTrade,
-  ReferralMember,
-  Reward,
-  RewardType,
-  RewardWallet,
-  Tx,
-  User,
-} from "@/lib/users-data";
-import { Badge, Btn, Card, Field, SelectField, StatCard } from "./ui";
-
-const TABS = [
-  "Profile",
-  "Wallets",
-  "Referrals",
-  "Investments",
-  "Trading",
-  "Rewards",
-  "Security & Logins",
-] as const;
-type Tab = (typeof TABS)[number];
-
-// Only these two wallets exist now (mining / trading / referral removed)
-type WalletKey = "main" | "investment";
-const WALLET_LABELS: Record<WalletKey, string> = {
-  main: "Main Wallet",
-  investment: "Investment Wallet",
-};
-
-const usd = (n: number) =>
-  `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-
-/** Keep numbers as numbers when a text cell is edited. */
-const coerce = (sample: unknown, value: string) =>
-  typeof sample === "number" ? Number(value) || 0 : value;
-
-/** Column helper: every cell is editable + sortable by default. */
-function col<T>(
-  key: keyof T & string,
-  header: string,
-  extra: Partial<TableColumn<T>> = {},
-): TableColumn<T> {
-  return { key, header, editable: true, sortable: true, width: "140px", ...extra };
-}
-
-/** Read-only column helper (history / log tables). */
-function ro<T>(
-  key: keyof T & string,
-  header: string,
-  extra: Partial<TableColumn<T>> = {},
-): TableColumn<T> {
-  return col<T>(key, header, { editable: false, ...extra });
-}
-
-/** Editable data table used by every section. */
-function Grid<T extends { id: string }>({
-  data,
-  columns,
-  onCellEdit,
-  onDeleteRow,
-  height = 340,
+// app/(public)/_components/section-heading.tsx
+export function SectionHeading({
+  title,
+  subtitle,
 }: {
-  data: T[];
-  columns: TableColumn<T>[];
-  onCellEdit?: (rowId: string, key: string, value: string) => void;
-  onDeleteRow?: (rowId: string) => void;
-  height?: number;
+  title: string;
+  subtitle?: string;
 }) {
   return (
-    <Table
-      data={data}
-      columns={columns}
-      getRowId={(r) => r.id}
-      resizable
-      onCellEdit={onCellEdit}
-      onDeleteRow={onDeleteRow ? (id) => onDeleteRow(id) : undefined}
-      height={height}
-      rowHeight={48}
-      className="rounded-xl"
-      emptyState="No records"
-    />
+    <div className="text-center mb-16">
+      <h2
+        className={`font-h2 text-h2 text-on-surface${subtitle ? " mb-4" : ""}`}
+      >
+        {title}
+      </h2>
+      {subtitle && (
+        <p className="font-body text-body text-on-surface-variant max-w-[600px] mx-auto">
+          {subtitle}
+        </p>
+      )}
+    </div>
   );
 }
+```
 
-const rewardInitial = {
-  title: "",
-  description: "",
-  wallet: "main" as RewardWallet,
-  type: "non_withdrawable" as RewardType,
-  amount: "",
-};
+### `icon-card.tsx`
+Used by both "How it works" and "Wallets" (they have identical markup).
 
-export function UserDetail({ initialUser }: { initialUser: User }) {
-  const router = useRouter();
-  const [user, setUser] = useState<User>(initialUser);
-  const [saved, setSaved] = useState<User>(initialUser);
-  const [tab, setTab] = useState<Tab>("Profile");
-  const [walletKey, setWalletKey] = useState<WalletKey>("main");
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-  const [invFilter, setInvFilter] = useState("all");
-  const [rf, setRf] = useState(rewardInitial);
-  const [rewardBusy, setRewardBusy] = useState(false);
+```tsx
+// app/(public)/_components/icon-card.tsx
+import { Icon } from "./icon";
+import { CARD, type IconItem } from "./data";
 
-  const dirty = JSON.stringify(user) !== JSON.stringify(saved);
-  const set = <K extends keyof User>(key: K, value: User[K]) =>
-    setUser((u) => ({ ...u, [key]: value }));
+export function IconCard({ icon, title, desc }: IconItem) {
+  return (
+    <div
+      className={`${CARD} rounded-[20px] p-6 hover:bg-surface-container-low transition-colors`}
+    >
+      <Icon name={icon} className="text-3xl text-outline mb-4" />
+      <h3 className="font-h3 text-xl text-on-surface mb-2">{title}</h3>
+      <p className="text-sm text-on-surface-variant leading-relaxed">{desc}</p>
+    </div>
+  );
+}
+```
 
-  const flash = (message: string) => {
-    setNote(message);
-    setTimeout(() => setNote(null), 3000);
-  };
+### `theme-toggle.tsx` (client component)
+It uses the same localStorage key (`crypto_invest_theme`) and the same `<html>` class logic as your root layout script, so a saved choice is applied on the next load.
 
-  /** Admin can edit wallet balances. */
-  const setBalance = (k: WalletKey, value: number) =>
-    setUser((u) => ({
-      ...u,
-      wallets: { ...u.wallets, [k]: { ...u.wallets[k], balance: value } },
-    }));
+```tsx
+// app/(public)/_components/theme-toggle.tsx
+"use client";
 
-  /** Generic cell-edit handler for the editable top-level arrays. */
-  const editList =
-    (list: "referrals" | "investments" | "aiStrategies" | "manualTrades" | "logins") =>
-    (rowId: string, key: string, value: string) =>
-      setUser((u) => ({
-        ...u,
-        [list]: (u[list] as unknown as Record<string, unknown>[]).map((r) =>
-          r.id === rowId ? { ...r, [key]: coerce(r[key], value) } : r,
-        ),
-      }));
+import { useSyncExternalStore } from "react";
+import { Icon } from "./icon";
 
-  /** Persist to your backend (PATCH). Rewards are NOT sent here — they are
-   *  created only through the rewards endpoint so they can't be double-credited. */
-  async function persist(next: User, message: string) {
-    setBusy(true);
+const STORAGE_KEY = "crypto_invest_theme";
+
+// Re-render whenever the <html> class list changes (from anywhere)
+function subscribe(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  return () => observer.disconnect();
+}
+
+const getSnapshot = () => document.documentElement.classList.contains("dark");
+const getServerSnapshot = () => true; // your app defaults to dark
+
+export function ThemeToggle() {
+  const isDark = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  const toggle = () => {
+    const next = isDark ? "light" : "dark";
+    const root = document.documentElement;
+    root.classList.remove("light", "dark");
+    root.classList.add(next);
+    root.setAttribute("data-theme", next);
+    root.style.colorScheme = next;
     try {
-      const { rewards: _rewards, ...payload } = next;
-      void _rewards;
-      const res = await fetch(`/api/owner/users/${next.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      setUser(next);
-      setSaved(next);
-      flash(message);
+      localStorage.setItem(STORAGE_KEY, next);
     } catch {
-      flash("Save failed. Check your API route.");
-    } finally {
-      setBusy(false);
+      /* storage unavailable */
     }
-  }
-
-  const toggleSuspend = () => {
-    const suspending = user.status === "active";
-    if (!confirm(`${suspending ? "Suspend" : "Activate"} ${user.firstName} ${user.lastName}?`)) return;
-    void persist(
-      { ...user, status: suspending ? "suspended" : "active" },
-      suspending ? "User suspended" : "User activated",
-    );
   };
-
-  /** Send a reward: credits the chosen wallet on the server, then mirrors it locally. */
-  async function sendReward() {
-    const amount = Number(rf.amount);
-    if (!rf.title.trim() || !rf.description.trim() || !(amount > 0)) {
-      flash("Add a title, short description and a valid amount");
-      return;
-    }
-    const lockText = rf.type === "withdrawable" ? "withdrawable" : "non-withdrawable (invest only)";
-    if (
-      !confirm(
-        `Send ${usd(amount)} reward "${rf.title.trim()}" to ${user.firstName} ${user.lastName}'s ${WALLET_LABELS[rf.wallet]} as ${lockText}?`,
-      )
-    )
-      return;
-
-    setRewardBusy(true);
-    try {
-      const res = await fetch(`/api/owner/users/${user.id}/rewards`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: rf.title.trim(),
-          description: rf.description.trim(),
-          wallet: rf.wallet,
-          type: rf.type,
-          amount,
-        }),
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      const { reward } = (await res.json()) as { reward: Reward };
-
-      // apply the same change to both current + saved copies (keeps "dirty" correct)
-      const apply = (u: User): User => ({
-        ...u,
-        rewards: [reward, ...u.rewards],
-        wallets: {
-          ...u.wallets,
-          [reward.wallet]: {
-            ...u.wallets[reward.wallet],
-            balance: u.wallets[reward.wallet].balance + reward.amount,
-            lockedBalance:
-              u.wallets[reward.wallet].lockedBalance +
-              (reward.type === "non_withdrawable" ? reward.amount : 0),
-          },
-        },
-      });
-      setUser(apply);
-      setSaved(apply);
-      setRf(rewardInitial);
-      flash("Reward sent");
-    } catch {
-      flash("Reward failed. Check your API route.");
-    } finally {
-      setRewardBusy(false);
-    }
-  }
-
-  // ---------- derived numbers ----------
-  const wallet = user.wallets[walletKey];
-  const totalWallets = user.wallets.main.balance + user.wallets.investment.balance;
-
-  const refTotals = useMemo(
-    () => ({
-      count: user.referrals.length,
-      deposit: user.referrals.reduce((s, r) => s + r.totalDeposit, 0),
-      balance: user.referrals.reduce((s, r) => s + r.balance, 0),
-    }),
-    [user.referrals],
-  );
-
-  const invTotals = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return {
-      running: user.investments.filter((i) => i.status === "running").length,
-      invested: user.investments.reduce((s, i) => s + i.amount, 0),
-      earned: user.investments.reduce((s, i) => s + i.earned, 0),
-      profitDays: user.dailyProfits.length,
-      today: user.dailyProfits
-        .filter((p) => p.date.startsWith(today))
-        .reduce((s, p) => s + p.profit, 0),
-    };
-  }, [user.investments, user.dailyProfits]);
-
-  const filteredProfits = useMemo(
-    () => (invFilter === "all" ? user.dailyProfits : user.dailyProfits.filter((p) => p.investmentId === invFilter)),
-    [user.dailyProfits, invFilter],
-  );
-  const filteredProfitTotal = useMemo(
-    () => filteredProfits.reduce((s, p) => s + p.profit, 0),
-    [filteredProfits],
-  );
-
-  const ai = useMemo(() => {
-    const s = user.aiStrategies;
-    const allocated = s.reduce((a, x) => a + x.allocated, 0);
-    const net = s.reduce((a, x) => a + x.pnl, 0);
-    return {
-      count: s.length,
-      active: s.filter((x) => x.status === "active" || x.status === "running").length,
-      allocated,
-      net,
-      roi: allocated ? (net / allocated) * 100 : 0,
-      avgWin: s.length ? s.reduce((a, x) => a + x.winRate, 0) / s.length : 0,
-      trades: user.aiTrades.length,
-    };
-  }, [user.aiStrategies, user.aiTrades]);
-
-  const trade = useMemo(() => {
-    const t = user.manualTrades;
-    return {
-      total: t.length,
-      long: t.filter((x) => x.direction === "long").length,
-      short: t.filter((x) => x.direction === "short").length,
-      wins: t.filter((x) => x.pnl > 0).length,
-      losses: t.filter((x) => x.pnl < 0).length,
-      net: t.reduce((s, x) => s + x.pnl, 0),
-    };
-  }, [user.manualTrades]);
-
-  const rewardTotals = useMemo(
-    () => ({
-      count: user.rewards.length,
-      total: user.rewards.reduce((s, r) => s + r.amount, 0),
-      locked: user.rewards.filter((r) => r.type === "non_withdrawable").reduce((s, r) => s + r.amount, 0),
-      free: user.rewards.filter((r) => r.type === "withdrawable").reduce((s, r) => s + r.amount, 0),
-    }),
-    [user.rewards],
-  );
-
-  // ---------- columns ----------
-  const txCols = useMemo<TableColumn<Tx>[]>(
-    () => [
-      ro<Tx>("date", "Date", { width: "170px" }),
-      ro<Tx>("type", "Type", { width: "120px" }),
-      ro<Tx>("amount", "Amount", { width: "120px", align: "right" }),
-      ro<Tx>("status", "Status", { width: "120px" }),
-      ro<Tx>("hash", "Tx Hash / Ref", { width: "1fr" }),
-    ],
-    [],
-  );
-  const refCols = useMemo<TableColumn<ReferralMember>[]>(
-    () => [
-      col<ReferralMember>("id", "User ID", { width: "120px" }),
-      col<ReferralMember>("name", "Name", { width: "1fr" }),
-      col<ReferralMember>("email", "Email", { width: "1.4fr" }),
-      col<ReferralMember>("joinedAt", "Joined", { width: "120px" }),
-      col<ReferralMember>("level", "Level", { width: "90px", align: "right" }),
-      col<ReferralMember>("totalDeposit", "Total Deposit", { width: "140px", align: "right" }),
-      col<ReferralMember>("balance", "Balance", { width: "120px", align: "right" }),
-    ],
-    [],
-  );
-  const invCols = useMemo<TableColumn<Investment>[]>(
-    () => [
-      col<Investment>("id", "ID", { width: "120px" }),
-      col<Investment>("plan", "Plan", { width: "120px" }),
-      col<Investment>("amount", "Amount", { width: "120px", align: "right" }),
-      col<Investment>("dailyRoi", "Daily ROI %", { width: "120px", align: "right" }),
-      col<Investment>("startDate", "Start", { width: "120px" }),
-      col<Investment>("endDate", "End", { width: "120px" }),
-      col<Investment>("earned", "Earned", { width: "110px", align: "right" }),
-      col<Investment>("status", "Status", { width: "120px" }),
-    ],
-    [],
-  );
-  const profitCols = useMemo<TableColumn<DailyProfit>[]>(
-    () => [
-      ro<DailyProfit>("date", "Date", { width: "130px" }),
-      ro<DailyProfit>("investmentId", "Investment ID", { width: "130px" }),
-      ro<DailyProfit>("plan", "Plan", { width: "120px" }),
-      ro<DailyProfit>("invested", "Invested", {
-        width: "120px",
-        align: "right",
-        cell: (r) => <span className="tabular-nums">{usd(r.invested)}</span>,
-      }),
-      ro<DailyProfit>("roi", "Daily ROI %", { width: "120px", align: "right" }),
-      ro<DailyProfit>("profit", "Profit", {
-        width: "120px",
-        align: "right",
-        cell: (r) => <span className="tabular-nums text-emerald-500">{usd(r.profit)}</span>,
-      }),
-      ro<DailyProfit>("wallet", "Credited To", { width: "140px" }),
-      ro<DailyProfit>("status", "Status", {
-        width: "120px",
-        cell: (r) => <Badge tone={r.status === "credited" ? "green" : "amber"}>{r.status}</Badge>,
-      }),
-    ],
-    [],
-  );
-  const aiCols = useMemo<TableColumn<AiStrategy>[]>(
-    () => [
-      col<AiStrategy>("id", "ID", { width: "110px" }),
-      col<AiStrategy>("name", "Strategy", { width: "1fr" }),
-      col<AiStrategy>("pair", "Pair", { width: "120px" }),
-      col<AiStrategy>("allocated", "Allocated", { width: "120px", align: "right" }),
-      col<AiStrategy>("pnl", "PnL", { width: "100px", align: "right" }),
-      col<AiStrategy>("winRate", "Win Rate %", { width: "110px", align: "right" }),
-      col<AiStrategy>("status", "Status", { width: "110px" }),
-    ],
-    [],
-  );
-  const aiTradeCols = useMemo<TableColumn<AiTrade>[]>(
-    () => [
-      ro<AiTrade>("id", "ID", { width: "110px" }),
-      ro<AiTrade>("date", "Date", { width: "160px" }),
-      ro<AiTrade>("strategy", "Strategy", { width: "1fr" }),
-      ro<AiTrade>("pair", "Pair", { width: "110px" }),
-      ro<AiTrade>("direction", "Direction", { width: "110px" }),
-      ro<AiTrade>("size", "Size", { width: "100px", align: "right" }),
-      ro<AiTrade>("entry", "Entry", { width: "100px", align: "right" }),
-      ro<AiTrade>("exit", "Exit", { width: "100px", align: "right" }),
-      ro<AiTrade>("pnl", "PnL", {
-        width: "100px",
-        align: "right",
-        cell: (r) => (
-          <span className={cn("tabular-nums", r.pnl >= 0 ? "text-emerald-500" : "text-rose-500")}>
-            {usd(r.pnl)}
-          </span>
-        ),
-      }),
-      ro<AiTrade>("status", "Status", { width: "100px" }),
-    ],
-    [],
-  );
-  const tradeCols = useMemo<TableColumn<ManualTrade>[]>(
-    () => [
-      col<ManualTrade>("id", "ID", { width: "110px" }),
-      col<ManualTrade>("date", "Date", { width: "160px" }),
-      col<ManualTrade>("pair", "Pair", { width: "110px" }),
-      col<ManualTrade>("direction", "Direction", { width: "110px" }),
-      col<ManualTrade>("size", "Size", { width: "100px", align: "right" }),
-      col<ManualTrade>("entry", "Entry", { width: "100px", align: "right" }),
-      col<ManualTrade>("exit", "Exit", { width: "100px", align: "right" }),
-      col<ManualTrade>("pnl", "PnL", { width: "100px", align: "right" }),
-      col<ManualTrade>("status", "Status", { width: "100px" }),
-    ],
-    [],
-  );
-  const rewardCols = useMemo<TableColumn<Reward>[]>(
-    () => [
-      ro<Reward>("sentAt", "Sent On", { width: "160px" }),
-      ro<Reward>("title", "Title", { width: "1fr" }),
-      ro<Reward>("description", "Description", { width: "1.6fr" }),
-      ro<Reward>("amount", "Amount", {
-        width: "120px",
-        align: "right",
-        cell: (r) => <span className="tabular-nums">{usd(r.amount)}</span>,
-      }),
-      ro<Reward>("wallet", "Wallet", { width: "140px", cell: (r) => WALLET_LABELS[r.wallet] }),
-      ro<Reward>("type", "Type", {
-        width: "170px",
-        cell: (r) => (
-          <Badge tone={r.type === "withdrawable" ? "green" : "amber"}>
-            {r.type === "withdrawable" ? "Withdrawable" : "Invest only"}
-          </Badge>
-        ),
-      }),
-      ro<Reward>("sentBy", "Sent By", { width: "130px" }),
-    ],
-    [],
-  );
-  const loginCols = useMemo<TableColumn<LoginRecord>[]>(
-    () => [
-      col<LoginRecord>("at", "Date & Time", { width: "160px" }),
-      col<LoginRecord>("ip", "IP Address", { width: "140px" }),
-      col<LoginRecord>("device", "Device", { width: "140px" }),
-      col<LoginRecord>("browser", "Browser", { width: "130px" }),
-      col<LoginRecord>("app", "Application", { width: "160px" }),
-      col<LoginRecord>("location", "Location", { width: "130px" }),
-      col<LoginRecord>("status", "Result", { width: "100px" }),
-    ],
-    [],
-  );
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6">
-      {/* ---------- header + account actions ---------- */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-border p-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="grid size-12 place-items-center rounded-full bg-foreground text-sm font-semibold text-background">
-            {user.firstName[0]}
-            {user.lastName[0]}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold text-foreground">
-                {user.firstName} {user.lastName}
-              </h1>
-              <Badge tone={user.status === "active" ? "green" : "red"}>{user.status}</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {user.id} · {user.email}
-            </p>
-          </div>
-        </div>
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label="Toggle light/dark mode"
+      className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-highest transition-colors"
+    >
+      <Icon name={isDark ? "light_mode" : "dark_mode"} className="text-[20px]" />
+    </button>
+  );
+}
+```
 
-        <div className="flex flex-wrap items-center gap-2">
-          {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
-          <Btn onClick={() => router.push("/owner/users")}>Back</Btn>
-          <Btn tone={user.status === "active" ? "danger" : "default"} onClick={toggleSuspend} disabled={busy}>
-            {user.status === "active" ? "Suspend user" : "Activate user"}
-          </Btn>
-          <Btn tone="primary" onClick={() => persist(user, "Saved")} disabled={!dirty || busy}>
-            {busy ? "Saving..." : dirty ? "Save changes" : "Saved"}
-          </Btn>
+### `dividend-countdown.tsx` (client component)
+Counts down to the next UTC midnight, like the original script.
+
+```tsx
+// app/(public)/_components/dividend-countdown.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const secondsLeft = () => 86400 - (Math.floor(Date.now() / 1000) % 86400);
+
+export function DividendCountdown() {
+  const [s, setS] = useState<number | null>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setS(secondsLeft()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const label =
+    s === null
+      ? "--:--:--"
+      : [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60]
+          .map(pad)
+          .join(":");
+
+  return (
+    <div className="text-xs text-on-surface-variant font-mono">{label}</div>
+  );
+}
+```
+
+### `navbar.tsx`
+
+```tsx
+// app/(public)/_components/navbar.tsx
+import Link from "next/link";
+import { ThemeToggle } from "./theme-toggle";
+
+export function Navbar() {
+  return (
+    <nav className="fixed top-4 left-0 w-full z-50 px-6 pointer-events-none">
+      <div className="pointer-events-auto mx-auto w-full max-w-[560px] flex items-center justify-between bg-surface-container-high border border-outline-variant rounded-full pl-6 pr-2 py-2 backdrop-blur-xl">
+        <Link
+          href="/"
+          className="text-lg font-bold tracking-tighter text-on-surface"
+        >
+          Qouantex
+        </Link>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Link
+            href="/signup"
+            className="inline-flex items-center bg-primary text-on-primary font-button text-button px-6 py-3 rounded-full hover:opacity-90 transition-opacity active:scale-95 duration-200"
+          >
+            Get Started
+          </Link>
         </div>
       </div>
+    </nav>
+  );
+}
+```
 
-      {/* ---------- tabs ---------- */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl bg-muted p-1">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-              tab === t
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
+### `hero.tsx`
+
+```tsx
+// app/(public)/_components/hero.tsx
+import Link from "next/link";
+import { Icon } from "./icon";
+import { DividendCountdown } from "./dividend-countdown";
+import { CARD, PNL, WALLET_TABS, ACTIVE_WALLET_TAB } from "./data";
+
+export function Hero() {
+  return (
+    <section className="max-w-[1280px] mx-auto px-6 flex flex-col items-center text-center mt-12 mb-[150px]">
+      {/* Announcement pill */}
+      <div className="inline-flex items-center space-x-2 bg-surface-container-high px-4 py-2 rounded-full mb-8 border border-outline-variant">
+        <span className="bg-tertiary text-on-tertiary text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full">
+          New
+        </span>
+        <span className="text-sm font-medium text-on-surface">
+          Referral Milestone Bonuses are live
+        </span>
+        <Icon name="arrow_forward" className="text-sm text-outline" />
+      </div>
+
+      <h1 className="font-h1 text-h1 text-on-surface max-w-[900px] mb-8">
+        The all-in-one crypto wealth &amp; trading ecosystem
+      </h1>
+      <p className="font-body text-body text-on-surface-variant max-w-[620px] mb-12">
+        Automated daily profit plans, professional AI trading and cloud mining,
+        organized in a segregated 5-wallet system with 2FA, KYC and login
+        tracking built in.
+      </p>
+
+      {/* CTAs */}
+      <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-24">
+        <Link
+          href="/signup"
+          className="inline-flex items-center justify-center bg-primary text-on-primary font-button text-button px-8 py-4 rounded-full hover:opacity-90 transition-opacity w-full sm:w-auto"
+        >
+          Start Investing
+        </Link>
+        <a
+          href="#features"
+          className="inline-flex items-center justify-center bg-transparent border border-outline-variant text-on-surface font-button text-button px-8 py-4 rounded-full hover:bg-surface-container transition-colors w-full sm:w-auto"
+        >
+          Explore Platform
+        </a>
+      </div>
+
+      {/* Dashboard preview */}
+      <div className="w-full max-w-[1024px] bg-surface-container-lowest border border-outline-variant rounded-2xl p-2 shadow-sm">
+        <div className="bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant/50 relative p-6 md:p-8 text-left">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div>
+              <div className="text-xs font-medium text-on-surface-variant uppercase tracking-widest mb-1">
+                Portfolio Value
+              </div>
+              <div className="text-4xl font-semibold tracking-tight">
+                $12,480.55
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {WALLET_TABS.map((tab) => (
+                <span
+                  key={tab}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border border-outline-variant ${
+                    tab === ACTIVE_WALLET_TAB
+                      ? "bg-primary text-on-primary"
+                      : "bg-surface-container-lowest text-on-surface"
+                  }`}
+                >
+                  {tab}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            {PNL.map((p) => (
+              <div key={p.label} className={`${CARD} rounded-xl p-4`}>
+                <div className="text-xs text-on-surface-variant mb-1">
+                  {p.label} P&amp;L
+                </div>
+                <div className="text-lg font-semibold">{p.value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-surface-container-lowest/90 border border-outline-variant rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                type="button"
+                className="bg-primary text-on-primary w-10 h-10 rounded-full flex items-center justify-center"
+              >
+                <Icon name="schedule" filled />
+              </button>
+              <div>
+                <div className="text-sm font-medium">Next dividend credit</div>
+                <DividendCountdown />
+              </div>
+            </div>
+            <div className="flex space-x-1 items-end">
+              <div className="w-1 h-6 bg-primary rounded-full animate-pulse" />
+              <div className="w-1 h-8 bg-primary rounded-full animate-pulse delay-75" />
+              <div className="w-1 h-4 bg-primary rounded-full animate-pulse delay-150" />
+              <div className="w-1 h-7 bg-primary rounded-full animate-pulse delay-200" />
+              <div className="w-1 h-5 bg-outline rounded-full" />
+              <div className="w-1 h-3 bg-outline rounded-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+### `metrics.tsx`
+
+```tsx
+// app/(public)/_components/metrics.tsx
+import { METRICS } from "./data";
+
+export function Metrics() {
+  return (
+    <section className="max-w-[1280px] mx-auto px-6 py-[80px] mb-[150px] border-y border-surface-variant">
+      <p className="text-center text-sm font-medium text-outline mb-8 uppercase tracking-widest">
+        The platform at a glance
+      </p>
+      <div className="flex flex-wrap justify-center gap-x-16 gap-y-8 text-center">
+        {METRICS.map((m) => (
+          <div key={m.label}>
+            <div className="text-4xl font-semibold tracking-tight">
+              {m.value}
+            </div>
+            <div className="text-sm text-outline mt-1">{m.label}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+### `features.tsx`
+
+```tsx
+// app/(public)/_components/features.tsx
+import { Icon } from "./icon";
+import { SectionHeading } from "./section-heading";
+import { CARD, FEATURES } from "./data";
+
+export function Features() {
+  return (
+    <section id="features" className="max-w-[1280px] mx-auto px-6 mb-[150px]">
+      <SectionHeading
+        title="Everything your capital needs"
+        subtitle="Six systems, one dashboard: grow, trade, mine, transfer and earn from your network."
+      />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {FEATURES.map((f) => (
+          <div
+            key={f.title}
+            className={`${CARD} rounded-[24px] p-6 hover:shadow-sm transition-shadow duration-300 group flex flex-col h-full`}
           >
-            {t}
-          </button>
+            <div className="mb-6 bg-surface-container h-40 rounded-xl flex items-center justify-center">
+              <Icon
+                name={f.icon}
+                className="text-4xl text-outline group-hover:text-primary transition-colors"
+              />
+            </div>
+            <h3 className="font-h3 text-h3 text-on-surface mb-2 text-xl">
+              {f.title}
+            </h3>
+            <p className="text-on-surface-variant text-sm leading-relaxed mb-4 grow">
+              {f.desc}
+            </p>
+            <a
+              className="text-sm font-medium text-primary hover:underline inline-flex items-center"
+              href="#"
+            >
+              {f.cta} <Icon name="arrow_forward" className="text-[16px] ml-1" />
+            </a>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+### `referral.tsx`
+
+```tsx
+// app/(public)/_components/referral.tsx
+import { Icon } from "./icon";
+import { REFERRAL_POINTS, REFERRAL_TIERS } from "./data";
+
+export function Referral() {
+  return (
+    <section
+      id="referral"
+      className="max-w-[1280px] mx-auto px-6 mb-[150px] grid grid-cols-1 md:grid-cols-12 gap-12 items-center"
+    >
+      {/* Left: copy */}
+      <div className="md:col-span-5 flex flex-col space-y-6">
+        <span className="font-label-caps text-label-caps text-outline uppercase tracking-widest">
+          Referral Milestone Bonus System
+        </span>
+        <h2 className="font-h2 text-h2 text-on-surface">
+          Invite friends. Claim instant cash.
+        </h2>
+        <p className="font-body text-body text-on-surface-variant">
+          Meet your active referral target and claim a cash bonus straight to
+          your account. Claim early, or skip ahead and save progress for a
+          bigger payout.
+        </p>
+        <ul className="space-y-4">
+          {REFERRAL_POINTS.map((t) => (
+            <li key={t} className="flex items-start">
+              <Icon
+                name="check_circle"
+                className="text-primary mr-3 mt-1 text-[20px]"
+              />
+              <span className="text-on-surface-variant text-sm">{t}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Right: targets card */}
+      <div className="md:col-span-7 bg-surface-container-low border border-outline-variant rounded-[24px] p-8 shadow-sm relative overflow-hidden">
+        <div className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/50">
+          <div className="mb-4 text-xs font-medium text-on-surface-variant tracking-widest uppercase">
+            Referral Targets &amp; Cash Rewards
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            {REFERRAL_TIERS.map((t) => (
+              <div
+                key={t.referrals}
+                className="bg-surface border border-outline-variant rounded-lg p-3 text-center"
+              >
+                <div className="text-xs text-on-surface-variant">
+                  {t.referrals} Referrals
+                </div>
+                <div className="text-lg font-bold">${t.bonus}.00</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-surface p-4 rounded-lg border border-outline-variant mb-6 text-sm text-on-surface font-mono leading-relaxed">
+            0 Referrals &rarr; Reach{" "}
+            <span className="bg-primary/10 text-primary px-1 rounded-sm">
+              10 Referrals
+            </span>{" "}
+            &rarr; Claim $10.00 &rarr; Counter resets to 0
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between text-xs mb-1 text-on-surface-variant">
+                <span>Progress to 10 referrals</span>
+                <span>7 / 10</span>
+              </div>
+              <div className="h-2 bg-surface-variant rounded-full">
+                <div className="h-full bg-primary rounded-full w-[70%]" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4 border-t border-surface-variant pt-4 mt-6">
+            <button
+              type="button"
+              className="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center"
+            >
+              <Icon name="redeem" filled />
+            </button>
+            <div className="text-sm text-on-surface-variant">
+              Plus <b className="text-on-surface">5% lifetime commission</b> on
+              referral profits.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+### `ai-trading.tsx`
+
+```tsx
+// app/(public)/_components/ai-trading.tsx
+import { Icon } from "./icon";
+
+const DAYS = [
+  { day: 1, text: "+$2.50 Profit", loss: false },
+  { day: 2, text: "+$1.20 Profit", loss: false },
+  { day: 3, text: "-$0.80 Loss", loss: true },
+  { day: 4, text: "+$3.10 Profit", loss: false },
+  { day: 5, text: "+$1.70 Profit", loss: false },
+];
+
+const CHIPS = ["From $100", "15-day strategy lock", "Daily P&L updates"];
+
+export function AiTrading() {
+  return (
+    <section
+      id="trading"
+      className="max-w-[1280px] mx-auto px-6 mb-[150px] grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
+    >
+      {/* Code window */}
+      <div className="bg-[#111318] rounded-[24px] p-8 overflow-hidden shadow-lg border border-outline-variant/20 order-2 md:order-1">
+        <div className="flex space-x-2 mb-6">
+          <div className="w-3 h-3 rounded-full bg-outline-variant/30" />
+          <div className="w-3 h-3 rounded-full bg-outline-variant/30" />
+          <div className="w-3 h-3 rounded-full bg-outline-variant/30" />
+        </div>
+        <pre className="text-sm font-mono text-white/80 whitespace-pre-wrap">
+          <code>
+            <span className="text-on-tertiary-container">package</span>
+            {" = AI_Trading(min="}
+            <span className="text-secondary-fixed-dim">{'"$100.00"'}</span>
+            {", lock="}
+            <span className="text-secondary-fixed-dim">{'"15 days"'}</span>
+            {")\n\n"}
+            {DAYS.map((d) => (
+              <span key={d.day}>
+                {`Day ${d.day}:  `}
+                <span
+                  className={
+                    d.loss
+                      ? "text-on-tertiary-container"
+                      : "text-secondary-fixed-dim"
+                  }
+                >
+                  {d.text}
+                </span>
+                {"\n"}
+              </span>
+            ))}
+            {"\n# Day 15 -> principal + net P&L unlocked"}
+          </code>
+        </pre>
+      </div>
+
+      {/* Copy */}
+      <div className="flex flex-col space-y-6 order-1 md:order-2">
+        <h2 className="font-h2 text-h2 text-on-surface">
+          Quantitative AI Trading
+        </h2>
+        <p className="font-body text-body text-on-surface-variant">
+          Algorithmic execution 24/7 on top pairs. Every 24 hours your real
+          daily performance is updated. Returns are never fixed or guaranteed
+          and reflect genuine market movement.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {CHIPS.map((c) => (
+            <span
+              key={c}
+              className="px-3 py-1 bg-surface-container border border-outline-variant rounded-full text-xs font-medium"
+            >
+              {c}
+            </span>
+          ))}
+        </div>
+        <a
+          className="text-sm font-medium text-primary hover:underline inline-flex items-center mt-4"
+          href="#"
+        >
+          View AI strategies{" "}
+          <Icon name="arrow_forward" className="text-[16px] ml-1" />
+        </a>
+      </div>
+    </section>
+  );
+}
+```
+
+### `how-it-works.tsx`
+
+```tsx
+// app/(public)/_components/how-it-works.tsx
+import { SectionHeading } from "./section-heading";
+import { IconCard } from "./icon-card";
+import { STEPS } from "./data";
+
+export function HowItWorks() {
+  return (
+    <section className="max-w-[1280px] mx-auto px-6 mb-[150px]">
+      <SectionHeading
+        title="How it works"
+        subtitle="From sign-up to withdrawal in four steps."
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {STEPS.map((s) => (
+          <IconCard key={s.title} {...s} />
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+### `wallets.tsx`
+
+```tsx
+// app/(public)/_components/wallets.tsx
+import { SectionHeading } from "./section-heading";
+import { IconCard } from "./icon-card";
+import { WALLETS } from "./data";
+
+export function Wallets() {
+  return (
+    <section className="max-w-[1280px] mx-auto px-6 mb-[150px]">
+      <SectionHeading
+        title="Five wallets. Total clarity."
+        subtitle="Trading risk never bleeds into your long-term investment. Internal transfers are zero-fee."
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {WALLETS.map((w) => (
+          <IconCard key={w.title} {...w} />
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+### `pricing.tsx`
+
+```tsx
+// app/(public)/_components/pricing.tsx
+import { SectionHeading } from "./section-heading";
+import { CARD, PLANS } from "./data";
+
+export function Pricing() {
+  return (
+    <section id="plans" className="max-w-[1280px] mx-auto px-6 mb-[150px]">
+      <SectionHeading
+        title="Choose your strategy"
+        subtitle="Daily profit tiers, AI trading and cloud mining. Start from $30."
+      />
+      <div className="flex flex-col lg:flex-row gap-6 justify-center items-stretch">
+        {PLANS.map((p) => (
+          <div
+            key={p.name}
+            className={`flex-1 rounded-[24px] p-6 flex flex-col ${
+              p.popular
+                ? "relative bg-surface-container border-2 border-primary lg:-translate-y-4 shadow-md"
+                : CARD
+            }`}
+          >
+            {p.popular && (
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary text-on-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                Most Popular
+              </div>
+            )}
+            <h3
+              className={`text-lg font-medium text-on-surface mb-2${
+                p.popular ? " mt-2" : ""
+              }`}
+            >
+              {p.name}
+            </h3>
+            <div className="text-3xl font-bold text-on-surface mb-6">
+              {p.price}
+              <span className="text-sm font-normal text-on-surface-variant">
+                {p.unit}
+              </span>
+            </div>
+            <p className="text-sm text-on-surface-variant mb-6 grow">
+              {p.desc}
+            </p>
+            <button
+              type="button"
+              className={
+                p.popular
+                  ? "w-full py-2 px-4 rounded-full bg-primary text-on-primary font-medium hover:opacity-90 transition-opacity"
+                  : "w-full py-2 px-4 rounded-full border border-outline-variant text-on-surface font-medium hover:bg-surface-container transition-colors"
+              }
+            >
+              {p.cta}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+### `security.tsx`
+
+```tsx
+// app/(public)/_components/security.tsx
+import { Icon } from "./icon";
+import { SECURITY } from "./data";
+
+export function Security() {
+  return (
+    <section className="max-w-[1280px] mx-auto px-6 mb-[150px] grid grid-cols-1 md:grid-cols-2 gap-12 items-center border-y border-surface-variant py-[80px]">
+      <div className="flex flex-col space-y-6">
+        <h2 className="font-h2 text-h2 text-on-surface">
+          Bank-grade safety &amp; compliance
+        </h2>
+        <p className="font-body text-body text-on-surface-variant">
+          Google Authenticator 2FA with backup codes, a 4-step KYC flow, a full
+          login audit trail with IP and device flags, and one-click session
+          revocation. Withdrawals require 2FA confirmation.
+        </p>
+        <a
+          className="text-sm font-medium text-primary hover:underline inline-flex items-center"
+          href="#"
+        >
+          Learn about security{" "}
+          <Icon name="arrow_forward" className="text-[16px] ml-1" />
+        </a>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {SECURITY.map((s) => (
+          <div
+            key={s.title}
+            className="border border-outline-variant rounded-xl p-6 bg-surface-container-lowest flex flex-col items-center justify-center text-center h-32"
+          >
+            <span className="font-bold text-on-surface mb-1 text-lg">
+              {s.title}
+            </span>
+            <span className="text-xs text-on-surface-variant">{s.desc}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+### `faq.tsx`
+Uses native `<details>`, so it needs no client JavaScript.
+
+```tsx
+// app/(public)/_components/faq.tsx
+import { Icon } from "./icon";
+import { SectionHeading } from "./section-heading";
+import { CARD, FAQ } from "./data";
+
+export function Faq() {
+  return (
+    <section className="max-w-[800px] mx-auto px-6 mb-[150px]">
+      <SectionHeading title="Frequently asked questions" />
+      <div className="space-y-4">
+        {FAQ.map((f) => (
+          <details key={f.q} className={`${CARD} rounded-[20px] p-6 group`}>
+            <summary className="cursor-pointer font-medium text-on-surface list-none [&::-webkit-details-marker]:hidden flex justify-between items-center">
+              {f.q}
+              <Icon
+                name="expand_more"
+                className="text-outline group-open:rotate-180 transition-transform"
+              />
+            </summary>
+            <p className="text-sm text-on-surface-variant leading-relaxed mt-4">
+              {f.a}
+            </p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+### `footer.tsx`
+
+```tsx
+// app/(public)/_components/footer.tsx
+import Link from "next/link";
+import { Icon } from "./icon";
+import { FOOTER_COLUMNS } from "./data";
+
+export function Footer() {
+  return (
+    <footer className="w-full border-t border-surface-variant bg-surface-bright pt-24 pb-12">
+      {/* Final CTA */}
+      <div className="max-w-[1280px] mx-auto px-6 mb-20 text-center">
+        <h2 className="text-5xl md:text-7xl font-bold tracking-tighter text-on-surface mb-8">
+          Ready to grow?
+        </h2>
+        <Link
+          href="/signup"
+          className="inline-flex items-center justify-center bg-primary text-on-primary font-button text-lg px-8 py-4 rounded-full hover:opacity-90 transition-opacity active:scale-95 duration-200"
+        >
+          Create Your Account
+        </Link>
+      </div>
+
+      {/* Link grid */}
+      <div className="max-w-[1280px] mx-auto px-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-12 mb-16">
+        <div className="col-span-2 md:col-span-4 lg:col-span-2">
+          <div className="text-2xl font-bold tracking-tighter text-on-surface mb-6">
+            Qouantex
+          </div>
+          <p className="font-body text-sm text-on-surface-variant mb-6 pr-4">
+            The all-in-one intelligent crypto wealth and trading ecosystem.
+          </p>
+          <div className="flex flex-col space-y-2">
+            <label
+              className="text-xs font-medium text-on-surface"
+              htmlFor="newsletter-email"
+            >
+              Subscribe to updates
+            </label>
+            <div className="flex">
+              <input
+                id="newsletter-email"
+                type="email"
+                placeholder="Email address"
+                className="bg-surface-container border border-outline-variant text-on-surface text-sm rounded-l-md px-3 py-2 w-full focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+              <button
+                type="button"
+                className="bg-primary text-on-primary px-4 py-2 rounded-r-md text-sm font-medium hover:opacity-90"
+              >
+                Join
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {Object.entries(FOOTER_COLUMNS).map(([heading, links]) => (
+          <div key={heading}>
+            <h4 className="font-label-caps text-label-caps text-on-surface mb-4">
+              {heading}
+            </h4>
+            <ul className="space-y-3 font-body text-xs leading-relaxed text-on-surface-variant">
+              {links.map((l) => (
+                <li key={l}>
+                  <a className="hover:text-on-surface transition-colors" href="#">
+                    {l}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
       </div>
 
-      {/* ---------- PROFILE ---------- */}
-      {tab === "Profile" && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card title="Personal Information">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="First Name" value={user.firstName} onChange={(v) => set("firstName", v)} />
-              <Field label="Last Name" value={user.lastName} onChange={(v) => set("lastName", v)} />
-              <Field label="User ID" value={user.id} onChange={(v) => set("id", v)} />
-              <Field label="First Join Date" type="date" value={user.joinedAt} onChange={(v) => set("joinedAt", v)} />
-              <Field label="Email ID" type="email" value={user.email} onChange={(v) => set("email", v)} />
-              <Field label="Date of Birth" type="date" value={user.dob} onChange={(v) => set("dob", v)} />
-              <Field label="Country" value={user.country} onChange={(v) => set("country", v)} />
-              <Field
-                label="Referred By (User ID or OWNER)"
-                value={user.referredBy}
-                onChange={(v) => set("referredBy", v)}
-              />
-            </div>
-            <div className="mt-4">
-              <Field label="Main Wallet Address" value={user.walletAddress} readOnly />
-            </div>
-          </Card>
-
-          <div className="flex flex-col gap-6">
-            <Card title="KYC Details">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <SelectField
-                  label="KYC Status"
-                  value={user.kyc.status}
-                  onChange={(v) => set("kyc", { ...user.kyc, status: v as User["kyc"]["status"] })}
-                  options={[
-                    { value: "verified", label: "Verified" },
-                    { value: "pending", label: "Pending" },
-                    { value: "rejected", label: "Rejected" },
-                    { value: "not_submitted", label: "Not submitted" },
-                  ]}
-                />
-                <Field
-                  label="Document Type"
-                  value={user.kyc.documentType}
-                  onChange={(v) => set("kyc", { ...user.kyc, documentType: v })}
-                />
-                <Field
-                  label="Document Number"
-                  value={user.kyc.documentNumber}
-                  onChange={(v) => set("kyc", { ...user.kyc, documentNumber: v })}
-                />
-                <Field
-                  label="Submitted On"
-                  type="date"
-                  value={user.kyc.submittedAt}
-                  onChange={(v) => set("kyc", { ...user.kyc, submittedAt: v })}
-                />
-              </div>
-            </Card>
-
-            <Card title="Two-Factor Authentication">
-              <Checkbox
-                checked={user.twoFA}
-                onCheckedChange={(v) => set("twoFA", v)}
-                label={user.twoFA ? "2FA is enabled" : "2FA is disabled"}
-              />
-            </Card>
-          </div>
+      {/* Bottom bar */}
+      <div className="max-w-[1280px] mx-auto px-6 pt-8 border-t border-surface-variant flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+        <div className="font-body text-xs leading-relaxed text-outline">
+          &copy; 2026 Qouantex. Trading and investing involve risk; past
+          performance does not guarantee future results.
         </div>
-      )}
-
-      {/* ---------- WALLETS (Main + Investment only, balances editable) ---------- */}
-      {tab === "Wallets" && (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {(Object.keys(WALLET_LABELS) as WalletKey[]).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setWalletKey(k)}
-                className={cn(
-                  "rounded-2xl border p-4 text-left transition-colors",
-                  walletKey === k ? "border-foreground bg-muted" : "border-border hover:bg-muted/50",
-                )}
-              >
-                <p className="text-xs text-muted-foreground">{WALLET_LABELS[k]}</p>
-                <p className="mt-1 text-lg font-semibold tabular-nums">{usd(user.wallets[k].balance)}</p>
-              </button>
-            ))}
-            <StatCard label="Total Balance" value={usd(totalWallets)} />
-          </div>
-
-          <Card title={WALLET_LABELS[walletKey]}>
-            <div
-              className={cn(
-                "grid gap-4",
-                walletKey === "main" ? "md:grid-cols-[1fr_200px]" : "md:grid-cols-[200px]",
-              )}
-            >
-              {/* Investment wallet has no address, so only Main shows one */}
-              {walletKey === "main" ? (
-                <Field label="Wallet Address" value={wallet.address} readOnly />
-              ) : null}
-              <Field
-                label="Balance (USD)"
-                type="number"
-                value={wallet.balance}
-                onChange={(v) => setBalance(walletKey, Number(v) || 0)}
-              />
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Edit the balance, then press “Save changes” at the top to apply it.
-            </p>
-          </Card>
-
-          <Card title={`Transactions (${wallet.transactions.length})`}>
-            <Grid data={wallet.transactions} columns={txCols} />
-          </Card>
+        <div className="flex space-x-4 text-outline">
+          <a
+            className="hover:text-on-surface transition-colors"
+            href="#"
+            aria-label="Website"
+          >
+            <Icon name="language" className="text-[20px]" />
+          </a>
+          <a
+            className="hover:text-on-surface transition-colors"
+            href="#"
+            aria-label="Chat"
+          >
+            <Icon name="chat" className="text-[20px]" />
+          </a>
         </div>
-      )}
-
-      {/* ---------- REFERRALS ---------- */}
-      {tab === "Referrals" && (
-        <div className="flex flex-col gap-4">
-          <Card title="Referred By">
-            <div className="max-w-sm">
-              <Field
-                label="Referrer (User ID or OWNER)"
-                value={user.referredBy}
-                onChange={(v) => set("referredBy", v)}
-              />
-            </div>
-          </Card>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StatCard label="Members Referred" value={refTotals.count} />
-            <StatCard label="Total Deposit (Team)" value={usd(refTotals.deposit)} />
-            <StatCard label="Total Balance (Team)" value={usd(refTotals.balance)} />
-          </div>
-          <Card title="Referred Members">
-            <Grid data={user.referrals} columns={refCols} onCellEdit={editList("referrals")} />
-          </Card>
-        </div>
-      )}
-
-      {/* ---------- INVESTMENTS (daily profit details) ---------- */}
-      {tab === "Investments" && (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatCard label="Running Plans" value={invTotals.running} />
-            <StatCard label="Total Invested" value={usd(invTotals.invested)} />
-            <StatCard label="Total Earned" value={usd(invTotals.earned)} />
-            <StatCard label="Today's Profit" value={usd(invTotals.today)} />
-            <StatCard label="Profit Credits" value={invTotals.profitDays} hint="Daily payouts so far" />
-          </div>
-
-          <Card title="Investment Plans">
-            <Grid data={user.investments} columns={invCols} onCellEdit={editList("investments")} />
-          </Card>
-
-          <Card title={`Daily Profit History (${filteredProfits.length})`}>
-            <div className="mb-3 grid gap-3 sm:grid-cols-[240px_1fr] sm:items-end">
-              <SelectField
-                label="Investment"
-                value={invFilter}
-                onChange={setInvFilter}
-                options={[
-                  { value: "all", label: "All investments" },
-                  ...user.investments.map((i) => ({ value: i.id, label: `${i.id} · ${i.plan}` })),
-                ]}
-              />
-              <p className="text-sm text-muted-foreground sm:text-right">
-                Total profit shown:{" "}
-                <span className="font-semibold tabular-nums text-emerald-500">{usd(filteredProfitTotal)}</span>
-              </p>
-            </div>
-            <Grid data={filteredProfits} columns={profitCols} height={380} />
-          </Card>
-        </div>
-      )}
-
-      {/* ---------- TRADING (AI strategy details + manual) ---------- */}
-      {tab === "Trading" && (
-        <div className="flex flex-col gap-6">
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold">AI Trading</h2>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-              <StatCard label="Strategies" value={ai.count} hint={`${ai.active} active`} />
-              <StatCard label="Total Invested" value={usd(ai.allocated)} />
-              <StatCard
-                label="Net PnL"
-                value={<span className={ai.net >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(ai.net)}</span>}
-              />
-              <StatCard label="ROI" value={`${ai.roi.toFixed(2)}%`} />
-              <StatCard label="Avg Win Rate" value={`${ai.avgWin.toFixed(1)}%`} />
-              <StatCard label="AI Trades" value={ai.trades} />
-            </div>
-            <Card title="Invested Strategies">
-              <Grid data={user.aiStrategies} columns={aiCols} onCellEdit={editList("aiStrategies")} height={240} />
-            </Card>
-            <Card title={`AI Trade History (${user.aiTrades.length})`}>
-              <Grid data={user.aiTrades} columns={aiTradeCols} height={360} />
-            </Card>
-          </section>
-
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold">Manual Trading</h2>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <StatCard label="Total Trades" value={trade.total} />
-              <StatCard label="Long / Short" value={`${trade.long} / ${trade.short}`} />
-              <StatCard label="Wins / Losses" value={`${trade.wins} / ${trade.losses}`} />
-              <StatCard
-                label="Overall Result"
-                value={<span className={trade.net >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(trade.net)}</span>}
-                hint={trade.net >= 0 ? "In profit" : "In loss"}
-              />
-              <StatCard
-                label="Win Rate"
-                value={`${trade.total ? Math.round((trade.wins / trade.total) * 100) : 0}%`}
-              />
-            </div>
-            <Card title="All Trades">
-              <Grid data={user.manualTrades} columns={tradeCols} onCellEdit={editList("manualTrades")} />
-            </Card>
-          </section>
-        </div>
-      )}
-
-      {/* ---------- REWARDS ---------- */}
-      {tab === "Rewards" && (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Rewards Sent" value={rewardTotals.count} />
-            <StatCard label="Total Rewarded" value={usd(rewardTotals.total)} />
-            <StatCard label="Withdrawable" value={usd(rewardTotals.free)} />
-            <StatCard label="Invest Only" value={usd(rewardTotals.locked)} />
-          </div>
-
-          <Card title="Send Reward">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field
-                label="Reward Title"
-                value={rf.title}
-                onChange={(v) => setRf((s) => ({ ...s, title: v }))}
-              />
-              <Field
-                label="Amount (USD)"
-                type="number"
-                value={rf.amount}
-                onChange={(v) => setRf((s) => ({ ...s, amount: v }))}
-              />
-              <SelectField
-                label="Wallet"
-                value={rf.wallet}
-                onChange={(v) => setRf((s) => ({ ...s, wallet: v as RewardWallet }))}
-                options={[
-                  { value: "main", label: "Main Wallet" },
-                  { value: "investment", label: "Investment Wallet" },
-                ]}
-              />
-              <SelectField
-                label="Reward Use"
-                value={rf.type}
-                onChange={(v) => setRf((s) => ({ ...s, type: v as RewardType }))}
-                options={[
-                  { value: "non_withdrawable", label: "Non-withdrawable (invest only, profit withdrawable)" },
-                  { value: "withdrawable", label: "Withdrawable (user can withdraw)" },
-                ]}
-              />
-            </div>
-
-            <label className="mt-4 flex flex-col gap-1.5">
-              <span className="text-xs text-muted-foreground">Short Description</span>
-              <textarea
-                value={rf.description}
-                onChange={(e) => setRf((s) => ({ ...s, description: e.target.value }))}
-                rows={3}
-                maxLength={200}
-                placeholder="Shown to the user with the reward"
-                className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </label>
-
-            <p className="mt-3 text-xs text-muted-foreground">
-              {rf.type === "withdrawable"
-                ? "The user can withdraw this reward like normal balance."
-                : "The user can only invest this reward. Profit earned from it can be withdrawn."}
-            </p>
-
-            <div className="mt-4 flex justify-end">
-              <Btn tone="primary" onClick={sendReward} disabled={rewardBusy}>
-                {rewardBusy ? "Sending..." : "Send reward"}
-              </Btn>
-            </div>
-          </Card>
-
-          <Card title={`Reward History (${user.rewards.length})`}>
-            <Grid data={user.rewards} columns={rewardCols} />
-          </Card>
-        </div>
-      )}
-
-      {/* ---------- SECURITY & LOGINS ---------- */}
-      {tab === "Security & Logins" && (
-        <div className="flex flex-col gap-4">
-          <Card title="Two-Factor Authentication">
-            <Checkbox
-              checked={user.twoFA}
-              onCheckedChange={(v) => set("twoFA", v)}
-              label={user.twoFA ? "2FA is enabled" : "2FA is disabled"}
-            />
-          </Card>
-          <Card title="Login History (IP, device, app, time)">
-            <Grid data={user.logins} columns={loginCols} onCellEdit={editList("logins")} />
-          </Card>
-        </div>
-      )}
-    </div>
+      </div>
+    </footer>
   );
 }
 ```
 
-## 4. KYC (new page)
-`app/(superadmin)/owner/users/kyc/page.tsx`
-```tsx
-// app/(superadmin)/owner/users/kyc/page.tsx
-import { SuperAdminShell } from "../../../_components/super-admin-shell";
-import { KycView } from "@/app/(admin)/_components/kyc-view";
-import { getKycData } from "@/lib/admin-kyc-data";
-import { requireOwner } from "@/lib/auth/require-owner";
+---
 
-export default async function OwnerKycPage() {
-  await requireOwner();
-  const applications = getKycData(); // swap for your own data source
+## Step 5: run it and check
 
-  return (
-    <SuperAdminShell active="KYC Requests">
-      <KycView initial={applications} />
-    </SuperAdminShell>
-  );
-}
-```
+1. Run `npm run dev` and open `http://localhost:3000/`.
+2. Click the moon/sun icon in the navbar. Both themes should work, and your choice should survive a refresh.
+3. Icons should show as real icons. If you see words like `arrow_forward`, the Google font link is blocked (ad-blocker or no network).
+4. Open `/signin` or `/dashboard`. The blue `primary` colour should be unchanged there.
 
-## 5. Finance: deposits, withdrawals, history
-`app/(superadmin)/owner/finance/deposits/page.tsx`
-```tsx
-// app/(superadmin)/owner/finance/deposits/page.tsx
-import { SuperAdminShell } from "../../../_components/super-admin-shell";
-import { DepositsView } from "@/app/(admin)/_components/deposits-view";
-import { getDeposits } from "@/lib/admin-review-data";
-import { requireOwner } from "@/lib/auth/require-owner";
+## What changed from the HTML, and why
 
-export default async function OwnerDepositsPage() {
-  await requireOwner();
-  const deposits = getDeposits(); // swap for your own data source
+| HTML | Next.js version |
+|---|---|
+| Tailwind v3 CDN + `tailwind.config` | Tailwind v4 `@theme inline` block in `globals.css` |
+| `:root` / `html.dark` colour vars | `.qx` / `.dark .qx`, scoped to the landing page only |
+| JS `innerHTML` building every section | React components fed by `data.ts` |
+| Geist from Google Fonts | Your existing `next/font` Geist (`--font-geist-sans`) |
+| `.material-symbols-outlined` class | `.qx-icon` class, because Google's un-layered `font-size: 24px` would override Tailwind v4's size utilities |
+| Own theme script and `localStorage.theme` | Toggle that uses your `crypto_invest_theme` key and `<html>` class logic |
+| Countdown with `setInterval` | Small client component, same UTC-midnight logic |
+| `flex-grow`, `transform`, `rounded` | `grow`, dropped `transform`, `rounded-sm`, because v4 removed or renamed them |
 
-  return (
-    <SuperAdminShell active="Deposits">
-      <DepositsView initial={deposits} />
-    </SuperAdminShell>
-  );
-}
-```
-
-`app/(superadmin)/owner/finance/withdrawals/page.tsx`
-```tsx
-// app/(superadmin)/owner/finance/withdrawals/page.tsx
-import { SuperAdminShell } from "../../../_components/super-admin-shell";
-import { WithdrawsView } from "@/app/(admin)/_components/withdraws-view";
-import { getWithdraws } from "@/lib/admin-review-data";
-import { requireOwner } from "@/lib/auth/require-owner";
-
-export default async function OwnerWithdrawalsPage() {
-  await requireOwner();
-  const withdraws = getWithdraws(); // swap for your own data source
-
-  return (
-    <SuperAdminShell active="Withdrawals">
-      <WithdrawsView initial={withdraws} />
-    </SuperAdminShell>
-  );
-}
-```
-
-`app/(superadmin)/owner/finance/history/page.tsx` (new)
-```tsx
-// app/(superadmin)/owner/finance/history/page.tsx
-import { SuperAdminShell } from "../../../_components/super-admin-shell";
-import { HistoryView } from "@/app/(admin)/_components/history-view";
-import { getHistory } from "@/lib/admin-finance-data";
-import { requireOwner } from "@/lib/auth/require-owner";
-
-export default async function OwnerHistoryPage() {
-  await requireOwner();
-  const items = getHistory(); // swap for your DB / API call
-
-  return (
-    <SuperAdminShell active="Fund History">
-      <HistoryView items={items} />
-    </SuperAdminShell>
-  );
-}
-```
-
-## 6. Support (new page)
-`app/(superadmin)/owner/support/tickets/page.tsx`
-```tsx
-// app/(superadmin)/owner/support/tickets/page.tsx
-import { SuperAdminShell } from "../../../_components/super-admin-shell";
-import { SupportView } from "@/app/(admin)/_components/support-view";
-import { getTickets } from "@/lib/admin-support-data";
-import { requireOwner } from "@/lib/auth/require-owner";
-
-export default async function OwnerSupportPage() {
-  await requireOwner();
-  const tickets = getTickets(); // swap for your own data source
-
-  return (
-    <SuperAdminShell active="Support">
-      <SupportView initial={tickets} />
-    </SuperAdminShell>
-  );
-}
-```
+I also made three small additions:
+- Three CTAs now link to your existing `/signup` page: navbar "Get Started", hero "Start Investing" and footer "Create Your Account". "Explore Platform" scrolls to `#features`.
+- Other `href="#"` links and the pricing buttons are still placeholders, as in the HTML.
+- I added a Safari rule so the FAQ `<summary>` triangle stays hidden.
 
 ## Things to know
 
-- **Owner-only features are gone.** To match admin exactly, these are no longer on the owner side:
-  - the "Login as this user" button;
-  - editable wallet address, the extra wallets, and add/delete transactions on user detail;
-  - the edit/delete drawer on deposits and withdrawals.
-- **Admin wording still shows on some owner pages.** The dashboard heading says "Admin Panel", deposits and withdrawals say "Admin · Finance · Live", and support replies are posted as "Admin User". The users list says "Referred By Owner" instead of "Referred By Me".
-- **Two API routes need to exist.** User detail now calls `/api/owner/users/[id]` (PATCH) and `/api/owner/users/[id]/rewards` (POST). The rewards route is new on the owner side, so copy the admin one. If you'd rather reuse the admin routes, change the two `fetch` URLs back to `/api/admin/...`.
-- **`requireOwner()` is on every page.** I added it to all of them, including the ones that only had a TODO comment before. It already works on the admin-management page.
-- **Unused files.** `owner-dashboard.tsx`, `deposit-management.tsx` and `withdraw-management.tsx` are no longer imported. `finance-ui.tsx` and `ui.tsx` are still used by `admin-management.tsx` and the new users files, so keep those.
+- Your repomix pack only included the `app/` folder, so I couldn't see `components/theme-provider` or `components/theme-toggle`. That is why the toggle is self-contained. If your `ThemeProvider` exposes a `useTheme()` hook, you can swap the toggle's click handler for it.
+- The `h1` is 84px at every screen size, exactly like the HTML. If you want it smaller on phones, change it to `text-5xl md:text-h1` in `hero.tsx`.
+- If `text-h1` or `text-h2` ignore their weight or letter-spacing, your Tailwind is an early 4.0.x. Update `tailwindcss` and `@tailwindcss/postcss` to 4.1 or newer.

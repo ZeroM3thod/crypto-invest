@@ -2,8 +2,6 @@
 // Public pages: landing, about, pricing, contact etc.
 // No dock here.
 
-import { FloatingThemeToggle } from "@/components/theme-toggle";
-
 export default function PublicLayout({
   children,
 }: {
@@ -11,7 +9,13 @@ export default function PublicLayout({
 }) {
   return (
     <>
-      <FloatingThemeToggle />
+      {/* Material Symbols icon font used by the landing page */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      />
       {children}
     </>
   );
