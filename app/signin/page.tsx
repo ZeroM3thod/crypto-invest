@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, User } from "lucide-react";
 import { StatefulButton, type ButtonState } from "@/components/motion/button";
 import { Checkbox } from "@/components/motion/checkbox";
 import { Input } from "@/components/motion/input";
@@ -10,10 +10,12 @@ import { WizardShell } from "@/components/motion/wizard-shell";
 import { FloatingThemeToggle } from "@/components/theme-toggle";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// User ID: 3-32 chars, letters, numbers, underscore, dot, hyphen
+const USER_ID_PATTERN = /^[A-Za-z0-9._-]{3,32}$/;
 
 export default function SignInPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [revealPassword, setRevealPassword] = useState(false);
@@ -24,20 +26,27 @@ export default function SignInPage() {
   const touch = (key: string) =>
     setTouched((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
 
+  const trimmedIdentifier = identifier.trim();
+  const isEmail = trimmedIdentifier.includes("@");
+
   const errors = {
-    email: !email.trim()
-      ? "Enter your email."
-      : !EMAIL_PATTERN.test(email)
-        ? "That doesn't look like an email address."
-        : undefined,
+    identifier: !trimmedIdentifier
+      ? "Enter your email or user ID."
+      : isEmail
+        ? !EMAIL_PATTERN.test(trimmedIdentifier)
+          ? "That doesn't look like an email address."
+          : undefined
+        : !USER_ID_PATTERN.test(trimmedIdentifier)
+          ? "User ID must be 3-32 characters (letters, numbers, . _ -)."
+          : undefined,
     password: !password ? "Enter your password." : undefined,
   };
 
   const shownError = (key: keyof typeof errors) => (touched[key] ? errors[key] : undefined);
 
   const handleSubmit = async () => {
-    setTouched({ email: true, password: true });
-    if (errors.email || errors.password) return;
+    setTouched({ identifier: true, password: true });
+    if (errors.identifier || errors.password) return;
 
     setFormError(undefined);
     setStatus("loading");
@@ -46,12 +55,17 @@ export default function SignInPage() {
       const res = await fetch("/api/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, remember }),
+        body: JSON.stringify({
+          identifier: trimmedIdentifier,
+          identifierType: isEmail ? "email" : "userId",
+          password,
+          remember,
+        }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setFormError(data?.message ?? "Invalid email or password.");
+        setFormError(data?.message ?? "Invalid credentials.");
         setStatus("error");
         setTimeout(() => setStatus("idle"), 1800);
         return;
@@ -78,19 +92,22 @@ export default function SignInPage() {
 
         <div className="flex flex-col gap-4">
           <Input
-            label="Email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            leftIcon={<Mail />}
+            label="Email or user ID"
+            type="text"
+            inputMode="text"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="you@example.com or your user ID"
+            leftIcon={<User />}
             disabled={status === "loading"}
-            value={email}
-            onChange={setEmail}
-            onBlur={() => touch("email")}
-            error={shownError("email")}
+            value={identifier}
+            onChange={setIdentifier}
+            onBlur={() => touch("identifier")}
+            error={shownError("identifier")}
             reserveErrorLine
-            success={touched.email && !errors.email && Boolean(email)}
+            success={touched.identifier && !errors.identifier && Boolean(identifier)}
           />
 
           <Input
