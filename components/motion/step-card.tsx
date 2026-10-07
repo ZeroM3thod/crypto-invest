@@ -33,9 +33,9 @@ export function StepCard({
   return (
     <div className={cn("flex w-full flex-col gap-5", className)}>
       <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold tracking-tight text-white">{title}</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
         {description ? (
-          <p className="text-sm text-white">{description}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
         ) : null}
       </div>
 
@@ -46,7 +46,7 @@ export function StepCard({
           <button
             type="button"
             onClick={onBack}
-            className="text-sm font-medium text-white underline-offset-4 transition-colors hover:underline"
+            className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
           >
             Back
           </button>
@@ -61,14 +61,14 @@ export function StepCard({
           loadingText="Saving"
           successText="Saved"
           icon={<ArrowRight className="h-4 w-4" />}
-          className="ml-auto bg-white text-black hover:bg-white/90"
+          className="ml-auto bg-foreground text-background hover:bg-foreground/90"
         >
           {nextLabel}
         </StatefulButton>
       </div>
 
       {footer ? (
-        <div className="text-center text-sm text-black">{footer}</div>
+        <div className="text-center text-sm text-foreground">{footer}</div>
       ) : null}
     </div>
   );
