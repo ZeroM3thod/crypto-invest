@@ -14,7 +14,7 @@ import {
   X,
   Download,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 // ── Shared primitives ────────────────────────────────────────────────────────
 
@@ -64,7 +64,19 @@ type LoginEvent = {
   browser: string;
   status: LoginStatus;
   flagged?: boolean;
+  failureReason?: string;
 };
+
+interface LoginHistoryData {
+  events: LoginEvent[];
+  stats: {
+    total: number;
+    successful: number;
+    failed: number;
+    blocked: number;
+    suspicious: number;
+  };
+}
 
 const LOGIN_HISTORY: LoginEvent[] = [
   {
@@ -318,7 +330,7 @@ function EventModal({ event, onClose }: { event: LoginEvent; onClose: () => void
           <div className="mt-4 flex items-start gap-2 rounded-2xl border border-border bg-muted/30 p-4">
             <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
             <p className="text-xs text-muted-foreground">
-              This login was flagged because it originated from an unusual location or IP address.
+              This login was flagged as suspicious{event.status === "failed" && event.failureReason ? ` (${event.failureReason})` : ""}.
               If this wasn&apos;t you, change your password immediately and enable 2FA.
             </p>
           </div>
@@ -352,8 +364,21 @@ export default function LoginHistoryPage() {
   const [modalEvent, setModalEvent] = useState<LoginEvent | null>(null);
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   const [sortDesc, setSortDesc] = useState(true);
+  const [data, setData] = useState<LoginHistoryData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const flaggedCount = useMemo(() => LOGIN_HISTORY.filter((e) => e.flagged).length, []);
+  useEffect(() => {
+    fetch("/api/profile/login-history")
+      .then((res) => res.json())
+      .then((json) => {
+        setData(json);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const LOGIN_HISTORY = data?.events || [];
+  const flaggedCount = data?.stats.suspicious || 0;
 
   const filtered = useMemo(() => {
     let list = [...LOGIN_HISTORY];
@@ -375,10 +400,30 @@ export default function LoginHistoryPage() {
         : new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     return list;
-  }, [statusFilter, searchQuery, showFlaggedOnly, sortDesc]);
+  }, [LOGIN_HISTORY, statusFilter, searchQuery, showFlaggedOnly, sortDesc]);
 
-  const successCount = LOGIN_HISTORY.filter((e) => e.status === "success").length;
-  const failedCount  = LOGIN_HISTORY.filter((e) => e.status !== "success").length;
+  const successCount = data?.stats.successful || 0;
+  const failedCount = (data?.stats.failed || 0) + (data?.stats.blocked || 0);
+
+  if (loading) {
+    return (
+      <UserShell active="Login History">
+        <div className="flex h-full items-center justify-center">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </UserShell>
+    );
+  }
+
+  if (!data) {
+    return (
+      <UserShell active="Login History">
+        <div className="flex h-full items-center justify-center">
+          <div className="text-muted-foreground">Failed to load login history</div>
+        </div>
+      </UserShell>
+    );
+  }
 
   return (
     <UserShell active="Login History">
@@ -401,9 +446,9 @@ export default function LoginHistoryPage() {
           {/* Summary stat strip */}
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {[
-              { label: "Total Logins",    value: LOGIN_HISTORY.length, tone: "" },
-              { label: "Successful",      value: successCount,         tone: "text-success" },
-              { label: "Suspicious",      value: flaggedCount,         tone: "text-destructive" },
+              { label: "Total Logins",    value: data.stats.total, tone: "" },
+              { label: "Successful",      value: data.stats.successful,         tone: "text-success" },
+              { label: "Suspicious",      value: data.stats.suspicious,         tone: "text-destructive" },
             ].map(({ label, value, tone }) => (
               <Card key={label} className="p-3 sm:p-4">
                 <p className="truncate text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground sm:text-[11px] sm:tracking-[0.12em]">

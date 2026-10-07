@@ -45,6 +45,26 @@ create table if not exists public.auth_attempts (
   created_at timestamptz not null default now()
 );
 
+-- Login history with full details
+create table if not exists public.login_history (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.auth_users(id) on delete cascade,
+  email text not null,
+  status text not null check (status in ('success', 'failed', 'blocked')),
+  ip_address text not null,
+  ip_hash text not null,
+  device_hash text not null,
+  user_agent text,
+  browser text,
+  device_type text,
+  device_name text,
+  location text,
+  country text,
+  failure_reason text,
+  is_suspicious boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.auth_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.auth_users(id) on delete cascade,
@@ -86,6 +106,8 @@ create index if not exists auth_attempts_device_idx on public.auth_attempts (act
 create index if not exists auth_sessions_token_idx on public.auth_sessions (token_hash);
 create index if not exists wallet_accounts_user_idx on public.wallet_accounts (user_id, wallet);
 create index if not exists wallet_transactions_user_idx on public.wallet_transactions (user_id, created_at desc);
+create index if not exists login_history_user_idx on public.login_history (user_id, created_at desc);
+create index if not exists login_history_suspicious_idx on public.login_history (user_id, is_suspicious, created_at desc);
 
 alter table public.auth_users add column if not exists wallet_address text;
 alter table public.auth_users add column if not exists kyc_status text not null default 'not_verified';
@@ -136,6 +158,7 @@ alter table public.auth_attempts enable row level security;
 alter table public.auth_sessions enable row level security;
 alter table public.wallet_accounts enable row level security;
 alter table public.wallet_transactions enable row level security;
+alter table public.login_history enable row level security;
 
 create or replace function public.transfer_wallet_balance(
   p_user_id uuid,

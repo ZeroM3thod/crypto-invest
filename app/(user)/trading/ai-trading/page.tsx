@@ -11,15 +11,11 @@ import {
   Calendar,
   Percent,
   Wallet,
-  ShieldCheck,
-  PackageCheck,
-  RadioTower,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { BouncyAccordion } from "@/components/motion/bouncy-accordion";
 import { Table } from "@/components/motion/table";
 import { StatefulButton, type ButtonState } from "@/components/motion/button";
 import { SlideActionButton } from "@/components/motion/slide-action-button";
@@ -582,26 +578,40 @@ type AiTrade = {
   id: string;
   date: string;
   strategy: string;
-  pair: string;
-  pnl: string;
-  positive: boolean;
+  size: number;      // trade size in USDT
+  duration: string;  // how long the trade was open
+  pnl: number;       // realised P&L in USDT (negative = loss)
 };
 
 const AI_TRADES: AiTrade[] = [
-  { id: "ai1", date: "2025-07-18", strategy: "9 EMA Strategy",      pair: "BTC/USDT", pnl: "+$14.20", positive: true  },
-  { id: "ai2", date: "2025-07-18", strategy: "Momentum Breakout",   pair: "ETH/USDT", pnl: "+$9.60",  positive: true  },
-  { id: "ai3", date: "2025-07-17", strategy: "9 EMA Strategy",      pair: "SOL/USDT", pnl: "-$6.40",  positive: false },
-  { id: "ai4", date: "2025-07-16", strategy: "Momentum Breakout",   pair: "BTC/USDT", pnl: "+$31.80", positive: true  },
+  { id: "ai1", date: "2025-07-18", strategy: "9 EMA Strategy",    size: 250, duration: "2h 14m", pnl: 14.2  },
+  { id: "ai2", date: "2025-07-18", strategy: "Momentum Breakout", size: 400, duration: "1h 05m", pnl: 9.6   },
+  { id: "ai3", date: "2025-07-17", strategy: "9 EMA Strategy",    size: 250, duration: "3h 40m", pnl: -6.4  },
+  { id: "ai4", date: "2025-07-16", strategy: "Momentum Breakout", size: 400, duration: "4h 22m", pnl: 31.8  },
+  { id: "ai5", date: "2025-07-15", strategy: "9 EMA Strategy",    size: 250, duration: "1h 48m", pnl: 7.35  },
+  { id: "ai6", date: "2025-07-15", strategy: "Momentum Breakout", size: 400, duration: "52m",    pnl: -11.9 },
+  { id: "ai7", date: "2025-07-14", strategy: "9 EMA Strategy",    size: 250, duration: "2h 31m", pnl: 18.75 },
+  { id: "ai8", date: "2025-07-13", strategy: "Momentum Breakout", size: 400, duration: "5h 10m", pnl: 22.4  },
 ];
 
 const AI_TRADE_COLUMNS = [
   { key: "date",     header: "Date",     width: "110px" },
   { key: "strategy", header: "Strategy", width: "160px" },
-  { key: "pair",     header: "Pair",     width: "110px" },
+  { key: "result",   header: "Result",   width: "90px",
+    cell: (r: AiTrade) => (
+      <Badge label={r.pnl >= 0 ? "Win" : "Loss"} tone={r.pnl >= 0 ? "success" : "destructive"} />
+    ),
+  },
+  { key: "duration", header: "Duration", width: "100px" },
+  { key: "size",     header: "Trade Size", width: "110px",
+    cell: (r: AiTrade) => (
+      <span className="text-xs text-foreground">${fmt(r.size)}</span>
+    ),
+  },
   { key: "pnl",      header: "P&L",      align: "right" as const,
     cell: (r: AiTrade) => (
-      <span className={`text-xs font-semibold ${r.positive ? "text-success" : "text-destructive"}`}>
-        {r.pnl}
+      <span className={`text-xs font-semibold ${r.pnl >= 0 ? "text-success" : "text-destructive"}`}>
+        {r.pnl >= 0 ? "+" : "-"}${fmt(Math.abs(r.pnl))}
       </span>
     ),
   },
@@ -617,6 +627,12 @@ export default function AiTradingPage() {
   const totalInvested = strategies.reduce((sum, s) => sum + (s.invested ?? 0), 0);
   const totalProfit = strategies.reduce((sum, s) => sum + (s.currentProfit ?? 0), 0);
   const activeCount = strategies.filter((s) => s.status !== "not-invested").length;
+
+  // Trade history summary (derived from the rows below)
+  const tradeCount = AI_TRADES.length;
+  const winCount = AI_TRADES.filter((t) => t.pnl >= 0).length;
+  const winRate = tradeCount > 0 ? (winCount / tradeCount) * 100 : 0;
+  const netPnl = AI_TRADES.reduce((sum, t) => sum + t.pnl, 0);
 
   // TODO: replace with your real API call (e.g. POST /api/ai-trading/invest)
   // and only update local state after it succeeds.
@@ -683,40 +699,31 @@ export default function AiTradingPage() {
         {/* ── AI activity / trade history ───────────────── */}
         <section aria-label="AI Trade History">
           <SectionHeader title="AI Trade History" actionLabel="View all" action={() => {}} />
+
+          {/* History summary */}
+          <div className="mb-3 grid grid-cols-3 gap-3">
+            <Card>
+              <Stat label="Total Trades" value={String(tradeCount)} loading={loading} />
+            </Card>
+            <Card>
+              <Stat label="Win Rate" value={`${winRate.toFixed(0)}%`} loading={loading} />
+            </Card>
+            <Card>
+              <Stat
+                label="Net P&L"
+                value={`${netPnl >= 0 ? "+" : "-"}$${fmt(Math.abs(netPnl))}`}
+                delta={{ value: "Last 8 trades", positive: netPnl >= 0 }}
+                loading={loading}
+              />
+            </Card>
+          </div>
+
           <Table
             data={AI_TRADES}
             columns={AI_TRADE_COLUMNS}
             getRowId={(r) => r.id}
-            height={240}
+            height={400}
             rowHeight={44}
-          />
-        </section>
-
-        {/* ── Notifications ─────────────────────────────── */}
-        <section aria-label="Notifications">
-          <SectionHeader title="Notifications" />
-          <BouncyAccordion
-            defaultValue="1"
-            items={[
-              {
-                id: "1",
-                title: "9 EMA Strategy Unlocked",
-                description: "Your 15-day lock has ended — withdrawal is now available.",
-                icon: <RadioTower className="h-4 w-4" />,
-              },
-              {
-                id: "2",
-                title: "Momentum Breakout Profit Credited",
-                description: "+$9.60 credited to your AI Trading balance.",
-                icon: <PackageCheck className="h-4 w-4" />,
-              },
-              {
-                id: "3",
-                title: "New Login Detected",
-                description: "New login detected from Dhaka, Bangladesh.",
-                icon: <ShieldCheck className="h-4 w-4" />,
-              },
-            ]}
           />
         </section>
 

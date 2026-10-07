@@ -29,7 +29,7 @@ import {
   MessagesCircle,
   HeadsetIcon,
 } from "lucide-react"
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, useEffect, type ReactNode } from "react";
 import {
   AnimatedSidebar,
   AnimatedSidebarClose,
@@ -183,6 +183,24 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
     limit: 1, // only one "Coming soon" toast at a time
   });
 
+  const [userProfile, setUserProfile] = useState<{ firstName: string; lastName: string; email: string; avatarUrl: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.profile?.firstName && data.profile?.email) {
+          setUserProfile({
+            firstName: data.profile.firstName,
+            lastName: data.profile.lastName,
+            email: data.profile.email,
+            avatarUrl: data.profile.avatarUrl,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   /** Locked items open a "Coming soon" toast instead of navigating. */
   const showComingSoon = (label: string) => {
     showToast({
@@ -210,6 +228,11 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
     });
     btn.dispatchEvent(syntheticEvent);
   };
+
+  const displayName = userProfile
+    ? `${userProfile.firstName} ${userProfile.lastName}`.trim()
+    : "Loading...";
+  const displayEmail = userProfile?.email || "loading...";
 
   return (
     <AnimatedSidebarProvider className="min-h-svh">
@@ -321,14 +344,14 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
                 onClick={handleProfileClick}
                 className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               >
-            <Avatar9  />
+            <Avatar9 name={displayName} avatar={userProfile?.avatarUrl} />
           
                 <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
                   <span className="block truncate text-sm font-medium text-foreground">
-                    Imran Khan
+                    {displayName}
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    imran@gmail.com
+                    {displayEmail}
                   </span>
                 </span>
                 <ChevronRight
