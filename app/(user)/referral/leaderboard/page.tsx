@@ -2,7 +2,7 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Trophy, Medal, Crown } from "lucide-react";
 
 /* ────────────────────────────────────────────────────────────
@@ -15,77 +15,22 @@ interface LeaderEntry {
   rank: number;
   userId: string;
   name: string;
-  avatarInitials: string;
-  activeReferrals: number;
+  referrals: number;
+  prize: number;
   isCurrentUser?: boolean;
 }
 
-/* Placeholder data — wire these to your real API/backend later */
-const CURRENT_USER_ID = "USR10234";
-
-const MONTHLY_PRIZES = [1000, 600, 300]; // 1st, 2nd, 3rd
-const WEEKLY_PRIZES = [300, 200, 100]; // 1st, 2nd, 3rd
-
-const MONTHLY_LEADERS: Omit<LeaderEntry, "rank">[] = [
-  { userId: "USR90011", name: "Rahim Uddin", avatarInitials: "RU", activeReferrals: 214 },
-  { userId: "USR90022", name: "Fatima Islam", avatarInitials: "FI", activeReferrals: 187 },
-  { userId: "USR90033", name: "Arjun Patel", avatarInitials: "AP", activeReferrals: 165 },
-  { userId: "USR90044", name: "Ling Wei", avatarInitials: "LW", activeReferrals: 142 },
-  { userId: "USR90055", name: "Carlos Mendez", avatarInitials: "CM", activeReferrals: 129 },
-  { userId: "USR90066", name: "Aisha Rahman", avatarInitials: "AR", activeReferrals: 118 },
-  { userId: "USR90077", name: "Kwame Boateng", avatarInitials: "KB", activeReferrals: 104 },
-  { userId: "USR90088", name: "Yuki Tanaka", avatarInitials: "YT", activeReferrals: 96 },
-  { userId: "USR90099", name: "Elena Petrova", avatarInitials: "EP", activeReferrals: 88 },
-  { userId: "USR90100", name: "Omar Farouk", avatarInitials: "OF", activeReferrals: 81 },
-  { userId: "USR90111", name: "Priya Sharma", avatarInitials: "PS", activeReferrals: 74 },
-  { userId: "USR90122", name: "Diego Alves", avatarInitials: "DA", activeReferrals: 69 },
-  { userId: "USR90133", name: "Nadia Hassan", avatarInitials: "NH", activeReferrals: 63 },
-  { userId: "USR90144", name: "Chen Jie", avatarInitials: "CJ", activeReferrals: 58 },
-  { userId: "USR90155", name: "Grace Mensah", avatarInitials: "GM", activeReferrals: 52 },
-  { userId: "USR90166", name: "Viktor Petrov", avatarInitials: "VP", activeReferrals: 47 },
-  { userId: "USR90177", name: "Layla Ahmed", avatarInitials: "LA", activeReferrals: 41 },
-  { userId: "USR90188", name: "Marcus Johnson", avatarInitials: "MJ", activeReferrals: 36 },
-  { userId: "USR90199", name: "Sara Kim", avatarInitials: "SK", activeReferrals: 29 },
-  { userId: "USR90200", name: "Tariq Malik", avatarInitials: "TM", activeReferrals: 22 },
-  // current user, ranked below top 20 for demo purposes
-  { userId: CURRENT_USER_ID, name: "Hasan", avatarInitials: "HS", activeReferrals: 15 },
-];
-
-const WEEKLY_LEADERS: Omit<LeaderEntry, "rank">[] = [
-  { userId: "USR90055", name: "Carlos Mendez", avatarInitials: "CM", activeReferrals: 18 },
-  { userId: "USR90011", name: "Rahim Uddin", avatarInitials: "RU", activeReferrals: 16 },
-  { userId: CURRENT_USER_ID, name: "Hasan", avatarInitials: "HS", activeReferrals: 12 },
-  { userId: "USR90077", name: "Kwame Boateng", avatarInitials: "KB", activeReferrals: 11 },
-  { userId: "USR90022", name: "Fatima Islam", avatarInitials: "FI", activeReferrals: 9 },
-  { userId: "USR90099", name: "Elena Petrova", avatarInitials: "EP", activeReferrals: 8 },
-  { userId: "USR90033", name: "Arjun Patel", avatarInitials: "AP", activeReferrals: 7 },
-  { userId: "USR90144", name: "Chen Jie", avatarInitials: "CJ", activeReferrals: 6 },
-  { userId: "USR90066", name: "Aisha Rahman", avatarInitials: "AR", activeReferrals: 5 },
-  { userId: "USR90111", name: "Priya Sharma", avatarInitials: "PS", activeReferrals: 5 },
-  { userId: "USR90188", name: "Marcus Johnson", avatarInitials: "MJ", activeReferrals: 4 },
-  { userId: "USR90155", name: "Grace Mensah", avatarInitials: "GM", activeReferrals: 4 },
-  { userId: "USR90177", name: "Layla Ahmed", avatarInitials: "LA", activeReferrals: 3 },
-  { userId: "USR90200", name: "Tariq Malik", avatarInitials: "TM", activeReferrals: 3 },
-  { userId: "USR90122", name: "Diego Alves", avatarInitials: "DA", activeReferrals: 2 },
-  { userId: "USR90044", name: "Ling Wei", avatarInitials: "LW", activeReferrals: 2 },
-  { userId: "USR90133", name: "Nadia Hassan", avatarInitials: "NH", activeReferrals: 1 },
-  { userId: "USR90088", name: "Yuki Tanaka", avatarInitials: "YT", activeReferrals: 1 },
-  { userId: "USR90166", name: "Viktor Petrov", avatarInitials: "VP", activeReferrals: 1 },
-  { userId: "USR90199", name: "Sara Kim", avatarInitials: "SK", activeReferrals: 1 },
-];
-
-/* ────────────────────────────────────────────────────────────
-   Helpers
-──────────────────────────────────────────────────────────── */
-
-function rankLeaders(raw: Omit<LeaderEntry, "rank">[]): LeaderEntry[] {
-  return [...raw]
-    .sort((a, b) => b.activeReferrals - a.activeReferrals)
-    .map((u, i) => ({ ...u, rank: i + 1, isCurrentUser: u.userId === CURRENT_USER_ID }));
-}
-
-function prizeForRank(rank: number, prizes: number[]): number | null {
-  return rank >= 1 && rank <= prizes.length ? prizes[rank - 1] : null;
+interface LeaderboardData {
+  period: string;
+  periodStart: string;
+  leaderboard: Array<{
+    rank: number;
+    userId: string;
+    name: string;
+    referrals: number;
+    prize: number;
+  }>;
+  prizes: Array<{ rank: number; amount: number }>;
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -137,23 +82,24 @@ function PrizeTag({ amount }: { amount: number }) {
 }
 
 /* ────────────────────────────────────────────────────────────
-   Board content (rendered inside MorphingTabs, dashboard-style)
+   Board content
 ──────────────────────────────────────────────────────────── */
 
-function BoardPanel({ board }: { board: BoardType }) {
-  const ranked = useMemo(
-    () => rankLeaders(board === "monthly" ? MONTHLY_LEADERS : WEEKLY_LEADERS),
-    [board]
-  );
-  const prizes = board === "monthly" ? MONTHLY_PRIZES : WEEKLY_PRIZES;
+function BoardPanel({ board, data }: { board: BoardType; data: LeaderboardData | null }) {
+  if (!data) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
-  const top20 = ranked.slice(0, 20);
-  const currentUserEntry = ranked.find((u) => u.isCurrentUser) || null;
-  const currentUserInTop20 = currentUserEntry ? currentUserEntry.rank <= 20 : false;
+  const prizes = data.prizes.slice(0, 3).map((p) => p.amount);
+  const top20 = data.leaderboard.slice(0, 20);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* PRIZE CARD — white, black text (inverted from foreground/background) */}
+    <div className="space-y-6 p-6">
+      {/* PRIZE CARD */}
       <div className="rounded-3xl border border-border bg-background p-6 text-foreground">
         <div className="mb-4 flex items-center gap-2">
           <Trophy className="size-4 text-foreground/70" />
@@ -178,30 +124,6 @@ function BoardPanel({ board }: { board: BoardType }) {
         </p>
       </div>
 
-      {/* YOUR POSITION — shown if outside top 20 */}
-      {currentUserEntry && !currentUserInTop20 && (
-        <div className="rounded-3xl border-2 border-foreground bg-foreground/5 p-4">
-          <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Your Position
-          </div>
-          <div className="flex items-center gap-3">
-            <RankBadge rank={currentUserEntry.rank} />
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-foreground">{currentUserEntry.name} (You)</div>
-              <div className="text-xs text-muted-foreground">
-                {currentUserEntry.activeReferrals} active referrals
-              </div>
-            </div>
-            <div className="shrink-0 text-right">
-              <div className="text-sm font-semibold text-foreground">#{currentUserEntry.rank}</div>
-              {prizeForRank(currentUserEntry.rank, prizes) && (
-                <PrizeTag amount={prizeForRank(currentUserEntry.rank, prizes)!} />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* TOP 20 LIST */}
       <div>
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -209,39 +131,35 @@ function BoardPanel({ board }: { board: BoardType }) {
         </h3>
         <div className="flex flex-col gap-2">
           {top20.map((entry) => {
-            const prize = prizeForRank(entry.rank, prizes);
+            const avatarInitials = entry.name
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase();
             return (
               <div
                 key={entry.userId}
                 className={[
                   "flex items-center justify-between rounded-2xl border p-3.5 transition-colors",
-                  entry.isCurrentUser
-                    ? "border-foreground bg-foreground/5"
-                    : entry.rank <= 3
-                    ? "border-foreground/30 bg-muted/20"
-                    : "border-border",
+                  entry.rank <= 3 ? "border-foreground/30 bg-muted/20" : "border-border",
                 ].join(" ")}
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <RankBadge rank={entry.rank} />
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
-                    {entry.avatarInitials}
+                    {avatarInitials}
                   </div>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="truncate text-sm font-medium text-foreground">
-                        {entry.name}
-                        {entry.isCurrentUser && (
-                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">(You)</span>
-                        )}
-                      </span>
+                      <span className="truncate text-sm font-medium text-foreground">{entry.name}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground">{entry.activeReferrals} active referrals</div>
+                    <div className="text-xs text-muted-foreground">{entry.referrals} active referrals</div>
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
-                  {prize ? (
-                    <PrizeTag amount={prize} />
+                  {entry.prize > 0 ? (
+                    <PrizeTag amount={entry.prize} />
                   ) : (
                     <span className="text-xs text-muted-foreground">#{entry.rank}</span>
                   )}
@@ -267,17 +185,22 @@ function BoardPanel({ board }: { board: BoardType }) {
 
 export default function LeaderboardPage() {
   const [board, setBoard] = useState<BoardType>("monthly");
+  const [data, setData] = useState<LeaderboardData | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/referral/leaderboard?period=${board}`)
+      .then((res) => res.json())
+      .then((json) => setData(json))
+      .catch(() => setData(null));
+  }, [board]);
 
   return (
     <UserShell active="Leaderboard">
-      <div className="overflow-y-auto px-5 py-6 sm:px-7 sm:py-8 space-y-8">
-
+      <div className="space-y-8 overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
         {/* ── Header ────────────────────────────────────── */}
         <div>
           <p className="text-xs font-medium text-muted-foreground">Referrals</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            Leaderboard
-          </h1>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">Leaderboard</h1>
         </div>
 
         {/* ── Board tabs (exact 50/50 split) + content ──── */}
@@ -311,7 +234,7 @@ export default function LeaderboardPage() {
           </div>
 
           <Card className="mt-4 p-0">
-            <BoardPanel board={board} />
+            <BoardPanel board={board} data={data} />
           </Card>
         </section>
 

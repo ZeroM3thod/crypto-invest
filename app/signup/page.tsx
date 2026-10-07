@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { User, Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 import { Checkbox } from "@/components/motion/checkbox";
 import { CountrySelect } from "@/components/motion/country-select";
@@ -24,6 +24,7 @@ function shaderSideFor(step: number): "left" | "right" {
 
 export default function SignUpWizardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string>();
@@ -43,6 +44,14 @@ export default function SignUpWizardPage() {
 
   const [otp, setOtp] = useState("");
   const [otpStatus, setOtpStatus] = useState<OTPStatus>("idle");
+
+  // Pre-fill referral code from URL
+  useEffect(() => {
+    const refParam = searchParams.get("ref");
+    if (refParam) {
+      setReferral(refParam);
+    }
+  }, [searchParams]);
 
   // touched flags per-field, reused across steps (same pattern as SignUpForm)
   const [touched, setTouched] = useState<Record<string, boolean>>({});

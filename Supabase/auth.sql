@@ -171,3 +171,246 @@ begin
     (p_user_id, p_to, 'transfer', p_amount, 'completed', p_tx_hash, p_from);
 end;
 $$;
+
+-- ════════════════════════════════════════════════════════════
+-- REFERRAL SYSTEM
+-- ════════════════════════════════════════════════════════════
+
+-- Referral relationships (who referred whom)
+create table if not exists public.referrals (
+  id uuid primary key default gen_random_uuid(),
+  referrer_id uuid not null references public.auth_users(id) on delete cascade,
+  referred_id uuid not null references public.auth_users(id) on delete cascade,
+  is_eligible boolean not null default false,
+  first_deposit_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique(referrer_id, referred_id)
+);
+
+-- Milestone configuration (admin-editable rewards)
+create table if not exists public.referral_milestones (
+  id uuid primary key default gen_random_uuid(),
+  required_active int not null unique,
+  reward numeric(18, 2) not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Milestone claims tracking (with reset counter after claim)
+create table if not exists public.referral_milestone_claims (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  milestone_id uuid not null references public.referral_milestones(id) on delete cascade,
+  eligible_count_at_claim int not null,
+  reward_amount numeric(18, 2) not null,
+  claimed_at timestamptz not null default now()
+);
+
+-- Commission tracking by source (daily profit, AI trading)
+create table if not exists public.referral_commissions (
+  id uuid primary key default gen_random_uuid(),
+  referrer_id uuid not null references public.auth_users(id) on delete cascade,
+  referred_id uuid not null references public.auth_users(id) on delete cascade,
+  source text not null check (source in ('daily_profit', 'ai_trading')),
+  basis_amount numeric(18, 2) not null,
+  commission_rate numeric(5, 4) not null default 0.05,
+  commission_amount numeric(18, 2) not null,
+  created_at timestamptz not null default now()
+);
+
+-- Leaderboard prize configuration (admin-editable)
+create table if not exists public.referral_leaderboard_prizes (
+  id uuid primary key default gen_random_uuid(),
+  period_type text not null check (period_type in ('weekly', 'monthly')),
+  rank int not null,
+  prize_amount numeric(18, 2) not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(period_type, rank)
+);
+
+-- Leaderboard winners history
+create table if not exists public.referral_leaderboard_winners (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  period_type text not null check (period_type in ('weekly', 'monthly')),
+  period_start timestamptz not null,
+  period_end timestamptz not null,
+  rank int not null,
+  eligible_referral_count int not null,
+  prize_amount numeric(18, 2) not null,
+  awarded_at timestamptz not null default now()
+);
+
+-- Profit events for commission calculation
+create table if not exists public.profit_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  source text not null check (source in ('daily_profit', 'ai_trading')),
+  profit_amount numeric(18, 2) not null,
+  created_at timestamptz not null default now()
+);
+
+-- Indexes
+create index if not exists referrals_referrer_idx on public.referrals (referrer_id, is_eligible);
+create index if not exists referrals_referred_idx on public.referrals (referred_id);
+create index if not exists referral_milestone_claims_user_idx on public.referral_milestone_claims (user_id, claimed_at desc);
+create index if not exists referral_commissions_referrer_idx on public.referral_commissions (referrer_id, source, created_at desc);
+create index if not exists referral_commissions_referred_idx on public.referral_commissions (referred_id);
+create index if not exists referral_leaderboard_winners_period_idx on public.referral_leaderboard_winners (period_type, period_start, rank);
+create index if not exists profit_events_user_idx on public.profit_events (user_id, source, created_at desc);
+
+-- Enable RLS
+alter table public.referrals enable row level security;
+alter table public.referral_milestones enable row level security;
+alter table public.referral_milestone_claims enable row level security;
+alter table public.referral_commissions enable row level security;
+alter table public.referral_leaderboard_prizes enable row level security;
+alter table public.referral_leaderboard_winners enable row level security;
+alter table public.profit_events enable row level security;
+
+-- Insert default milestone tiers
+insert into public.referral_milestones (required_active, reward) values
+  (5, 5.00),
+  (10, 12.00),
+  (15, 35.00),
+  (20, 30.00),
+  (30, 40.00),
+  (50, 75.00),
+  (100, 170.00),
+  (150, 250.00)
+on conflict (required_active) do nothing;
+
+-- Insert default leaderboard prizes (weekly)
+insert into public.referral_leaderboard_prizes (period_type, rank, prize_amount) values
+  ('weekly', 1, 100.00),
+  ('weekly', 2, 75.00),
+  ('weekly', 3, 50.00),
+  ('weekly', 4, 40.00),
+  ('weekly', 5, 30.00),
+  ('weekly', 6, 25.00),
+  ('weekly', 7, 20.00),
+  ('weekly', 8, 15.00),
+  ('weekly', 9, 12.00),
+  ('weekly', 10, 10.00)
+on conflict (period_type, rank) do nothing;
+
+-- Insert default leaderboard prizes (monthly)
+insert into public.referral_leaderboard_prizes (period_type, rank, prize_amount) values
+  ('monthly', 1, 500.00),
+  ('monthly', 2, 350.00),
+  ('monthly', 3, 250.00),
+  ('monthly', 4, 200.00),
+  ('monthly', 5, 150.00),
+  ('monthly', 6, 125.00),
+  ('monthly', 7, 100.00),
+  ('monthly', 8, 75.00),
+  ('monthly', 9, 60.00),
+  ('monthly', 10, 50.00)
+on conflict (period_type, rank) do nothing;
+
+-- Function: mark referral as eligible after first deposit
+create or replace function public.mark_referral_eligible(p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.referrals
+  set is_eligible = true, first_deposit_at = now()
+  where referred_id = p_user_id and is_eligible = false;
+end;
+$$;
+
+-- Function: record profit and create commission
+create or replace function public.record_profit_with_commission(
+  p_user_id uuid,
+  p_source text,
+  p_profit_amount numeric
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_referrer_id uuid;
+  v_commission_amount numeric;
+begin
+  -- Record profit event
+  insert into public.profit_events (user_id, source, profit_amount)
+  values (p_user_id, p_source, p_profit_amount);
+
+  -- Find referrer (if any eligible referral exists)
+  select r.referrer_id into v_referrer_id
+  from public.referrals r
+  where r.referred_id = p_user_id and r.is_eligible = true
+  limit 1;
+
+  -- Create commission if referrer exists
+  if v_referrer_id is not null then
+    v_commission_amount := p_profit_amount * 0.05;
+    
+    insert into public.referral_commissions (referrer_id, referred_id, source, basis_amount, commission_rate, commission_amount)
+    values (v_referrer_id, p_user_id, p_source, p_profit_amount, 0.05, v_commission_amount);
+
+    -- Add commission to referrer's main wallet
+    update public.wallet_accounts
+    set balance = balance + v_commission_amount, updated_at = now()
+    where user_id = v_referrer_id and wallet = 'main';
+
+    -- Record transaction
+    insert into public.wallet_transactions (user_id, wallet, type, amount, status, tx_hash)
+    values (v_referrer_id, 'main', 'referral_commission', v_commission_amount, 'completed', gen_random_uuid()::text);
+  end if;
+end;
+$$;
+
+-- Function: get referral stats for user
+create or replace function public.get_referral_stats(p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_total_referred int;
+  v_active_referred int;
+  v_total_commission numeric;
+  v_commission_by_source jsonb;
+begin
+  -- Total referred
+  select count(*) into v_total_referred
+  from public.referrals
+  where referrer_id = p_user_id;
+
+  -- Active (eligible) referred
+  select count(*) into v_active_referred
+  from public.referrals
+  where referrer_id = p_user_id and is_eligible = true;
+
+  -- Total commission
+  select coalesce(sum(commission_amount), 0) into v_total_commission
+  from public.referral_commissions
+  where referrer_id = p_user_id;
+
+  -- Commission by source
+  select jsonb_object_agg(source, total) into v_commission_by_source
+  from (
+    select source, coalesce(sum(commission_amount), 0) as total
+    from public.referral_commissions
+    where referrer_id = p_user_id
+    group by source
+  ) sub;
+
+  return jsonb_build_object(
+    'total_referred', v_total_referred,
+    'active_referred', v_active_referred,
+    'total_commission', v_total_commission,
+    'commission_by_source', coalesce(v_commission_by_source, '{}'::jsonb)
+  );
+end;
+$$;

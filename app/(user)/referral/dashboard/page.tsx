@@ -2,7 +2,7 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Users,
   DollarSign,
@@ -10,19 +10,16 @@ import {
   Check,
   Trophy,
   Bot,
-  Cloud,
   TrendingUp,
-  Wallet,
   X,
   ChevronRight,
-  LayoutGrid,
 } from "lucide-react";
 
 /* ────────────────────────────────────────────────────────────
    Types
 ──────────────────────────────────────────────────────────── */
 
-type ProfitSource = "daily" | "aiTrading" | "cloudMining" | "manualTrading";
+type ProfitSource = "daily" | "aiTrading";
 type TabId = "overview" | "milestones" | "commission" | "users";
 
 interface ReferredUser {
@@ -36,101 +33,31 @@ interface ReferredUser {
 }
 
 interface MilestoneTier {
+  id: string;
   requiredActive: number;
   reward: number;
 }
 
-/* Placeholder data — wire these to your real API/backend later */
-const REFERRAL_CODE = "HASAN2026";
-const REFERRAL_LINK = `https://MULTIMOD.com/join?ref=${REFERRAL_CODE}`;
-
-const COMMISSION_RATE = 0.05;
-
-const MILESTONE_TIERS: MilestoneTier[] = [
-  { requiredActive: 5, reward: 5 },
-  { requiredActive: 10, reward: 12 },
-  { requiredActive: 15, reward: 35 },
-  { requiredActive: 20, reward: 30 },
-  { requiredActive: 30, reward: 40 },
-  { requiredActive: 50, reward: 75 },
-  { requiredActive: 100, reward: 170 },
-  { requiredActive: 150, reward: 250 },
-];
+interface ReferralData {
+  referralCode: string;
+  referralLink: string;
+  stats: {
+    totalReferred: number;
+    activeReferred: number;
+    totalCommission: number;
+    commissionBySource: {
+      daily: number;
+      aiTrading: number;
+    };
+  };
+  referredUsers: ReferredUser[];
+  milestones: MilestoneTier[];
+}
 
 const SOURCE_META: Record<ProfitSource, { label: string; icon: typeof TrendingUp; basis: string }> = {
   daily: { label: "Daily Profit", icon: TrendingUp, basis: "5% of profit · lifetime" },
   aiTrading: { label: "AI Trading", icon: Bot, basis: "5% of profit · lifetime" },
-  cloudMining: { label: "Cloud Mining", icon: Cloud, basis: "5% of profit · lifetime" },
-  manualTrading: { label: "Manual Trading", icon: Wallet, basis: "5% of total turnover · lifetime" },
 };
-
-const COMMISSION_BY_SOURCE: Record<ProfitSource, number> = {
-  daily: 42.15,
-  aiTrading: 28.9,
-  cloudMining: 15.4,
-  manualTrading: 9.75,
-};
-
-const BASIS_AMOUNT_BY_SOURCE: Partial<Record<ProfitSource, number>> = {
-  manualTrading: 195.0,
-};
-
-const REFERRED_USERS: ReferredUser[] = [
-  {
-    id: "USR20441",
-    name: "Jane Doe",
-    email: "jane@doe.com",
-    joined: "Jun 2, 2025",
-    active: true,
-    totalDeposited: 1200,
-    commissionEarned: 34.5,
-  },
-  {
-    id: "USR20512",
-    name: "Michael Chen",
-    email: "m.chen@mail.com",
-    joined: "Jun 10, 2025",
-    active: true,
-    totalDeposited: 800,
-    commissionEarned: 21.2,
-  },
-  {
-    id: "USR20588",
-    name: "Amara Okafor",
-    email: "amara.o@mail.com",
-    joined: "Jun 21, 2025",
-    active: true,
-    totalDeposited: 500,
-    commissionEarned: 12.8,
-  },
-  {
-    id: "USR20604",
-    name: "Liam Park",
-    email: "liam.park@mail.com",
-    joined: "Jun 29, 2025",
-    active: false,
-    totalDeposited: 150,
-    commissionEarned: 3.4,
-  },
-  {
-    id: "USR20699",
-    name: "Sofia Reyes",
-    email: "sofia.reyes@mail.com",
-    joined: "Jul 5, 2025",
-    active: true,
-    totalDeposited: 950,
-    commissionEarned: 18.6,
-  },
-  {
-    id: "USR20733",
-    name: "Daniel Osei",
-    email: "d.osei@mail.com",
-    joined: "Jul 12, 2025",
-    active: false,
-    totalDeposited: 60,
-    commissionEarned: 1.1,
-  },
-];
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -158,13 +85,35 @@ export default function ReferralDashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalUser, setModalUser] = useState<ReferredUser | null>(null);
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
+  const [data, setData] = useState<ReferralData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const totalReferred = REFERRED_USERS.length;
-  const totalActive = REFERRED_USERS.filter((u) => u.active).length;
-  const totalCommission = Object.values(COMMISSION_BY_SOURCE).reduce((a, b) => a + b, 0);
+  useEffect(() => {
+    fetch("/api/referral/stats")
+      .then((res) => res.json())
+      .then((json) => {
+        setData(json);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
-  const currentTier = [...MILESTONE_TIERS].reverse().find((t) => totalActive >= t.requiredActive) || null;
-  const nextTier = MILESTONE_TIERS.find((t) => totalActive < t.requiredActive) || null;
+  if (loading || !data) {
+    return (
+      <UserShell active="Referral">
+        <div className="flex h-full items-center justify-center">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </UserShell>
+    );
+  }
+
+  const totalReferred = data.stats.totalReferred;
+  const totalActive = data.stats.activeReferred;
+  const totalCommission = data.stats.totalCommission;
+
+  const currentTier = [...data.milestones].reverse().find((t) => totalActive >= t.requiredActive) || null;
+  const nextTier = data.milestones.find((t) => totalActive < t.requiredActive) || null;
   const progressToNext = nextTier ? Math.min(100, (totalActive / nextTier.requiredActive) * 100) : 100;
 
   const showToast = (msg: string) => {
@@ -260,9 +209,9 @@ export default function ReferralDashboardPage() {
                   </span>
                 </div>
                 <div className="mb-4 flex items-center gap-2 rounded-2xl border border-border bg-muted/30 p-3">
-                  <span className="flex-1 truncate font-mono text-xs text-foreground">{REFERRAL_LINK}</span>
+                  <span className="flex-1 truncate font-mono text-xs text-foreground">{data.referralLink}</span>
                   <button
-                    onClick={() => copyText(REFERRAL_LINK, "link")}
+                    onClick={() => copyText(data.referralLink, "link")}
                     className={[
                       "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors",
                       copiedLink ? "bg-foreground text-background" : "bg-muted text-foreground hover:bg-muted/70",
@@ -280,10 +229,10 @@ export default function ReferralDashboardPage() {
                 </div>
                 <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/30 p-3">
                   <span className="flex-1 font-mono text-sm font-semibold tracking-wide text-foreground">
-                    {REFERRAL_CODE}
+                    {data.referralCode}
                   </span>
                   <button
-                    onClick={() => copyText(REFERRAL_CODE, "code")}
+                    onClick={() => copyText(data.referralCode, "code")}
                     className={[
                       "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors",
                       copiedCode ? "bg-foreground text-background" : "bg-muted text-foreground hover:bg-muted/70",
@@ -341,7 +290,7 @@ export default function ReferralDashboardPage() {
                     <div className="mt-1.5 text-xl font-semibold text-foreground">
                       ${totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">Across all 4 sources</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">Across all 2 sources</div>
                   </div>
                 </div>
 
@@ -384,12 +333,12 @@ export default function ReferralDashboardPage() {
               )}
 
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                {MILESTONE_TIERS.map((tier) => {
+                {data.milestones.map((tier) => {
                   const reached = totalActive >= tier.requiredActive;
                   const isCurrent = currentTier?.requiredActive === tier.requiredActive;
                   return (
                     <div
-                      key={tier.requiredActive}
+                      key={tier.id}
                       className={[
                         "rounded-2xl border p-3.5 text-center transition-colors",
                         reached ? "border-foreground bg-foreground/5" : "border-border",
@@ -440,16 +389,14 @@ export default function ReferralDashboardPage() {
                 <h2 className="text-lg font-semibold text-foreground">Lifetime Commission (5%)</h2>
               </div>
               <p className="mb-5 text-sm text-muted-foreground">
-                You earn 5% of every referred user's earnings, for life, tracked separately per source. Manual
-                Trading commission is based on their total trade turnover rather than profit.
+                You earn 5% of every referred user's earnings, for life, tracked separately per source.
               </p>
 
               <div className="flex flex-col gap-2.5">
                 {(Object.keys(SOURCE_META) as ProfitSource[]).map((key) => {
                   const meta = SOURCE_META[key];
                   const Icon = meta.icon;
-                  const amount = COMMISSION_BY_SOURCE[key];
-                  const basisAmount = BASIS_AMOUNT_BY_SOURCE[key];
+                  const amount = key === "daily" ? data.stats.commissionBySource.daily : data.stats.commissionBySource.aiTrading;
                   return (
                     <div key={key} className="flex items-center gap-3 rounded-2xl border border-border p-3.5">
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted">
@@ -457,14 +404,7 @@ export default function ReferralDashboardPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium text-foreground">{meta.label}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {meta.basis}
-                          {basisAmount !== undefined && (
-                            <span className="ml-1">
-                              · on ${basisAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} turnover
-                            </span>
-                          )}
-                        </div>
+                        <div className="text-xs text-muted-foreground">{meta.basis}</div>
                       </div>
                       <div className="shrink-0 text-sm font-semibold text-foreground">
                         ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -493,12 +433,12 @@ export default function ReferralDashboardPage() {
                 </span>
               </div>
               <div className="flex flex-col gap-2">
-                {REFERRED_USERS.length === 0 ? (
+                {data.referredUsers.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
                     No referrals yet — share your link to get started.
                   </div>
                 ) : (
-                  REFERRED_USERS.map((u) => (
+                  data.referredUsers.map((u) => (
                     <button
                       key={u.id}
                       onClick={() => {
