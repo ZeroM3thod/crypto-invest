@@ -6,7 +6,7 @@ export const CARD = "bg-surface-container-lowest border border-outline-variant";
 export type IconItem = { icon: string; title: string; desc: string };
 
 /* ---------- Hero preview card ---------- */
-export const WALLET_TABS = ["Main", "Investment", "Trading", "Mining", "Referral"];
+export const WALLET_TABS = ["Main", "Investment", "Trading"];
 export const ACTIVE_WALLET_TAB = "Investment";
 
 export const PNL = [
@@ -40,15 +40,9 @@ export const FEATURES: (IconItem & { cta: string })[] = [
     cta: "Explore AI trading",
   },
   {
-    icon: "memory",
-    title: "Zero-Hardware Cloud Mining",
-    desc: "Daily BTC mining rewards on 30 to 90 day contracts with no machines to manage.",
-    cta: "Explore mining",
-  },
-  {
     icon: "account_balance_wallet",
-    title: "5-Wallet Smart Partitioning",
-    desc: "Separate trading capital, investment principal and referral earnings into distinct vaults.",
+    title: "3-Wallet Smart Partitioning",
+    desc: "Separate trading capital and investment principal into distinct vaults.",
     cta: "Explore wallets",
   },
   {
@@ -98,7 +92,7 @@ export const STEPS: IconItem[] = [
   {
     icon: "tune",
     title: "3. Pick a strategy",
-    desc: "Activate a daily profit plan, AI trading package or mining contract.",
+    desc: "Activate a daily profit plan or AI trading package.",
   },
   {
     icon: "payments",
@@ -123,16 +117,6 @@ export const WALLETS: IconItem[] = [
     icon: "candlestick_chart",
     title: "Trading Wallet",
     desc: "Dedicated margin for AI strategies and manual orders.",
-  },
-  {
-    icon: "memory",
-    title: "Mining Wallet",
-    desc: "Accumulates cloud mining yields.",
-  },
-  {
-    icon: "redeem",
-    title: "Referral Wallet",
-    desc: "Commissions and milestone bonuses.",
   },
   {
     icon: "swap_horiz",
@@ -181,13 +165,6 @@ export const PLANS: Plan[] = [
     cta: "Go Elite",
     popular: true,
   },
-  {
-    name: "Cloud Mining",
-    price: "5 TH/s",
-    unit: "+",
-    desc: "Rigs from 5 TH/s with 30 to 90 day contracts and daily BTC rewards.",
-    cta: "Buy Rig",
-  },
 ];
 
 /* ---------- Security ---------- */
@@ -220,7 +197,7 @@ export const FAQ = [
 
 /* ---------- Footer ---------- */
 export const FOOTER_COLUMNS: Record<string, string[]> = {
-  Products: ["Daily Profit", "AI Trading", "Cloud Mining", "Manual Trading"],
+  Products: ["Daily Profit", "AI Trading", "Manual Trading"],
   Wallets: ["Deposit", "Withdraw", "Transfer", "History"],
   Community: ["Live Chat", "Announcements", "Referral Leaderboard", "Support"],
   Legal: ["Privacy", "Terms", "Security"],

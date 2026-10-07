@@ -8,7 +8,7 @@ export function Features() {
     <section id="features" className="max-w-[1280px] mx-auto px-6 mb-[150px]">
       <SectionHeading
         title="Everything your capital needs"
-        subtitle="Six systems, one dashboard: grow, trade, mine, transfer and earn from your network."
+        subtitle="Five systems, one dashboard: grow, trade, transfer and earn from your network."
       />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {FEATURES.map((f) => (

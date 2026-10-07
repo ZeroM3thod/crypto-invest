@@ -7,7 +7,7 @@ export function Pricing() {
     <section id="plans" className="max-w-[1280px] mx-auto px-6 mb-[150px]">
       <SectionHeading
         title="Choose your strategy"
-        subtitle="Daily profit tiers, AI trading and cloud mining. Start from $30."
+        subtitle="Daily profit tiers and AI trading. Start from $30."
       />
       <div className="flex flex-col lg:flex-row gap-6 justify-center items-stretch">
         {PLANS.map((p) => (

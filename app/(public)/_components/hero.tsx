@@ -22,9 +22,8 @@ export function Hero() {
         The all-in-one crypto wealth &amp; trading ecosystem
       </h1>
       <p className="font-body text-body text-on-surface-variant max-w-[620px] mb-12">
-        Automated daily profit plans, professional AI trading and cloud mining,
-        organized in a segregated 5-wallet system with 2FA, KYC and login
-        tracking built in.
+        Automated daily profit plans and professional AI trading, organized in a
+        segregated 3-wallet system with 2FA, KYC and login tracking built in.
       </p>
 
       {/* CTAs */}
