@@ -65,6 +65,20 @@ create table if not exists public.login_history (
   created_at timestamptz not null default now()
 );
 
+-- Send transactions history
+create table if not exists public.send_transactions (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references public.auth_users(id) on delete cascade,
+  recipient_id uuid not null references public.auth_users(id) on delete cascade,
+  amount numeric(18, 2) not null,
+  fee numeric(18, 2) not null default 0.10,
+  total numeric(18, 2) not null,
+  note text,
+  tx_hash text not null unique,
+  status text not null default 'completed' check (status in ('completed', 'pending', 'failed')),
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.auth_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.auth_users(id) on delete cascade,
@@ -108,6 +122,8 @@ create index if not exists wallet_accounts_user_idx on public.wallet_accounts (u
 create index if not exists wallet_transactions_user_idx on public.wallet_transactions (user_id, created_at desc);
 create index if not exists login_history_user_idx on public.login_history (user_id, created_at desc);
 create index if not exists login_history_suspicious_idx on public.login_history (user_id, is_suspicious, created_at desc);
+create index if not exists send_transactions_sender_idx on public.send_transactions (sender_id, created_at desc);
+create index if not exists send_transactions_recipient_idx on public.send_transactions (recipient_id, created_at desc);
 
 alter table public.auth_users add column if not exists wallet_address text;
 alter table public.auth_users add column if not exists kyc_status text not null default 'not_verified';
@@ -159,6 +175,7 @@ alter table public.auth_sessions enable row level security;
 alter table public.wallet_accounts enable row level security;
 alter table public.wallet_transactions enable row level security;
 alter table public.login_history enable row level security;
+alter table public.send_transactions enable row level security;
 
 create or replace function public.transfer_wallet_balance(
   p_user_id uuid,

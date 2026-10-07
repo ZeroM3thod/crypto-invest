@@ -2,7 +2,7 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -24,7 +24,9 @@ import {
 type LookupType = "email" | "userId" | "wallet";
 
 interface Recipient {
+  id: string;
   name: string;
+  email: string;
   handle: string; // email, id, or wallet — whatever was searched
   lookupType: LookupType;
   avatarInitials: string;
@@ -48,73 +50,6 @@ interface CompletedTxn extends SendHistory {
 }
 
 const SEND_FEE = 0.1; // flat $0.10, added on top
-
-/* Placeholder data — wire these to your real API/backend later */
-const MAIN_WALLET_BALANCE = 1250.0;
-
-const MOCK_USERS: Record<LookupType, Record<string, Recipient>> = {
-  email: {
-    "jane@doe.com": {
-      name: "Jane Doe",
-      handle: "jane@doe.com",
-      lookupType: "email",
-      avatarInitials: "JD",
-      verified: true,
-    },
-  },
-  userId: {
-    "USR10234": {
-      name: "Michael Chen",
-      handle: "USR10234",
-      lookupType: "userId",
-      avatarInitials: "MC",
-      verified: true,
-    },
-  },
-  wallet: {
-    "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7": {
-      name: "Amara Okafor",
-      handle: "0xa73e40...c7c0e7",
-      lookupType: "wallet",
-      avatarInitials: "AO",
-      verified: true,
-    },
-  },
-};
-
-const INITIAL_HISTORY: SendHistory[] = [
-  {
-    id: "SND7A21F9",
-    date: "Jul 15, 2025",
-    recipientName: "Jane Doe",
-    recipientHandle: "jane@doe.com",
-    amount: 120,
-    fee: 0.1,
-    total: 120.1,
-    status: "completed",
-  },
-  {
-    id: "SND3B88C0",
-    date: "Jul 9, 2025",
-    recipientName: "Michael Chen",
-    recipientHandle: "USR10234",
-    amount: 45,
-    fee: 0.1,
-    total: 45.1,
-    status: "completed",
-    note: "Split for dinner",
-  },
-  {
-    id: "SND1F0E22",
-    date: "Jul 2, 2025",
-    recipientName: "Amara Okafor",
-    recipientHandle: "0xa73e40...c7c0e7",
-    amount: 300,
-    fee: 0.1,
-    total: 300.1,
-    status: "failed",
-  },
-];
 
 /* ────────────────────────────────────────────────────────────
    Small UI primitives (b/w/gray)
@@ -176,14 +111,27 @@ export default function SendPage() {
   const [sending, setSending] = useState(false);
 
   const [completedTxn, setCompletedTxn] = useState<CompletedTxn | null>(null);
-  const [history, setHistory] = useState<SendHistory[]>(INITIAL_HISTORY);
+  const [history, setHistory] = useState<SendHistory[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalEntry, setModalEntry] = useState<SendHistory | null>(null);
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
   const [copied, setCopied] = useState(false);
 
-  const availableBalance = MAIN_WALLET_BALANCE;
+  const [availableBalance, setAvailableBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch balance and history on mount
+  useEffect(() => {
+    fetch("/api/fund/send-history")
+      .then((res) => res.json())
+      .then((data) => {
+        setAvailableBalance(data.balance || 0);
+        setHistory(data.history || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   const showToast = (msg: string) => {
     setToast({ msg, show: true });
@@ -201,23 +149,32 @@ export default function SendPage() {
     }
 
     setSearching(true);
-    // TODO: replace with a real lookup API call, e.g.:
-    // const res = await fetch(`/api/users/lookup?type=${lookupType}&q=${encodeURIComponent(val)}`);
-    // const data = await res.json();
-    await new Promise((r) => setTimeout(r, 500)); // simulate network latency
+    try {
+      const res = await fetch(`/api/fund/lookup?type=${lookupType}&q=${encodeURIComponent(val)}`);
+      const data = await res.json();
+      
+      setSearching(false);
 
-    const key = lookupType === "wallet" ? val.toLowerCase() : val;
-    const match = MOCK_USERS[lookupType][key];
+      if (!res.ok || !data.found) {
+        setLookupError(data.message || "No user found with that " + activeTab.label.toLowerCase() + ". Please check and try again.");
+        return;
+      }
 
-    setSearching(false);
-
-    if (!match) {
-      setLookupError("No user found with that " + activeTab.label.toLowerCase() + ". Please check and try again.");
-      return;
+      const rec = data.recipient;
+      setRecipient({
+        id: rec.id,
+        name: rec.name,
+        email: rec.email,
+        handle: rec.handle,
+        lookupType: rec.lookupType,
+        avatarInitials: rec.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase(),
+        verified: true,
+      });
+      setStep(2);
+    } catch (err: any) {
+      setSearching(false);
+      setLookupError("Error looking up user. Please try again.");
     }
-
-    setRecipient(match);
-    setStep(2);
   };
 
   const parsedAmt = parseFloat(amount) || 0;
@@ -246,27 +203,26 @@ export default function SendPage() {
 
     setSending(true);
     try {
-      // TODO: replace with your real API call, e.g.:
-      // const res = await fetch("/api/send", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({
-      //     recipientHandle: recipient.handle,
-      //     lookupType: recipient.lookupType,
-      //     amount: parsedAmt,
-      //     fee: SEND_FEE,
-      //     note: note.trim() || null,
-      //   }),
-      // });
-      // if (!res.ok) throw new Error("Transfer failed");
+      const res = await fetch("/api/fund/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientId: recipient.id,
+          amount: parsedAmt,
+          note: note.trim() || null,
+        }),
+      });
 
-      await new Promise((r) => setTimeout(r, 700)); // simulate network latency
+      const data = await res.json();
 
-      const txnId = "SND" + crypto.randomUUID().slice(0, 6).toUpperCase();
+      if (!res.ok) {
+        throw new Error(data.message || "Transfer failed");
+      }
+
       const newEntry: SendHistory = {
-        id: txnId,
+        id: data.transactionId,
         date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        recipientName: recipient.name,
+        recipientName: data.recipientName,
         recipientHandle: recipient.handle,
         amount: parsedAmt,
         fee: SEND_FEE,
@@ -274,8 +230,10 @@ export default function SendPage() {
         status: "completed",
         note: note.trim() || undefined,
       };
+
       setHistory((prev) => [newEntry, ...prev]);
       setCompletedTxn({ ...newEntry, senderPaid: total });
+      setAvailableBalance((prev) => prev - total);
       setStep(3);
     } catch (err: any) {
       showToast(`Error: ${err.message || "Transfer failed"}`);
@@ -306,6 +264,16 @@ export default function SendPage() {
   };
 
   const stepLabels = ["Recipient", "Amount", "Done"];
+
+  if (loading) {
+    return (
+      <UserShell active="Send">
+        <div className="flex h-full items-center justify-center">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </UserShell>
+    );
+  }
 
   return (
     <UserShell active="Send">
@@ -448,13 +416,6 @@ export default function SendPage() {
                   <span>{lookupError}</span>
                 </div>
               )}
-
-              {/* Demo hint for testing */}
-              <div className="mb-5 rounded-2xl border border-dashed border-border p-3 text-xs text-muted-foreground">
-                Try: <span className="font-mono text-foreground">jane@doe.com</span>,{" "}
-                <span className="font-mono text-foreground">USR10234</span>, or{" "}
-                <span className="font-mono text-foreground">0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7</span>
-              </div>
 
               <button
                 onClick={findRecipient}
