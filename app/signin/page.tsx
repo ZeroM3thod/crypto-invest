@@ -71,8 +71,9 @@ export default function SignInPage() {
         return;
       }
 
+      const data = await res.json().catch(() => null);
       setStatus("success");
-      setTimeout(() => router.push("/dashboard"), 900);
+      setTimeout(() => router.push(data?.redirect || "/dashboard"), 900);
     } catch {
       setFormError("Network error. Please try again.");
       setStatus("error");

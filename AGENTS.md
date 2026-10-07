@@ -2,3 +2,14 @@ hey now add backend and database on this profile page (/profile)- on this page h
 
 
 /profile/security- here all is ok on the Password section here on the Last Changed here show the real date of last password changed . and on the Change Password button then the dialog open here user can change the password with place the current password and new and confirmed password and click on update password then the update the password in database . and on the Two-Factor Authentication (2FA) section here if the user 2fa is enable then here show the disable button and when user click then he have to enter the password or 2fa code . and if not already enable then the button is Enable 2FA and when click on it then here show  the real Secret Key and the real qr code and when continue then show the real Backup Codes and user have to enter the code then he can enable . and if he enable then every time when he login on this platform then he have to enter the 2fa code the 2fa code input page link is signin/2fa. under this on the Active Sessions section here show his all login details like ip address and device etc and also the Revoke ll Other Sessions button make sure fully work . on the Danger Zone section when the user click on the Delete Account button then show a popup where he have to enter the password thenclick on confirm button . the his account fully delete .  
+on the /wallet/main page on this page here on the Main Wallet Balance here show the real balance . +124.50 USDT today here show the real numbers and in the address section here show the real main wallet address . make sure the qr code also work . and when user click on deposit , withdraw and send button then it redirect to those pages . and when click on the transfer button then open the transfer dialog then on this transfer dialog here show all wallets like main , investment and the trading wallet and here show the real balance on those wallets and from here user can transfer the balance one wallet from other wallets and when swap then complete the transaction. on the Total Deposited,Total Withdrawn,Total Transferred,24h Change on this all cards here show the full real numbers and real datas . 
+
+on the Transaction History section here also show all real Transaction History with real data. 
+
+
+/wallet/investment- here also show the real balance and real numbers . on the Total Invested, Active Plans,Today's Profit,Total Profit on this page here show all real datas from database and on the Transaction History section here also show all real Transaction History with real data. 
+
+/wallet/trading - here also same as all wallets and the transfer section also same to same .
+
+on the /wallet/history page here the Total Transactions,Total In,Total Out,Net Flow etc every things show real from database , and the All Transactions section here show the reals data from database . 
+

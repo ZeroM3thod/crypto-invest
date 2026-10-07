@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
 import { AccountTransfer } from "@/components/motion/account-transfer";
+import { money, useWalletData } from "../use-wallet-data";
 
 // ── Shared primitives (identical to dashboard) ──────────────────────────────
 
@@ -148,17 +149,16 @@ function Modal({ open, onClose, title, children, maxWidth = "max-w-sm" }: {
   );
 }
 
-function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function TransferModal({ open, onClose, accounts, onTransfer }: { open: boolean; onClose: () => void; accounts: React.ComponentProps<typeof AccountTransfer>["accounts"]; onTransfer: (fromId: string, toId: string, amount: number) => Promise<boolean> }) {
   return (
     <Modal open={open} onClose={onClose} title="Transfer" maxWidth="max-w-[460px]">
       <div className="flex w-full items-center justify-center">
         <AccountTransfer
           defaultFromId="main"
           defaultToId="investment"
-          onConfirm={({ fromId, toId, amount }) => {
-            // TODO: call your actual transfer API / update balances here
-            console.log("Transfer confirmed:", { fromId, toId, amount });
-            onClose();
+          accounts={accounts}
+          onConfirm={async ({ fromId, toId, amount }) => {
+            if (await onTransfer(fromId, toId, amount)) onClose();
           }}
         />
       </div>
@@ -231,11 +231,12 @@ function FilterBar({ type, setType }: { type: string; setType: (v: string) => vo
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function InvestmentWalletPage() {
+  const { data, transfer } = useWalletData();
   const [transferOpen,  setTransferOpen]  = useState(false);
   const [investNowOpen, setInvestNowOpen] = useState(false);
   const [typeFilter,    setTypeFilter]    = useState("All");
 
-  const filtered = TRANSACTIONS.filter((t) => typeFilter === "All" || t.type === typeFilter);
+  const filtered = data.walletTransactions.investment.filter((t) => typeFilter === "All" || t.type === typeFilter);
 
   return (
     <UserShell active="Wallet">
@@ -259,10 +260,10 @@ export default function InvestmentWalletPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Investment Balance</p>
-                    <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">$1,240.00</p>
+                    <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{money(data.wallets.investment.balance)}</p>
                     <p className="mt-1 flex items-center gap-1 text-xs font-medium text-success">
                       <ArrowUpRight className="size-3" />
-                      +$28.40 today
+                      {money(data.stats.investment.todayProfit, true)} today
                     </p>
                   </div>
                   <Badge label="Active" tone="success" />
@@ -294,10 +295,10 @@ export default function InvestmentWalletPage() {
         <section aria-label="Investment Stats">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Total Invested", value: "$5,500.00", delta: { value: "All time",  positive: true } },
-              { label: "Active Plans",   value: "3",          delta: { value: "Running",  positive: true } },
-              { label: "Today's Profit", value: "+$28.40",    delta: { value: "Realized", positive: true } },
-              { label: "Total Profit",   value: "+$1,240.00", delta: { value: "Realized", positive: true } },
+              { label: "Total Invested", value: money(data.stats.investment.totalInvested), delta: { value: "All time",  positive: true } },
+              { label: "Active Plans",   value: String(data.stats.investment.activePlans || 0),          delta: { value: "Running",  positive: true } },
+              { label: "Today's Profit", value: money(data.stats.investment.todayProfit, true),    delta: { value: "Realized", positive: true } },
+              { label: "Total Profit",   value: money(data.stats.investment.totalProfit, true), delta: { value: "Realized", positive: true } },
             ].map((item) => (
               <Card key={item.label}>
                 <Stat label={item.label} value={item.value} delta={item.delta} />
@@ -322,7 +323,7 @@ export default function InvestmentWalletPage() {
         <div className="h-20" />
       </div>
 
-      <TransferModal  open={transferOpen}  onClose={() => setTransferOpen(false)} />
+      <TransferModal  open={transferOpen}  onClose={() => setTransferOpen(false)} accounts={data.accounts} onTransfer={transfer} />
       <InvestNowModal open={investNowOpen} onClose={() => setInvestNowOpen(false)} />
     </UserShell>
   );

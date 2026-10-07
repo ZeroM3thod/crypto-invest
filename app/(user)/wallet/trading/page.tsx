@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
 import { AccountTransfer } from "@/components/motion/account-transfer";
+import { money, useWalletData } from "../use-wallet-data";
 
 // ── Shared primitives ──────────────────────────────────────────────────────
 
@@ -175,17 +176,16 @@ function FundTradingModal({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
-function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function TransferModal({ open, onClose, accounts, onTransfer }: { open: boolean; onClose: () => void; accounts: React.ComponentProps<typeof AccountTransfer>["accounts"]; onTransfer: (fromId: string, toId: string, amount: number) => Promise<boolean> }) {
   return (
     <Modal open={open} onClose={onClose} title="Transfer" maxWidth="max-w-[460px]">
       <div className="flex w-full items-center justify-center">
         <AccountTransfer
           defaultFromId="main"
           defaultToId="investment"
-          onConfirm={({ fromId, toId, amount }) => {
-            // TODO: call your actual transfer API / update balances here
-            console.log("Transfer confirmed:", { fromId, toId, amount });
-            onClose();
+          accounts={accounts}
+          onConfirm={async ({ fromId, toId, amount }) => {
+            if (await onTransfer(fromId, toId, amount)) onClose();
           }}
         />
       </div>
@@ -217,11 +217,12 @@ function FilterBar({ type, setType }: { type: string; setType: (v: string) => vo
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function TradingWalletPage() {
+  const { data, transfer } = useWalletData();
   const [fundOpen,     setFundOpen]     = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [typeFilter,   setTypeFilter]   = useState("All");
 
-  const filtered = TRANSACTIONS.filter((t) => typeFilter === "All" || t.type === typeFilter);
+  const filtered = data.walletTransactions.trading.filter((t) => typeFilter === "All" || t.type === typeFilter);
 
   return (
     <UserShell active="Wallet">
@@ -245,10 +246,10 @@ export default function TradingWalletPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Trading Balance</p>
-                    <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">$1,820.30</p>
+                    <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{money(data.wallets.trading.balance)}</p>
                     <p className="mt-1 flex items-center gap-1 text-xs font-medium text-success">
                       <ArrowUpRight className="size-3" />
-                      +$34.17 unrealized P/L
+                      {money(data.stats.trading.unrealizedPl, true)} unrealized P/L
                     </p>
                   </div>
                   <Badge label="Active" tone="success" />
@@ -258,7 +259,7 @@ export default function TradingWalletPage() {
                 <div className="rounded-2xl bg-muted px-3 py-2.5 flex items-center justify-between">
                   <div>
                     <p className="text-[11px] font-medium text-muted-foreground">Open Positions P/L</p>
-                    <p className="text-sm font-semibold text-success">+$34.17</p>
+                    <p className="text-sm font-semibold text-success">{money(data.stats.trading.unrealizedPl, true)}</p>
                   </div>
                   <Bot className="size-5 text-muted-foreground" />
                 </div>
@@ -290,10 +291,10 @@ export default function TradingWalletPage() {
         <section aria-label="Trading Stats">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Total Deposited",    value: "$6,820.30", delta: { value: "All time",    positive: true } },
-              { label: "Realized P/L",       value: "+$820.50",  delta: { value: "All time",    positive: true } },
-              { label: "Unrealized P/L",     value: "+$34.17",   delta: { value: "Open trades", positive: true } },
-              { label: "Active Strategies",  value: "2",          delta: { value: "Running",    positive: true } },
+              { label: "Total Deposited",    value: money(data.stats.trading.totalDeposited), delta: { value: "All time",    positive: true } },
+              { label: "Realized P/L",       value: money(data.stats.trading.realizedPl, true),  delta: { value: "All time",    positive: true } },
+              { label: "Unrealized P/L",     value: money(data.stats.trading.unrealizedPl, true),   delta: { value: "Open trades", positive: true } },
+              { label: "Active Strategies",  value: String(data.stats.trading.activeStrategies || 0),          delta: { value: "Running",    positive: true } },
             ].map((item) => (
               <Card key={item.label}>
                 <Stat label={item.label} value={item.value} delta={item.delta} />
@@ -319,7 +320,7 @@ export default function TradingWalletPage() {
       </div>
 
       <FundTradingModal open={fundOpen}     onClose={() => setFundOpen(false)} />
-      <TransferModal    open={transferOpen} onClose={() => setTransferOpen(false)} />
+      <TransferModal    open={transferOpen} onClose={() => setTransferOpen(false)} accounts={data.accounts} onTransfer={transfer} />
     </UserShell>
   );
 }

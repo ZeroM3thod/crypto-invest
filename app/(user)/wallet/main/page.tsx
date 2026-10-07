@@ -2,6 +2,7 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
+import { useRouter } from "next/navigation";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -16,6 +17,7 @@ import {
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
 import { AccountTransfer } from "@/components/motion/account-transfer";
+import { money, useWalletData } from "../use-wallet-data";
 
 // ── Shared primitives ────────────────────────────────────────────────────────
 
@@ -81,8 +83,6 @@ function SectionHeader({ title, action, actionLabel }: {
 }
 
 // ── Wallet-specific data ─────────────────────────────────────────────────────
-
-const WALLET_ADDRESS = "0x8f3Cb1a29e4D7c6F1B2a3E9d0C4b5A6f7D8e9C0b";
 
 type Transaction = {
   id: string;
@@ -209,16 +209,14 @@ function Modal({ open, onClose, title, children, maxWidth = "max-w-sm" }: {
   );
 }
 
-function DepositModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function DepositModal({ open, onClose, address }: { open: boolean; onClose: () => void; address: string }) {
   return (
     <Modal open={open} onClose={onClose} title="Deposit">
       <div className="space-y-4">
         <div className="rounded-2xl bg-muted p-4 text-center">
-          <div className="mx-auto mb-3 grid size-24 place-items-center rounded-2xl bg-card border border-border">
-            <QrCode className="size-16 text-muted-foreground" />
-          </div>
+          <img className="mx-auto mb-3 size-24 rounded-2xl border border-border bg-card" alt="Wallet QR code" src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(address)}`} />
           <p className="text-[11px] font-medium text-muted-foreground mb-1">Wallet Address</p>
-          <p className="font-mono text-xs text-foreground break-all">{WALLET_ADDRESS}</p>
+          <p className="font-mono text-xs text-foreground break-all">{address}</p>
         </div>
         <p className="text-[11px] text-muted-foreground text-center">
           Send only USDT (TRC-20 / ERC-20) to this address. Other assets may be lost.
@@ -228,95 +226,18 @@ function DepositModal({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-function WithdrawModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [amount, setAmount] = useState("");
-  const [address, setAddress] = useState("");
-  return (
-    <Modal open={open} onClose={onClose} title="Withdraw">
-      <div className="space-y-3">
-        <div>
-          <label className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Amount (USDT)</label>
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
-            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <div>
-          <label className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Destination Address</label>
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="0x..."
-            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <p className="text-[11px] text-muted-foreground">Available: $12,480.32 · Fee: $1.00</p>
-        <button
-          type="button"
-          className="w-full rounded-2xl bg-foreground text-background py-2.5 text-xs font-semibold transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Confirm Withdrawal
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-function TransferModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function TransferModal({ open, onClose, accounts, onTransfer }: { open: boolean; onClose: () => void; accounts: React.ComponentProps<typeof AccountTransfer>["accounts"]; onTransfer: (fromId: string, toId: string, amount: number) => Promise<boolean> }) {
   return (
     <Modal open={open} onClose={onClose} title="Transfer" maxWidth="max-w-[460px]">
       <div className="flex w-full items-center justify-center">
         <AccountTransfer
           defaultFromId="main"
           defaultToId="investment"
-          onConfirm={({ fromId, toId, amount }) => {
-            // TODO: call your actual transfer API / update balances here
-            console.log("Transfer confirmed:", { fromId, toId, amount });
-            onClose();
+          accounts={accounts}
+          onConfirm={async ({ fromId, toId, amount }) => {
+            if (await onTransfer(fromId, toId, amount)) onClose();
           }}
         />
-      </div>
-    </Modal>
-  );
-}
-
-function SendModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [amount, setAmount] = useState("");
-  const [recipient, setRecipient] = useState("");
-  return (
-    <Modal open={open} onClose={onClose} title="Send">
-      <div className="space-y-3">
-        <div>
-          <label className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Recipient Address</label>
-          <input
-            type="text"
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            placeholder="0x..."
-            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <div>
-          <label className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Amount (USDT)</label>
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
-            className="mt-1 w-full rounded-2xl border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <p className="text-[11px] text-muted-foreground">Available: $12,480.32 · Fee: $1.00</p>
-        <button
-          type="button"
-          className="w-full rounded-2xl bg-foreground text-background py-2.5 text-xs font-semibold transition-opacity hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Confirm Send
-        </button>
       </div>
     </Modal>
   );
@@ -416,15 +337,15 @@ function WalletBalanceCard({
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MainWalletPage() {
+  const router = useRouter();
+  const { data, transfer } = useWalletData();
   const [depositOpen, setDepositOpen]   = useState(false);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
-  const [sendOpen, setSendOpen]         = useState(false);
 
   const [typeFilter,   setTypeFilter]   = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
 
-  const filtered = TRANSACTIONS.filter((t) => {
+  const filtered = data.walletTransactions.main.filter((t) => {
     if (typeFilter   !== "All" && t.type   !== typeFilter)   return false;
     if (statusFilter !== "All" && t.status !== statusFilter) return false;
     return true;
@@ -448,13 +369,13 @@ export default function MainWalletPage() {
         <section aria-label="Wallet Balance">
           <div className="flex w-full flex-col items-start gap-4 p-2">
             <WalletBalanceCard
-              balance={12480.32}
-              address={WALLET_ADDRESS}
-              change24h={124.5}
-              onDeposit={() => setDepositOpen(true)}
-              onWithdraw={() => setWithdrawOpen(true)}
+              balance={data.wallets.main.balance}
+              address={data.mainAddress}
+              change24h={data.stats.main.change24h || 0}
+              onDeposit={() => router.push("/fund/deposit")}
+              onWithdraw={() => router.push("/fund/withdraw")}
               onTransfer={() => setTransferOpen(true)}
-              onSend={() => setSendOpen(true)}
+              onSend={() => router.push("/fund/send")}
             />
           </div>
         </section>
@@ -463,10 +384,10 @@ export default function MainWalletPage() {
         <section aria-label="Wallet Stats">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Total Deposited",   value: "$28,400.00", delta: { value: "All time",      positive: true  } },
-              { label: "Total Withdrawn",   value: "$15,919.68", delta: { value: "All time",      positive: false } },
-              { label: "Total Transferred", value: "$4,200.00",  delta: { value: "All time",      positive: true  } },
-              { label: "24h Change",         value: "+$124.50",   delta: { value: "vs yesterday",  positive: true  } },
+              { label: "Total Deposited",   value: money(data.stats.main.totalDeposited), delta: { value: "All time",      positive: true  } },
+              { label: "Total Withdrawn",   value: money(data.stats.main.totalWithdrawn), delta: { value: "All time",      positive: false } },
+              { label: "Total Transferred", value: money(data.stats.main.totalTransferred),  delta: { value: "All time",      positive: true  } },
+              { label: "24h Change",         value: money(data.stats.main.change24h, true),   delta: { value: "vs yesterday",  positive: (data.stats.main.change24h || 0) >= 0  } },
             ].map((item) => (
               <Card key={item.label}>
                 <Stat label={item.label} value={item.value} delta={item.delta} />
@@ -494,10 +415,8 @@ export default function MainWalletPage() {
         <div className="h-20" />
       </div>
 
-      <DepositModal  open={depositOpen}  onClose={() => setDepositOpen(false)} />
-      <WithdrawModal open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
-      <TransferModal open={transferOpen} onClose={() => setTransferOpen(false)} />
-      <SendModal     open={sendOpen}     onClose={() => setSendOpen(false)} />
+      <DepositModal  open={depositOpen}  onClose={() => setDepositOpen(false)} address={data.mainAddress} />
+      <TransferModal open={transferOpen} onClose={() => setTransferOpen(false)} accounts={data.accounts} onTransfer={transfer} />
     </UserShell>
   );
 }

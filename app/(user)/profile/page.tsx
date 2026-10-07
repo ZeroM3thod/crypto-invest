@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { UserShell } from "@/app/(user)/_components/user-shell";
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -51,9 +52,12 @@ const COUNTRIES = [
 ];
 
 interface UserProfile {
+  firstName: string;
+  lastName: string;
   fullName: string;
   userId: string;
   email: string;
+  mobile: string;
   dob: string; // yyyy-mm-dd
   memberSince: string; // yyyy-mm-dd
   walletAddress: string;
@@ -61,18 +65,23 @@ interface UserProfile {
   kycVerified: boolean;
   twoFaEnabled: boolean;
   avatarUrl?: string;
+  profileStrength: number;
 }
 
 const INITIAL_PROFILE: UserProfile = {
+  firstName: "",
+  lastName: "",
   fullName: "Ava Thompson",
   userId: "USR-4821093",
   email: "ava.thompson@example.com",
+  mobile: "",
   dob: "1994-06-12",
   memberSince: "2023-03-18",
   walletAddress: "0x9F3a1C2b4E5d6F7a8B9c0D1e2F3a4B5c6D7e8F90",
   country: "United States",
   kycVerified: true,
   twoFaEnabled: false,
+  profileStrength: 0,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -83,7 +92,10 @@ const FIELD_FOCUS = "focus-visible:border-foreground/50 focus-visible:ring-foreg
 const SECURITY_LEVELS = ["Basic", "Good", "Strong"] as const;
 
 function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", {
+  if (!iso) return "Not set";
+  const date = new Date(iso.includes("T") ? iso : iso + "T00:00:00");
+  if (Number.isNaN(date.getTime())) return "Not set";
+  return date.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -91,14 +103,19 @@ function formatDate(iso: string) {
 }
 
 function formatMonthYear(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", {
+  if (!iso) return "Not set";
+  const date = new Date(iso.includes("T") ? iso : iso + "T00:00:00");
+  if (Number.isNaN(date.getTime())) return "Not set";
+  return date.toLocaleDateString("en-GB", {
     month: "long",
     year: "numeric",
   });
 }
 
 function accountAge(iso: string) {
-  const start = new Date(iso + "T00:00:00");
+  if (!iso) return "Not set";
+  const start = new Date(iso.includes("T") ? iso : iso + "T00:00:00");
+  if (Number.isNaN(start.getTime())) return "Not set";
   const now = new Date();
   let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
   if (now.getDate() < start.getDate()) months--;
@@ -261,21 +278,35 @@ function Field({
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile>(INITIAL_PROFILE);
 
   const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(profile.fullName);
+  const [draftFirstName, setDraftFirstName] = useState(profile.firstName);
+  const [draftLastName, setDraftLastName] = useState(profile.lastName);
+  const [draftMobile, setDraftMobile] = useState(profile.mobile);
   const [draftDob, setDraftDob] = useState(profile.dob);
   const [draftCountry, setDraftCountry] = useState(profile.country);
   const [nameErr, setNameErr] = useState(false);
+  const [formErr, setFormErr] = useState<string>();
   const [saving, setSaving] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setProfile(d.profile))
+      .catch(() => undefined);
+  }, []);
+
   const startEditing = () => {
-    setDraftName(profile.fullName);
+    setDraftFirstName(profile.firstName);
+    setDraftLastName(profile.lastName);
+    setDraftMobile(profile.mobile);
     setDraftDob(profile.dob);
     setDraftCountry(profile.country);
     setNameErr(false);
+    setFormErr(undefined);
     setEditing(true);
   };
 
@@ -287,23 +318,28 @@ export default function ProfilePage() {
   const cancelEditing = () => setEditing(false);
 
   const saveEditing = async () => {
-    if (!draftName.trim()) {
+    if (!draftFirstName.trim() || !draftLastName.trim()) {
       setNameErr(true);
       return;
     }
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 450));
-    setProfile((p) => ({
-      ...p,
-      fullName: draftName.trim(),
-      dob: draftDob,
-      country: draftCountry,
-    }));
+    setFormErr(undefined);
+    const res = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName: draftFirstName, lastName: draftLastName, mobile: draftMobile, dob: draftDob, country: draftCountry }),
+    });
+    const data = await res.json().catch(() => null);
     setSaving(false);
+    if (!res.ok) {
+      setFormErr(data?.message || "Profile update failed.");
+      return;
+    }
+    setProfile(data.profile);
     setEditing(false);
   };
 
-  const toggleTwoFa = () => setProfile((p) => ({ ...p, twoFaEnabled: !p.twoFaEnabled }));
+  const toggleTwoFa = () => router.push("/profile/security");
 
   // ── Derived: profile strength + security level ──
   const checklist: { id: string; label: string; done: boolean; action?: ReactNode }[] = [
@@ -348,7 +384,7 @@ export default function ProfilePage() {
 
   const doneCount = checklist.filter((i) => i.done).length;
   const remaining = checklist.length - doneCount;
-  const percent = Math.round((doneCount / checklist.length) * 100);
+  const percent = profile.profileStrength || Math.round((doneCount / checklist.length) * 100);
   const strengthTitle = percent === 100 ? "All set" : percent >= 50 ? "Almost there" : "Getting started";
   const strengthText =
     remaining === 0
@@ -481,24 +517,32 @@ export default function ProfilePage() {
                 </CardHeader>
 
                 <CardContent className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Full name" icon={User} editing={editing}>
+                  <Field label="First name" icon={User} editing={editing}>
                     {editing ? (
                       <div>
                         <Input
-                          value={draftName}
+                          value={draftFirstName}
                           onChange={(e) => {
-                            setDraftName(e.target.value);
+                            setDraftFirstName(e.target.value);
                             setNameErr(false);
                           }}
-                          aria-label="Full name"
+                          aria-label="First name"
                           aria-invalid={nameErr}
-                          placeholder="Your full name"
+                          placeholder="First name"
                           className={FIELD_FOCUS}
                         />
-                        {nameErr && <p className="mt-1.5 text-xs text-destructive">Name is required.</p>}
+                        {nameErr && <p className="mt-1.5 text-xs text-destructive">First and last name are required.</p>}
                       </div>
                     ) : (
-                      <p className="truncate text-sm font-medium text-foreground">{profile.fullName}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{profile.firstName || "Not set"}</p>
+                    )}
+                  </Field>
+
+                  <Field label="Last name" icon={User} editing={editing}>
+                    {editing ? (
+                      <Input value={draftLastName} onChange={(e) => setDraftLastName(e.target.value)} aria-label="Last name" placeholder="Last name" className={FIELD_FOCUS} />
+                    ) : (
+                      <p className="truncate text-sm font-medium text-foreground">{profile.lastName || "Not set"}</p>
                     )}
                   </Field>
 
@@ -506,6 +550,14 @@ export default function ProfilePage() {
                     <p className="truncate text-sm font-medium text-foreground" title={profile.email}>
                       {profile.email}
                     </p>
+                  </Field>
+
+                  <Field label="Mobile number" icon={Mail} editing={editing}>
+                    {editing ? (
+                      <Input value={draftMobile} onChange={(e) => setDraftMobile(e.target.value)} aria-label="Mobile number" placeholder="+880..." className={FIELD_FOCUS} />
+                    ) : (
+                      <p className="truncate text-sm font-medium text-foreground">{profile.mobile || "Not set"}</p>
+                    )}
                   </Field>
 
                   <Field label="Date of birth" icon={CalendarDays} editing={editing}>
@@ -557,6 +609,7 @@ export default function ProfilePage() {
 
                 {editing && (
                   <div className="flex flex-col-reverse gap-2 border-t border-border p-5 sm:flex-row sm:justify-end">
+                    {formErr && <p className="mr-auto self-center text-xs text-destructive">{formErr}</p>}
                     <Button variant="ghost" onClick={cancelEditing} disabled={saving} className="w-full sm:w-auto">
                       <X className="size-3.5" /> Cancel
                     </Button>

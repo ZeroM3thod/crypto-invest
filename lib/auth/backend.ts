@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
@@ -14,8 +14,24 @@ type DbUser = {
   password_hash: string;
   status: "pending" | "active";
   role?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  country?: string | null;
+  dob_month?: string | null;
+  dob_day?: string | null;
+  dob_year?: string | null;
+  created_at?: string;
+  wallet_address?: string | null;
+  kyc_status?: string | null;
+  two_fa_enabled?: boolean | null;
+  two_fa_secret?: string | null;
+  backup_codes?: string[] | null;
+  password_changed_at?: string | null;
 };
 type OtpPurpose = "signup" | "password_reset";
+
+export type AuthUser = DbUser;
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -33,7 +49,7 @@ function supabaseHeaders(extra?: HeadersInit) {
   };
 }
 
-async function supabase<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function supabase<T>(path: string, init: RequestInit = {}): Promise<T> {
   const base = requireEnv("SUPABASE_URL").replace(/\/$/, "");
   const res = await fetch(`${base}/rest/v1/${path}`, {
     ...init,
@@ -49,6 +65,8 @@ function q(value: string) {
   return encodeURIComponent(value);
 }
 
+export { q };
+
 export function bad(message: string, status = 400) {
   return NextResponse.json({ message }, { status });
 }
@@ -59,6 +77,32 @@ export function normalizeEmail(email: unknown) {
 
 export function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function authSecret() {
+  return process.env.AUTH_SECRET || process.env.OTP_SECRET || requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+}
+
+export function signValue(value: string) {
+  return createHmac("sha256", authSecret()).update(value).digest("hex");
+}
+
+export function avatarForUser(id: string) {
+  const files = [
+    "0ba54b0d95.svg",
+    "120029819f.svg",
+    "2dfd8e6133.svg",
+    "4043a3e4ce.svg",
+    "46a901bfbd.svg",
+    "627297a79c.svg",
+    "7a9c48e1b9.svg",
+    "7d399d1de0.svg",
+    "94b4a92d42.svg",
+    "a1ac78ebe2.svg",
+    "a624e74456.svg",
+    "d251fcc9b1.svg",
+  ];
+  return `/avatar/${files[parseInt(hash(id).slice(0, 8), 16) % files.length]}`;
 }
 
 export function getIp(req: NextRequest) {
@@ -244,6 +288,7 @@ export async function createPendingUser(input: {
     dob_year: input.dob.year || null,
     dob_raw: input.dob,
     referral_code: input.referral.trim() || null,
+    wallet_address: generateWalletAddress(),
     password_hash: passwordHash(input.password),
     created_ip_hash: input.ipHash,
     created_device_hash: input.deviceHash,
@@ -254,7 +299,17 @@ export async function createPendingUser(input: {
     headers: { Prefer: "return=representation" },
     body: JSON.stringify(body),
   });
-  return rows[0];
+  const user = rows[0];
+  await supabase("wallet_accounts", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify([
+      { user_id: user.id, wallet: "main", balance: 0, address: body.wallet_address },
+      { user_id: user.id, wallet: "investment", balance: 0 },
+      { user_id: user.id, wallet: "trading", balance: 0 },
+    ]),
+  });
+  return user;
 }
 
 export async function updateUser(id: string, body: Record<string, unknown>) {
@@ -285,6 +340,33 @@ export async function createSession(user: DbUser, remember: boolean) {
   return res;
 }
 
+export function createPending2fa(user: DbUser, remember: boolean) {
+  const payload = `${user.id}:${remember ? "1" : "0"}:${Date.now()}`;
+  const res = NextResponse.json({ twoFactorRequired: true, redirect: "/signin/2fa" });
+  res.cookies.set("pending_2fa", `${payload}.${signValue(payload)}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 10 * 60,
+    path: "/",
+  });
+  return res;
+}
+
+export function readPending2fa(req: NextRequest) {
+  const raw = req.cookies.get("pending_2fa")?.value;
+  const [payload, sig] = raw?.split(".") || [];
+  if (!payload || sig !== signValue(payload)) return null;
+  const [userId, remember, created] = payload.split(":");
+  if (!userId || Date.now() - Number(created) > 10 * 60 * 1000) return null;
+  return { userId, remember: remember === "1" };
+}
+
+export async function findUserById(id: string) {
+  const rows = await supabase<DbUser[]>(`auth_users?select=*&id=eq.${q(id)}&limit=1`);
+  return rows[0] || null;
+}
+
 export async function getSessionTokenUser(token: string) {
   const rows = await supabase<{ user_id: string; expires_at: string; auth_users: DbUser }[]>(
     `auth_sessions?select=user_id,expires_at,auth_users(*)&token_hash=eq.${q(hash(token))}&revoked_at=is.null&limit=1`,
@@ -292,4 +374,63 @@ export async function getSessionTokenUser(token: string) {
   const session = rows[0];
   if (!session || new Date(session.expires_at).getTime() < Date.now()) return null;
   return session.auth_users;
+}
+
+export async function getSession(req: NextRequest) {
+  const token = req.cookies.get("auth_session")?.value;
+  if (!token) return null;
+  const rows = await supabase<{ id: string; user_id: string; expires_at: string; auth_users: DbUser }[]>(
+    `auth_sessions?select=id,user_id,expires_at,auth_users(*)&token_hash=eq.${q(hash(token))}&revoked_at=is.null&limit=1`,
+  );
+  const session = rows[0];
+  if (!session || new Date(session.expires_at).getTime() < Date.now()) return null;
+  return { ...session, user: session.auth_users };
+}
+
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+export function randomBase32(length = 32) {
+  const bytes = randomBytes(length);
+  let out = "";
+  for (const b of bytes) out += BASE32[b % BASE32.length];
+  return out;
+}
+
+function base32ToBuffer(input: string) {
+  let bits = "";
+  for (const c of input.replace(/=+$/g, "").toUpperCase()) {
+    const v = BASE32.indexOf(c);
+    if (v < 0) continue;
+    bits += v.toString(2).padStart(5, "0");
+  }
+  const bytes = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  return Buffer.from(bytes);
+}
+
+export function totp(secret: string, step = Math.floor(Date.now() / 30000)) {
+  const msg = Buffer.alloc(8);
+  msg.writeBigUInt64BE(BigInt(step));
+  const hmac = createHmac("sha1", base32ToBuffer(secret)).update(msg).digest();
+  const offset = hmac[hmac.length - 1] & 0xf;
+  const code = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000;
+  return String(code).padStart(6, "0");
+}
+
+export function verifyTotp(secret: string, code: string) {
+  const clean = code.replace(/\s/g, "");
+  const now = Math.floor(Date.now() / 30000);
+  return [-1, 0, 1].some((w) => totp(secret, now + w) === clean);
+}
+
+export function backupCodes() {
+  return Array.from({ length: 8 }, () => randomBytes(4).toString("hex").toUpperCase().replace(/(.{4})/, "$1-"));
+}
+
+export function generateWalletAddress() {
+  return `0x${randomBytes(20).toString("hex")}`;
+}
+
+export function txHash() {
+  return `0x${randomBytes(12).toString("hex")}`;
 }

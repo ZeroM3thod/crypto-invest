@@ -34,13 +34,6 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("crypto_invest_theme");var d=t==="light"?"light":(t==="dark"?"dark":(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"));var r=document.documentElement;r.classList.remove("light","dark");r.classList.add(d);r.setAttribute("data-theme",d);r.style.colorScheme=d;}catch(e){}})();`,
-          }}
-        />
-      </head>
       <body className="h-full antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

@@ -2,6 +2,7 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
+import { useRouter } from "next/navigation";
 import { OTPInput, type OTPStatus } from "@/components/motion/otp-input";
 import {
   Check,
@@ -19,7 +20,9 @@ import {
   AlertTriangle,
   Copy,
 } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+
+type SessionRow = { id: string; device: string; location: string; ip: string; time: string; current: boolean };
 
 // ── Shared primitives (matching dashboard/deposit/etc.) ──────────────────────
 
@@ -59,22 +62,9 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-// ── Mock data ────────────────────────────────────────────────────────────────
-
-const BACKUP_CODES = [
-  "A1B2-C3D4",
-  "E5F6-G7H8",
-  "I9J0-K1L2",
-  "M3N4-O5P6",
-  "Q7R8-S9T0",
-  "U1V2-W3X4",
-  "Y5Z6-A7B8",
-  "C9D0-E1F2",
-];
-
 // ── Change Password Modal ────────────────────────────────────────────────────
 
-function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+function ChangePasswordModal({ onClose }: { onClose: (ok?: boolean) => void }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -83,6 +73,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState("");
 
   const strengthScore = (() => {
     let s = 0;
@@ -108,9 +99,18 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = async () => {
     if (!validate()) return;
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 600));
+    const res = await fetch("/api/profile/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "password", current, next }),
+    });
+    const data = await res.json().catch(() => null);
     setSaving(false);
-    onClose();
+    if (!res.ok) {
+      setFormError(data?.message || "Password update failed.");
+      return;
+    }
+    onClose(true);
   };
 
   return (
@@ -125,7 +125,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             <h3 className="text-lg font-semibold text-foreground">Change Password</h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => onClose()}
             className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/70"
           >
             <X className="size-4" />
@@ -217,8 +217,9 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-6 flex gap-2">
+          {formError && <p className="absolute -mt-6 text-xs text-destructive">{formError}</p>}
           <button
-            onClick={onClose}
+            onClick={() => onClose()}
             className="flex-1 rounded-2xl border border-border py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/50"
           >
             Cancel
@@ -246,45 +247,80 @@ function TwoFAModal({
 }: {
   enabled: boolean;
   onClose: () => void;
-  onToggle: () => void;
+  onToggle: (enabled: boolean) => void;
 }) {
   const [step, setStep] = useState<"confirm" | "scan" | "verify" | "disable">(
     enabled ? "disable" : "scan"
   );
   const [code, setCode] = useState("");
-  const [codeErr, setCodeErr] = useState(false);
   const [otpStatus, setOtpStatus] = useState<OTPStatus>("idle");
   const [saving, setSaving] = useState(false);
   const [backupCopied, setBackupCopied] = useState(false);
+  const [secret, setSecret] = useState("");
+  const [qr, setQr] = useState("");
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [password, setPassword] = useState("");
+  const [formError, setFormError] = useState("");
 
-  const SECRET = "JBSWY3DPEHPK3PXP";
-  const QR_PLACEHOLDER =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Crect width='160' height='160' fill='%231c1c1c'/%3E%3Ctext x='80' y='88' font-size='11' fill='%2371717a' text-anchor='middle' font-family='monospace'%3EQRCODE%3C/text%3E%3C/svg%3E";
+  const setup = async () => {
+    if (enabled || secret) return;
+    const res = await fetch("/api/profile/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "2fa_setup" }),
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok) {
+      setSecret(data.secret);
+      setQr(data.qr);
+      setBackupCodes(data.backupCodes || []);
+    } else {
+      setFormError(data?.message || "2FA setup failed.");
+    }
+  };
 
   const verify = async () => {
     if (code.length !== 6 || !/^\d{6}$/.test(code)) {
-      setCodeErr(true);
       setOtpStatus("error");
       return;
     }
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
+    const res = await fetch("/api/profile/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "2fa_enable", code }),
+    });
+    const data = await res.json().catch(() => null);
     setSaving(false);
+    if (!res.ok) {
+      setOtpStatus("error");
+      setFormError(data?.message || "Invalid 2FA code.");
+      return;
+    }
     setOtpStatus("success");
-    onToggle();
+    onToggle(true);
     onClose();
   };
 
   const disable = async () => {
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
+    const res = await fetch("/api/profile/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "2fa_disable", password, code }),
+    });
+    const data = await res.json().catch(() => null);
     setSaving(false);
-    onToggle();
+    if (!res.ok) {
+      setFormError(data?.message || "Could not disable 2FA.");
+      return;
+    }
+    onToggle(false);
     onClose();
   };
 
   const copyBackup = () => {
-    navigator.clipboard?.writeText(BACKUP_CODES.join("\n")).then(() => {
+    navigator.clipboard?.writeText(backupCodes.join("\n")).then(() => {
       setBackupCopied(true);
       setTimeout(() => setBackupCopied(false), 2000);
     });
@@ -320,6 +356,19 @@ function TwoFAModal({
                 Disabling 2FA will make your account less secure. Are you sure you want to continue?
               </p>
             </div>
+            <div className="mb-4">
+              <Label>Password or 2FA code</Label>
+              <input
+                value={password || code}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setCode(e.target.value);
+                }}
+                placeholder="Password or 6-digit code"
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
+              />
+            </div>
+            {formError && <p className="mb-4 text-xs text-destructive">{formError}</p>}
             <div className="flex gap-2">
               <button
                 onClick={onClose}
@@ -342,6 +391,8 @@ function TwoFAModal({
         {/* ENABLE flow — Step 1: Scan QR */}
         {step === "scan" && (
           <>
+            {!secret && <button onClick={setup} className="mb-4 w-full rounded-2xl bg-foreground py-3 text-sm font-semibold text-background">Generate Secret Key</button>}
+            {formError && <p className="mb-4 text-xs text-destructive">{formError}</p>}
             <ol className="mb-5 space-y-4 text-sm text-muted-foreground">
               <li className="flex items-start gap-3">
                 <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border text-[10px] font-bold text-foreground">1</span>
@@ -360,20 +411,20 @@ function TwoFAModal({
             {/* QR + Secret */}
             <div className="mb-5 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
               <div className="flex size-[140px] shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/40">
-                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                {qr ? <img src={qr} alt="2FA QR code" className="size-full" /> : <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <QrCode className="size-10" />
                   <span className="text-[10px] uppercase tracking-wide">Scan QR code</span>
-                </div>
+                </div>}
               </div>
               <div className="flex-1 space-y-3">
                 <div>
                   <Label>Secret Key (manual entry)</Label>
                   <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/30 p-2.5">
                     <span className="flex-1 font-mono text-xs text-foreground tracking-widest">
-                      {SECRET}
+                      {secret || "Generate first"}
                     </span>
                     <button
-                      onClick={() => navigator.clipboard?.writeText(SECRET)}
+                      onClick={() => navigator.clipboard?.writeText(secret)}
                       className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-foreground"
                     >
                       <Copy className="size-3.5" />
@@ -387,7 +438,7 @@ function TwoFAModal({
             </div>
 
             <button
-              onClick={() => setStep("verify")}
+              onClick={() => secret && setStep("verify")}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-foreground py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90"
             >
               Continue <ChevronRight className="size-4" />
@@ -412,7 +463,6 @@ function TwoFAModal({
                 autoFocus
                 onChange={(v) => {
                   setCode(v);
-                  setCodeErr(false);
                   if (otpStatus !== "idle") setOtpStatus("idle");
                 }}
               />
@@ -437,7 +487,7 @@ function TwoFAModal({
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                {BACKUP_CODES.map((c) => (
+                {backupCodes.map((c) => (
                   <span key={c} className="rounded-lg bg-muted px-3 py-1.5 text-center font-mono text-xs text-foreground">
                     {c}
                   </span>
@@ -449,6 +499,7 @@ function TwoFAModal({
             </div>
 
             <div className="flex gap-2">
+              {formError && <p className="absolute -mt-6 text-xs text-destructive">{formError}</p>}
               <button
                 onClick={() => setStep("scan")}
                 className="flex-1 rounded-2xl border border-border py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/50"
@@ -474,15 +525,62 @@ function TwoFAModal({
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SecurityPage() {
+  const router = useRouter();
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showTwoFA, setShowTwoFA] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [passwordChangedAt, setPasswordChangedAt] = useState("");
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
 
   const showToast = useCallback((msg: string) => {
     setToast({ msg, show: true });
     setTimeout(() => setToast((t) => ({ ...t, show: false })), 3000);
   }, []);
+
+  const loadSecurity = useCallback(async () => {
+    const res = await fetch("/api/profile/security");
+    const data = await res.json().catch(() => null);
+    if (res.ok) {
+      setTwoFAEnabled(Boolean(data.twoFaEnabled));
+      setPasswordChangedAt(data.passwordChangedAt || "");
+      setSessions(data.sessions || []);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSecurity();
+  }, [loadSecurity]);
+
+  const postSecurity = async (body: Record<string, unknown>, okMsg: string) => {
+    const res = await fetch("/api/profile/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      await loadSecurity();
+      showToast(okMsg);
+    }
+  };
+
+  const deleteAccount = async () => {
+    setDeleteError("");
+    const res = await fetch("/api/profile", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: deletePassword }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      setDeleteError(data?.message || "Account delete failed.");
+      return;
+    }
+    router.push("/signin");
+  };
 
   return (
     <UserShell active="Security">
@@ -516,7 +614,7 @@ export default function SecurityPage() {
               <span className="text-sm text-muted-foreground tracking-[0.25em]">••••••••••••</span>
             </InfoRow>
             <InfoRow label="Last Changed">
-              <span className="text-sm text-foreground">14 June 2025</span>
+              <span className="text-sm text-foreground">{passwordChangedAt ? new Date(passwordChangedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : "Not set"}</span>
             </InfoRow>
             <div className="mt-5">
               <button
@@ -590,32 +688,7 @@ export default function SecurityPage() {
               subtitle="Devices currently signed into your account."
             />
             <div className="flex flex-col gap-2">
-              {[
-                {
-                  id: "s1",
-                  device: "Chrome · Windows 11",
-                  location: "Dhaka, Bangladesh",
-                  ip: "103.48.192.11",
-                  time: "Now",
-                  current: true,
-                },
-                {
-                  id: "s2",
-                  device: "Safari · iPhone 15",
-                  location: "Dhaka, Bangladesh",
-                  ip: "103.48.192.11",
-                  time: "2 hours ago",
-                  current: false,
-                },
-                {
-                  id: "s3",
-                  device: "Firefox · macOS",
-                  location: "Dhaka, Bangladesh",
-                  ip: "103.48.192.14",
-                  time: "Yesterday",
-                  current: false,
-                },
-              ].map((session) => (
+              {sessions.map((session) => (
                 <div
                   key={session.id}
                   className="flex items-center justify-between rounded-2xl border border-border p-3.5"
@@ -634,13 +707,13 @@ export default function SecurityPage() {
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {session.location} · {session.ip} · {session.time}
+                        {session.location} · {session.ip} · {new Date(session.time).toLocaleString()}
                       </p>
                     </div>
                   </div>
                   {!session.current && (
                     <button
-                      onClick={() => showToast("Session revoked")}
+                      onClick={() => postSecurity({ action: "revoke_session", id: session.id }, "Session revoked")}
                       className="ml-3 shrink-0 rounded-xl bg-muted px-3 py-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       Revoke
@@ -650,7 +723,7 @@ export default function SecurityPage() {
               ))}
             </div>
             <button
-              onClick={() => showToast("All other sessions revoked")}
+              onClick={() => postSecurity({ action: "revoke_others" }, "All other sessions revoked")}
               className="mt-4 w-full rounded-2xl border border-border py-2.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Revoke All Other Sessions
@@ -675,7 +748,7 @@ export default function SecurityPage() {
                   </p>
                 </div>
               </div>
-              <button className="shrink-0 rounded-2xl border border-destructive/40 px-4 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button onClick={() => setShowDelete(true)} className="shrink-0 rounded-2xl border border-destructive/40 px-4 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 Delete Account
               </button>
             </div>
@@ -690,6 +763,7 @@ export default function SecurityPage() {
         <ChangePasswordModal
           onClose={() => {
             setShowChangePassword(false);
+            loadSecurity();
             showToast("Password updated successfully");
           }}
         />
@@ -698,11 +772,26 @@ export default function SecurityPage() {
         <TwoFAModal
           enabled={twoFAEnabled}
           onClose={() => setShowTwoFA(false)}
-          onToggle={() => {
-            setTwoFAEnabled((v) => !v);
-            showToast(twoFAEnabled ? "2FA disabled" : "2FA enabled successfully");
+          onToggle={(enabled) => {
+            setTwoFAEnabled(enabled);
+            loadSecurity();
+            showToast(enabled ? "2FA enabled successfully" : "2FA disabled");
           }}
         />
+      )}
+      {showDelete && (
+        <div className="fixed inset-0 z-[900] flex items-end justify-center bg-foreground/20 backdrop-blur-sm sm:items-center" onClick={(e) => { if (e.target === e.currentTarget) setShowDelete(false); }}>
+          <div className="w-full max-w-md rounded-t-4xl border border-border bg-card p-6 sm:rounded-4xl">
+            <h3 className="text-lg font-semibold text-foreground">Delete Account</h3>
+            <p className="mt-2 text-sm text-muted-foreground">This permanently deletes your account. Enter your password to confirm.</p>
+            <input type="password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} placeholder="Password" className="mt-5 w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:border-foreground" />
+            {deleteError && <p className="mt-2 text-xs text-destructive">{deleteError}</p>}
+            <div className="mt-6 flex gap-2">
+              <button onClick={() => setShowDelete(false)} className="flex-1 rounded-2xl border border-border py-3 text-sm font-semibold text-foreground">Cancel</button>
+              <button onClick={deleteAccount} className="flex-1 rounded-2xl bg-destructive py-3 text-sm font-semibold text-destructive-foreground">Confirm Delete</button>
+            </div>
+          </div>
+        </div>
       )}
     </UserShell>
   );

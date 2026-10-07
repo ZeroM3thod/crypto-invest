@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Table } from "@/components/motion/table";
+import { money, useWalletData } from "../use-wallet-data";
 
 // ── Shared primitives (identical to dashboard) ──────────────────────────────
 
@@ -77,24 +78,6 @@ type WalletTransaction = {
   status: "Completed" | "Pending" | "Failed";
   txHash: string;
 };
-
-const ALL_TRANSACTIONS: WalletTransaction[] = [
-  { id: "h1",  date: "2025-07-18", wallet: "Main",       type: "Deposit",         asset: "USDT",     amount: "+$500.00",   status: "Completed", txHash: "0x4f3a…c91e" },
-  { id: "h2",  date: "2025-07-18", wallet: "Investment",  type: "Credit",          asset: "USDT",     amount: "+$28.40",    status: "Completed", txHash: "0x5c2b…d82f" },
-  { id: "h3",  date: "2025-07-18", wallet: "Mining",      type: "Mining Earnings", asset: "BTC",      amount: "+$12.40",    status: "Completed", txHash: "0x7e1c…a93b" },
-  { id: "h4",  date: "2025-07-17", wallet: "Main",       type: "Withdrawal",      asset: "USDT",     amount: "-$200.00",   status: "Completed", txHash: "0x8b2d…f04c" },
-  { id: "h5",  date: "2025-07-17", wallet: "Trading",    type: "P/L Credit",      asset: "BTC/USDT", amount: "+$68.00",    status: "Completed", txHash: "0x9a3e…1b72" },
-  { id: "h6",  date: "2025-07-16", wallet: "Main",       type: "Deposit",         asset: "BTC",      amount: "+$1,000.00", status: "Completed", txHash: "0x1c7e…a83b" },
-  { id: "h7",  date: "2025-07-16", wallet: "Referral",   type: "Commission",      asset: "USDT",     amount: "+$48.00",    status: "Completed", txHash: "0xab2d…c14e" },
-  { id: "h8",  date: "2025-07-15", wallet: "Main",       type: "Transfer",        asset: "ETH",      amount: "-$150.00",   status: "Pending",   txHash: "0x9d5f…7721" },
-  { id: "h9",  date: "2025-07-15", wallet: "Investment",  type: "Deposit",         asset: "USDT",     amount: "+$2,000.00", status: "Completed", txHash: "0x3f2a…cc49" },
-  { id: "h10", date: "2025-07-14", wallet: "Trading",    type: "Deposit",         asset: "USDT",     amount: "+$1,000.00", status: "Completed", txHash: "0x6b4c…9d31" },
-  { id: "h11", date: "2025-07-14", wallet: "Mining",      type: "Mining Earnings", asset: "BTC",      amount: "+$11.50",    status: "Completed", txHash: "0x3e2a…bb49" },
-  { id: "h12", date: "2025-07-13", wallet: "Main",       type: "Withdrawal",      asset: "BTC",      amount: "-$80.00",    status: "Failed",    txHash: "0x6f1c…2d30" },
-  { id: "h13", date: "2025-07-12", wallet: "Referral",   type: "Transfer",        asset: "USDT",     amount: "-$50.00",    status: "Completed", txHash: "0x9d5f…8830" },
-  { id: "h14", date: "2025-07-11", wallet: "Main",       type: "Deposit",         asset: "ETH",      amount: "+$750.00",   status: "Completed", txHash: "0x7c3d…1a82" },
-  { id: "h15", date: "2025-07-10", wallet: "Investment",  type: "Transfer",        asset: "USDT",     amount: "-$500.00",   status: "Pending",   txHash: "0x2a1c…4f93" },
-];
 
 const TX_COLUMNS = [
   { key: "date",   header: "Date",   width: "110px" },
@@ -198,10 +181,14 @@ function FilterBar({ wallet, setWallet, status, setStatus }: FilterBarProps) {
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function WalletHistoryPage() {
+  const { data } = useWalletData();
   const [walletFilter, setWalletFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
 
-  const filtered = ALL_TRANSACTIONS.filter((t) => {
+  // Safe fallback in case transactions are not loaded yet
+  const transactions = data.transactions ?? [];
+
+  const filtered = transactions.filter((t) => {
     if (walletFilter !== "All" && t.wallet !== walletFilter) return false;
     if (statusFilter !== "All" && t.status !== statusFilter) return false;
     return true;
@@ -238,10 +225,10 @@ export default function WalletHistoryPage() {
         <section aria-label="History Summary">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Total Transactions", value: `${ALL_TRANSACTIONS.length}`,  delta: { value: "All wallets", positive: true } },
-              { label: "Total In",           value: "+$6,048.70",                   delta: { value: "All time",   positive: true } },
-              { label: "Total Out",          value: "-$980.00",                     delta: { value: "All time",   positive: false } },
-              { label: "Net Flow",           value: "+$5,068.70",                   delta: { value: "All time",   positive: true } },
+              { label: "Total Transactions", value: `${data.stats.history.totalTransactions || transactions.length}`, delta: { value: "All wallets", positive: true } },
+              { label: "Total In",           value: money(data.stats.history.totalIn, true),                          delta: { value: "All time",    positive: true } },
+              { label: "Total Out",          value: money(-(data.stats.history.totalOut || 0)),                       delta: { value: "All time",    positive: false } },
+              { label: "Net Flow",           value: money(data.stats.history.netFlow, true),                          delta: { value: "All time",    positive: (data.stats.history.netFlow || 0) >= 0 } },
             ].map((item) => (
               <Card key={item.label}>
                 <Stat label={item.label} value={item.value} delta={item.delta} />
@@ -275,7 +262,7 @@ export default function WalletHistoryPage() {
             rowHeight={44}
           />
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Showing {filtered.length} of {ALL_TRANSACTIONS.length} transactions
+            Showing {filtered.length} of {transactions.length} transactions
           </p>
         </section>
 

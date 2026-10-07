@@ -3,6 +3,7 @@ import {
   assertRateLimit,
   bad,
   createSession,
+  createPending2fa,
   findUserByIdentifier,
   getDevice,
   setDeviceCookie,
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest) {
     const user = await findUserByIdentifier(identifier);
     if (!user || user.status !== "active" || !verifyPassword(password, user.password_hash)) {
       return setDeviceCookie(bad("Invalid email/user ID or password.", 401), device.id);
+    }
+    if (user.two_fa_enabled && user.two_fa_secret) {
+      return setDeviceCookie(createPending2fa(user, Boolean(body?.remember)), device.id);
     }
     return setDeviceCookie(await createSession(user, Boolean(body?.remember)), device.id);
   } catch (error) {
