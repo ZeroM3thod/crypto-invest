@@ -9,6 +9,22 @@ import { Table } from "@/components/motion/table";
 import { Clock, Pencil, Plus, Search, TrendingUp, Users, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 
+// ── Time helpers (everything is stored in seconds) ───────────────────────
+const DAY_SEC = 86400;
+
+/** 86400 → "1d", 90 → "1m 30s", 0 → "0s" */
+function humanSec(total: number): string {
+  if (!(total > 0)) return "0s";
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return [d && `${d}d`, h && `${h}h`, m && `${m}m`, s && `${s}s`].filter(Boolean).join(" ");
+}
+
+/** 86400 → "86,400 sec (1d)" */
+const secLabel = (n: number) => `${n.toLocaleString("en-US")} sec (${humanSec(n)})`;
+
 // ── Types ────────────────────────────────────────────────────────────────
 type Plan = {
   id: string;
@@ -16,7 +32,8 @@ type Plan = {
   badge: string;
   rate: number;            // daily %
   minimum: number;         // minimum join fee
-  cancelAfterHours: number; // cancel policy
+  profitIntervalSec: number; // how often profit is credited (default 86400)
+  lockPeriodSec: number;     // lock / cancel hold time in seconds (default 86400)
   payout: string;
   returnType: string;
   active: boolean;
@@ -36,9 +53,9 @@ type Investor = {
 
 // ── Mock data (replace with API) ─────────────────────────────────────────
 const INITIAL_PLANS: Plan[] = [
-  { id: "starter", name: "Starter Plan", badge: "Starter", rate: 1.7, minimum: 10, cancelAfterHours: 24, payout: "Principal + profits", returnType: "Simple interest", active: true },
-  { id: "growth",  name: "Growth Plan",  badge: "Growth",  rate: 2.1, minimum: 30, cancelAfterHours: 24, payout: "Principal + profits", returnType: "Simple interest", active: true },
-  { id: "elite",   name: "Elite Plan",   badge: "Elite",   rate: 2.5, minimum: 50, cancelAfterHours: 24, payout: "Principal + profits", returnType: "Simple interest", active: true },
+  { id: "starter", name: "Starter Plan", badge: "Starter", rate: 1.7, minimum: 10, profitIntervalSec: 86400, lockPeriodSec: 86400, payout: "Principal + profits", returnType: "Simple interest", active: true },
+  { id: "growth",  name: "Growth Plan",  badge: "Growth",  rate: 2.1, minimum: 30, profitIntervalSec: 86400, lockPeriodSec: 86400, payout: "Principal + profits", returnType: "Simple interest", active: true },
+  { id: "elite",   name: "Elite Plan",   badge: "Elite",   rate: 2.5, minimum: 50, profitIntervalSec: 86400, lockPeriodSec: 86400, payout: "Principal + profits", returnType: "Simple interest", active: true },
 ];
 
 const INITIAL_INVESTORS: Investor[] = [
@@ -55,7 +72,8 @@ type PlanForm = {
   badge: string;
   rate: string;
   minimum: string;
-  cancelAfterHours: string;
+  profitIntervalSec: string;
+  lockPeriodSec: string;
   payout: string;
   returnType: string;
   active: boolean;
@@ -63,12 +81,12 @@ type PlanForm = {
 
 const EMPTY_FORM: PlanForm = {
   id: null, name: "", badge: "", rate: "", minimum: "",
-  cancelAfterHours: "24", payout: "Principal + profits", returnType: "Simple interest", active: true,
+  profitIntervalSec: String(DAY_SEC), lockPeriodSec: String(DAY_SEC), payout: "Principal + profits", returnType: "Simple interest", active: true,
 };
 
 const planToForm = (p: Plan): PlanForm => ({
   id: p.id, name: p.name, badge: p.badge, rate: String(p.rate), minimum: String(p.minimum),
-  cancelAfterHours: String(p.cancelAfterHours), payout: p.payout, returnType: p.returnType, active: p.active,
+  profitIntervalSec: String(p.profitIntervalSec), lockPeriodSec: String(p.lockPeriodSec), payout: p.payout, returnType: p.returnType, active: p.active,
 });
 
 // ── Investor table columns ───────────────────────────────────────────────
@@ -127,14 +145,15 @@ function AdminPlanCard({
         </div>
         <div className="text-right">
           <p className="text-2xl font-bold text-foreground">{plan.rate}%</p>
-          <p className="text-[10px] font-medium text-muted-foreground">per day</p>
+          <p className="text-[10px] font-medium text-muted-foreground">per {humanSec(plan.profitIntervalSec)}</p>
         </div>
       </div>
 
       <ul className="mb-4 space-y-2.5">
         {[
           { label: "Minimum", value: `$${fmt(plan.minimum)}` },
-          { label: "Cancel policy", value: `After ${plan.cancelAfterHours} hours` },
+          { label: "Profit added every", value: secLabel(plan.profitIntervalSec) },
+          { label: "Lock period", value: secLabel(plan.lockPeriodSec) },
           { label: "Payout", value: plan.payout },
           { label: "Return type", value: plan.returnType },
           { label: "Running users", value: String(running.length) },
@@ -181,7 +200,8 @@ export function DailyProfitManagement() {
   const totalInvested = activeInvestors.reduce((s, i) => s + i.invested, 0);
   const dailyPayout = activeInvestors.reduce((s, i) => {
     const p = plans.find((p) => p.id === i.planId);
-    return s + (p ? (i.invested * p.rate) / 100 : 0);
+    // profit per cycle, scaled to a 24h window so plans with different intervals add up
+    return s + (p ? ((i.invested * p.rate) / 100) * (DAY_SEC / p.profitIntervalSec) : 0);
   }, 0);
 
   // Table rows
@@ -198,18 +218,22 @@ export function DailyProfitManagement() {
     if (!form) return;
     const rate = parseFloat(form.rate);
     const minimum = parseFloat(form.minimum);
-    const hours = parseInt(form.cancelAfterHours, 10);
+    const intervalSec = Number(form.profitIntervalSec);
+    const lockSec = Number(form.lockPeriodSec);
 
     if (!form.name.trim()) return setError("Plan name is required");
     if (!form.badge.trim()) return setError("Badge label is required");
-    if (!(rate > 0)) return setError("Daily profit % must be greater than 0");
+    if (!(rate > 0)) return setError("Profit % per cycle must be greater than 0");
     if (!(minimum > 0)) return setError("Minimum join fee must be greater than 0");
-    if (!(hours >= 0)) return setError("Cancel hold time must be 0 or more hours");
+    if (!Number.isInteger(intervalSec) || intervalSec < 1)
+      return setError("Profit adding time must be a whole number of seconds (1 or more)");
+    if (!Number.isInteger(lockSec) || lockSec < 0)
+      return setError("Lock period must be a whole number of seconds (0 or more)");
 
     const next: Plan = {
       id: form.id ?? form.name.trim().toLowerCase().replace(/\s+/g, "-") + "-" + Date.now(),
       name: form.name.trim(), badge: form.badge.trim(), rate, minimum,
-      cancelAfterHours: hours, payout: form.payout.trim(), returnType: form.returnType.trim(),
+      profitIntervalSec: intervalSec, lockPeriodSec: lockSec, payout: form.payout.trim(), returnType: form.returnType.trim(),
       active: form.active,
     };
 
@@ -252,10 +276,10 @@ export function DailyProfitManagement() {
             <Card><Stat label="Total Invested" value={`$${fmt(totalInvested)}`} icon={<Wallet className="size-3.5" />} /></Card>
             <Card>
               <Stat
-                label="Daily Payout"
+                label="Est. Daily Payout"
                 value={`$${fmt(dailyPayout)}`}
                 icon={<Clock className="size-3.5" />}
-                delta={{ value: "Owed per 24h cycle", positive: false }}
+                delta={{ value: "Scaled to 24h across plans", positive: false }}
               />
             </Card>
           </div>
@@ -265,7 +289,7 @@ export function DailyProfitManagement() {
         <section aria-label="Plans">
           <SectionHeader
             title="Plans"
-            description="Edit rate, minimum, cancel policy and visibility. Changes apply to new investments only."
+            description="Edit rate, minimum, profit adding time, lock period and visibility. Changes apply to new investments only."
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {plans.map((plan) => (
@@ -367,15 +391,24 @@ export function DailyProfitManagement() {
               <Field label="Badge label">
                 <input className={inputCls} value={form.badge} onChange={(e) => set("badge", e.target.value)} placeholder="Growth" />
               </Field>
-              <Field label="Daily profit (%)">
+              <Field label="Profit per cycle (%)">
                 <input className={inputCls} type="number" step="0.01" min="0" value={form.rate} onChange={(e) => set("rate", e.target.value)} />
               </Field>
               <Field label="Minimum join fee ($)">
                 <input className={inputCls} type="number" min="0" value={form.minimum} onChange={(e) => set("minimum", e.target.value)} />
               </Field>
             </div>
-            <Field label="Cancel policy (hours)" hint="User can cancel only after this many hours. Use 0 for instant cancel.">
-              <input className={inputCls} type="number" min="0" value={form.cancelAfterHours} onChange={(e) => set("cancelAfterHours", e.target.value)} />
+            <Field
+              label="Profit adding time (seconds)"
+              hint={`Profit is credited every ${humanSec(Number(form.profitIntervalSec))}. Default 86400 sec = 24 hours.`}
+            >
+              <input className={inputCls} type="number" min="1" step="1" value={form.profitIntervalSec} onChange={(e) => set("profitIntervalSec", e.target.value)} />
+            </Field>
+            <Field
+              label="Lock period (seconds)"
+              hint={`User can cancel only after ${humanSec(Number(form.lockPeriodSec))}. Use 0 for instant cancel.`}
+            >
+              <input className={inputCls} type="number" min="0" step="1" value={form.lockPeriodSec} onChange={(e) => set("lockPeriodSec", e.target.value)} />
             </Field>
             <Field label="Payout text">
               <input className={inputCls} value={form.payout} onChange={(e) => set("payout", e.target.value)} />

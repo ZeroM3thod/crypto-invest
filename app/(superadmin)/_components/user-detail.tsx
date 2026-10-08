@@ -1,6 +1,6 @@
 // app/(superadmin)/_components/user-detail.tsx
 // Admin user detail: admins can edit profile/KYC data AND wallet balances
-// (Main + Investment only), view full investment / AI trading history,
+// (Main + Investment only), manage referrals, view daily-profit / AI trading history,
 // and send rewards to the user.
 "use client";
 
@@ -98,6 +98,39 @@ function Grid<T extends { id: string }>({
   );
 }
 
+/** Daily-profit packages (same tiers the user sees on their Daily Profit page). */
+const PACKAGES = [
+  { name: "Starter Plan", rate: 1.7, minimum: 10 },
+  { name: "Growth Plan", rate: 2.1, minimum: 30 },
+  { name: "Elite Plan", rate: 2.5, minimum: 50 },
+] as const;
+
+/** Daily profit row + running total for that investment. */
+type ProfitRow = DailyProfit & { cumulative: number };
+
+/** AI strategy / trade shapes shown on the user's AI Trading page.
+ *  The extra fields are optional so this compiles against your current types —
+ *  add them to AiStrategy / AiTrade in lib/users-data when your API returns them. */
+type AiStrategyView = AiStrategy & {
+  minStake?: number;
+  roiPct?: number;
+  daysRunning?: number;
+  lockDays?: number;
+  daysElapsed?: number;
+};
+type AiTradeView = AiTrade & { duration?: string };
+
+const DEFAULT_LOCK_DAYS = 15;
+
+const referralInitial = {
+  id: "",
+  name: "",
+  email: "",
+  level: "1",
+  totalDeposit: "",
+  balance: "",
+};
+
 const rewardInitial = {
   title: "",
   description: "",
@@ -117,6 +150,7 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
   const [invFilter, setInvFilter] = useState("all");
   const [rf, setRf] = useState(rewardInitial);
   const [rewardBusy, setRewardBusy] = useState(false);
+  const [refForm, setRefForm] = useState(referralInitial);
 
   const dirty = JSON.stringify(user) !== JSON.stringify(saved);
   const set = <K extends keyof User>(key: K, value: User[K]) =>
@@ -175,6 +209,44 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
       { ...user, status: suspending ? "suspended" : "active" },
       suspending ? "User suspended" : "User activated",
     );
+  };
+
+  /** Owner adds a referral to this user (saved with "Save changes"). */
+  const addReferral = () => {
+    const id = refForm.id.trim();
+    const name = refForm.name.trim();
+    if (!id || !name) {
+      flash("Add the referral's User ID and name");
+      return;
+    }
+    if (user.referrals.some((r) => r.id.toLowerCase() === id.toLowerCase())) {
+      flash("That user is already in the referral list");
+      return;
+    }
+    if (id.toLowerCase() === user.id.toLowerCase()) {
+      flash("A user can't refer themselves");
+      return;
+    }
+    const member: ReferralMember = {
+      id,
+      name,
+      email: refForm.email.trim(),
+      joinedAt: new Date().toISOString().slice(0, 10),
+      level: Number(refForm.level) || 1,
+      totalDeposit: Number(refForm.totalDeposit) || 0,
+      balance: Number(refForm.balance) || 0,
+    };
+    setUser((u) => ({ ...u, referrals: [member, ...u.referrals] }));
+    setRefForm(referralInitial);
+    flash("Referral added. Press “Save changes” to apply.");
+  };
+
+  /** Owner removes a referral from this user (saved with "Save changes"). */
+  const removeReferral = (rowId: string) => {
+    const r = user.referrals.find((x) => x.id === rowId);
+    if (!r || !confirm(`Remove ${r.name} (${r.id}) from ${user.firstName}'s referrals?`)) return;
+    setUser((u) => ({ ...u, referrals: u.referrals.filter((x) => x.id !== rowId) }));
+    flash("Referral removed. Press “Save changes” to apply.");
   };
 
   /** Send a reward: credits the chosen wallet on the server, then mirrors it locally. */
@@ -250,19 +322,31 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
   const invTotals = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return {
-      running: user.investments.filter((i) => i.status === "running").length,
+      active: user.investments.filter((i) => i.status === "running").length,
       invested: user.investments.reduce((s, i) => s + i.amount, 0),
       earned: user.investments.reduce((s, i) => s + i.earned, 0),
-      profitDays: user.dailyProfits.length,
       today: user.dailyProfits
         .filter((p) => p.date.startsWith(today))
         .reduce((s, p) => s + p.profit, 0),
     };
   }, [user.investments, user.dailyProfits]);
 
+  /** Every profit credit with a running total per investment. */
+  const profitRows = useMemo<ProfitRow[]>(() => {
+    const totals: Record<string, number> = {};
+    const cumById = new Map<string, number>();
+    [...user.dailyProfits]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .forEach((p) => {
+        totals[p.investmentId] = (totals[p.investmentId] ?? 0) + p.profit;
+        cumById.set(p.id, totals[p.investmentId]);
+      });
+    return user.dailyProfits.map((p) => ({ ...p, cumulative: cumById.get(p.id) ?? 0 }));
+  }, [user.dailyProfits]);
+
   const filteredProfits = useMemo(
-    () => (invFilter === "all" ? user.dailyProfits : user.dailyProfits.filter((p) => p.investmentId === invFilter)),
-    [user.dailyProfits, invFilter],
+    () => (invFilter === "all" ? profitRows : profitRows.filter((p) => p.investmentId === invFilter)),
+    [profitRows, invFilter],
   );
   const filteredProfitTotal = useMemo(
     () => filteredProfits.reduce((s, p) => s + p.profit, 0),
@@ -270,17 +354,16 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
   );
 
   const ai = useMemo(() => {
-    const s = user.aiStrategies;
-    const allocated = s.reduce((a, x) => a + x.allocated, 0);
-    const net = s.reduce((a, x) => a + x.pnl, 0);
+    const st = user.aiStrategies;
+    const tr = user.aiTrades;
+    const wins = tr.filter((t) => t.pnl >= 0).length;
     return {
-      count: s.length,
-      active: s.filter((x) => x.status === "active" || x.status === "running").length,
-      allocated,
-      net,
-      roi: allocated ? (net / allocated) * 100 : 0,
-      avgWin: s.length ? s.reduce((a, x) => a + x.winRate, 0) / s.length : 0,
-      trades: user.aiTrades.length,
+      invested: st.reduce((a, x) => a + x.allocated, 0),
+      profit: st.reduce((a, x) => a + x.pnl, 0),
+      active: st.filter((x) => x.status === "active" || x.status === "running").length,
+      trades: tr.length,
+      winRate: tr.length ? (wins / tr.length) * 100 : 0,
+      netPnl: tr.reduce((a, x) => a + x.pnl, 0),
     };
   }, [user.aiStrategies, user.aiTrades]);
 
@@ -332,72 +415,111 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
   const invCols = useMemo<TableColumn<Investment>[]>(
     () => [
       col<Investment>("id", "ID", { width: "120px" }),
-      col<Investment>("plan", "Plan", { width: "120px" }),
-      col<Investment>("amount", "Amount", { width: "120px", align: "right" }),
-      col<Investment>("dailyRoi", "Daily ROI %", { width: "120px", align: "right" }),
-      col<Investment>("startDate", "Start", { width: "120px" }),
-      col<Investment>("endDate", "End", { width: "120px" }),
-      col<Investment>("earned", "Earned", { width: "110px", align: "right" }),
+      col<Investment>("plan", "Plan", { width: "130px" }),
+      col<Investment>("amount", "Invested", { width: "120px", align: "right" }),
+      col<Investment>("dailyRoi", "Daily Rate %", { width: "130px", align: "right" }),
+      col<Investment>("startDate", "Started", { width: "120px" }),
+      col<Investment>("earned", "Total Earned", { width: "130px", align: "right" }),
       col<Investment>("status", "Status", { width: "120px" }),
     ],
     [],
   );
-  const profitCols = useMemo<TableColumn<DailyProfit>[]>(
+  const profitCols = useMemo<TableColumn<ProfitRow>[]>(
     () => [
-      ro<DailyProfit>("date", "Date", { width: "130px" }),
-      ro<DailyProfit>("investmentId", "Investment ID", { width: "130px" }),
-      ro<DailyProfit>("plan", "Plan", { width: "120px" }),
-      ro<DailyProfit>("invested", "Invested", {
+      ro<ProfitRow>("date", "Date", { width: "130px" }),
+      ro<ProfitRow>("plan", "Plan", { width: "130px" }),
+      ro<ProfitRow>("invested", "Invested", {
         width: "120px",
         align: "right",
         cell: (r) => <span className="tabular-nums">{usd(r.invested)}</span>,
       }),
-      ro<DailyProfit>("roi", "Daily ROI %", { width: "120px", align: "right" }),
-      ro<DailyProfit>("profit", "Profit", {
-        width: "120px",
+      ro<ProfitRow>("roi", "Rate", {
+        width: "90px",
         align: "right",
-        cell: (r) => <span className="tabular-nums text-emerald-500">{usd(r.profit)}</span>,
+        cell: (r) => <span className="tabular-nums">{r.roi}%</span>,
       }),
-      ro<DailyProfit>("wallet", "Credited To", { width: "140px" }),
-      ro<DailyProfit>("status", "Status", {
+      ro<ProfitRow>("profit", "Profit Credited", {
+        width: "140px",
+        align: "right",
+        cell: (r) => <span className="tabular-nums text-emerald-500">+{usd(r.profit)}</span>,
+      }),
+      ro<ProfitRow>("wallet", "Wallet", { width: "140px" }),
+      ro<ProfitRow>("cumulative", "Cumulative", {
+        width: "130px",
+        align: "right",
+        cell: (r) => <span className="tabular-nums text-emerald-500">+{usd(r.cumulative)}</span>,
+      }),
+      ro<ProfitRow>("status", "Status", {
         width: "120px",
         cell: (r) => <Badge tone={r.status === "credited" ? "green" : "amber"}>{r.status}</Badge>,
       }),
     ],
     [],
   );
-  const aiCols = useMemo<TableColumn<AiStrategy>[]>(
+  const aiCols = useMemo<TableColumn<AiStrategyView>[]>(
     () => [
-      col<AiStrategy>("id", "ID", { width: "110px" }),
-      col<AiStrategy>("name", "Strategy", { width: "1fr" }),
-      col<AiStrategy>("pair", "Pair", { width: "120px" }),
-      col<AiStrategy>("allocated", "Allocated", { width: "120px", align: "right" }),
-      col<AiStrategy>("pnl", "PnL", { width: "100px", align: "right" }),
-      col<AiStrategy>("winRate", "Win Rate %", { width: "110px", align: "right" }),
-      col<AiStrategy>("status", "Status", { width: "110px" }),
+      col<AiStrategyView>("name", "Strategy", { width: "1fr" }),
+      ro<AiStrategyView>("minStake", "Min Stake", {
+        width: "110px",
+        align: "right",
+        cell: (r) => (r.minStake != null ? usd(r.minStake) : "—"),
+      }),
+      ro<AiStrategyView>("roiPct", "Total ROI", {
+        width: "110px",
+        align: "right",
+        cell: (r) =>
+          r.roiPct != null ? <span className="tabular-nums text-emerald-500">+{r.roiPct.toFixed(1)}%</span> : "—",
+      }),
+      ro<AiStrategyView>("daysRunning", "Days Running", {
+        width: "120px",
+        align: "right",
+        cell: (r) => r.daysRunning ?? "—",
+      }),
+      ro<AiStrategyView>("lockDays", "Lock Period", {
+        width: "110px",
+        cell: (r) => `${r.lockDays ?? DEFAULT_LOCK_DAYS} days`,
+      }),
+      col<AiStrategyView>("allocated", "Invested", { width: "120px", align: "right" }),
+      col<AiStrategyView>("pnl", "Current Profit", { width: "130px", align: "right" }),
+      ro<AiStrategyView>("daysElapsed", "Withdrawal", {
+        width: "140px",
+        cell: (r) => {
+          const left = Math.max(0, (r.lockDays ?? DEFAULT_LOCK_DAYS) - (r.daysElapsed ?? 0));
+          return left === 0 ? (
+            <Badge tone="green">Available now</Badge>
+          ) : (
+            <Badge tone="red">Unlocks in {left}d</Badge>
+          );
+        },
+      }),
+      col<AiStrategyView>("status", "Status", { width: "110px" }),
     ],
     [],
   );
-  const aiTradeCols = useMemo<TableColumn<AiTrade>[]>(
+  const aiTradeCols = useMemo<TableColumn<AiTradeView>[]>(
     () => [
-      ro<AiTrade>("id", "ID", { width: "110px" }),
-      ro<AiTrade>("date", "Date", { width: "160px" }),
-      ro<AiTrade>("strategy", "Strategy", { width: "1fr" }),
-      ro<AiTrade>("pair", "Pair", { width: "110px" }),
-      ro<AiTrade>("direction", "Direction", { width: "110px" }),
-      ro<AiTrade>("size", "Size", { width: "100px", align: "right" }),
-      ro<AiTrade>("entry", "Entry", { width: "100px", align: "right" }),
-      ro<AiTrade>("exit", "Exit", { width: "100px", align: "right" }),
-      ro<AiTrade>("pnl", "PnL", {
+      ro<AiTradeView>("date", "Date", { width: "160px" }),
+      ro<AiTradeView>("strategy", "Strategy", { width: "1fr" }),
+      ro<AiTradeView>("status", "Result", {
         width: "100px",
+        cell: (r) => <Badge tone={r.pnl >= 0 ? "green" : "red"}>{r.pnl >= 0 ? "Win" : "Loss"}</Badge>,
+      }),
+      ro<AiTradeView>("duration", "Duration", { width: "110px", cell: (r) => r.duration ?? "—" }),
+      ro<AiTradeView>("size", "Trade Size", {
+        width: "120px",
+        align: "right",
+        cell: (r) => <span className="tabular-nums">{usd(r.size)}</span>,
+      }),
+      ro<AiTradeView>("pnl", "P&L", {
+        width: "110px",
         align: "right",
         cell: (r) => (
-          <span className={cn("tabular-nums", r.pnl >= 0 ? "text-emerald-500" : "text-rose-500")}>
-            {usd(r.pnl)}
+          <span className={cn("tabular-nums font-semibold", r.pnl >= 0 ? "text-emerald-500" : "text-rose-500")}>
+            {r.pnl >= 0 ? "+" : "-"}
+            {usd(Math.abs(r.pnl))}
           </span>
         ),
       }),
-      ro<AiTrade>("status", "Status", { width: "100px" }),
     ],
     [],
   );
@@ -638,35 +760,103 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
             <StatCard label="Total Deposit (Team)" value={usd(refTotals.deposit)} />
             <StatCard label="Total Balance (Team)" value={usd(refTotals.balance)} />
           </div>
-          <Card title="Referred Members">
-            <Grid data={user.referrals} columns={refCols} onCellEdit={editList("referrals")} />
+          <Card title="Add Referral">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="User ID" value={refForm.id} onChange={(v) => setRefForm((f) => ({ ...f, id: v }))} />
+              <Field label="Name" value={refForm.name} onChange={(v) => setRefForm((f) => ({ ...f, name: v }))} />
+              <Field
+                label="Email"
+                type="email"
+                value={refForm.email}
+                onChange={(v) => setRefForm((f) => ({ ...f, email: v }))}
+              />
+              <Field
+                label="Level"
+                type="number"
+                value={refForm.level}
+                onChange={(v) => setRefForm((f) => ({ ...f, level: v }))}
+              />
+              <Field
+                label="Total Deposit (USD)"
+                type="number"
+                value={refForm.totalDeposit}
+                onChange={(v) => setRefForm((f) => ({ ...f, totalDeposit: v }))}
+              />
+              <Field
+                label="Balance (USD)"
+                type="number"
+                value={refForm.balance}
+                onChange={(v) => setRefForm((f) => ({ ...f, balance: v }))}
+              />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Btn tone="primary" onClick={addReferral}>
+                Add referral
+              </Btn>
+            </div>
+          </Card>
+          <Card title={`Referred Members (${user.referrals.length})`}>
+            <Grid
+              data={user.referrals}
+              columns={refCols}
+              onCellEdit={editList("referrals")}
+              onDeleteRow={removeReferral}
+            />
           </Card>
         </div>
       )}
 
-      {/* ---------- INVESTMENTS (daily profit details) ---------- */}
+      {/* ---------- INVESTMENTS (daily profit details only) ---------- */}
       {tab === "Investments" && (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatCard label="Running Plans" value={invTotals.running} />
-            <StatCard label="Total Invested" value={usd(invTotals.invested)} />
-            <StatCard label="Total Earned" value={usd(invTotals.earned)} />
-            <StatCard label="Today's Profit" value={usd(invTotals.today)} />
-            <StatCard label="Profit Credits" value={invTotals.profitDays} hint="Daily payouts so far" />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Total Invested" value={usd(invTotals.invested)} hint={`${invTotals.active} active plans`} />
+            <StatCard label="Total Profit Earned" value={usd(invTotals.earned)} hint="All time" />
+            <StatCard label="Today's Profit" value={usd(invTotals.today)} hint="Credited today" />
+            <StatCard label="Active Plans" value={invTotals.active} hint={invTotals.active > 0 ? "Earning daily" : "No active plan"} />
           </div>
 
-          <Card title="Investment Plans">
+          <Card title="Daily Profit Packages">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {PACKAGES.map((p) => (
+                <div key={p.name} className="rounded-2xl border border-border p-4">
+                  <div className="flex items-start justify-between">
+                    <p className="text-sm font-semibold">{p.name}</p>
+                    <div className="text-right">
+                      <p className="text-lg font-bold tabular-nums">{p.rate}%</p>
+                      <p className="text-[10px] text-muted-foreground">per day</p>
+                    </div>
+                  </div>
+                  <dl className="mt-3 space-y-1.5 text-xs">
+                    {[
+                      ["Minimum", usd(p.minimum)],
+                      ["Cancel policy", "After 24 hours"],
+                      ["Payout", "Principal + profits"],
+                      ["Return type", "Simple interest"],
+                    ].map(([k, v]) => (
+                      <div key={k} className="flex justify-between">
+                        <dt className="text-muted-foreground">{k}</dt>
+                        <dd className="font-medium">{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card title={`Active Plans (${user.investments.length})`}>
             <Grid data={user.investments} columns={invCols} onCellEdit={editList("investments")} />
           </Card>
 
-          <Card title={`Daily Profit History (${filteredProfits.length})`}>
+          <Card title={`Profit History (${filteredProfits.length})`}>
             <div className="mb-3 grid gap-3 sm:grid-cols-[240px_1fr] sm:items-end">
               <SelectField
-                label="Investment"
+                label="Plan"
                 value={invFilter}
                 onChange={setInvFilter}
                 options={[
-                  { value: "all", label: "All investments" },
+                  { value: "all", label: "All plans" },
                   ...user.investments.map((i) => ({ value: i.id, label: `${i.id} · ${i.plan}` })),
                 ]}
               />
@@ -685,21 +875,36 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
         <div className="flex flex-col gap-6">
           <section className="flex flex-col gap-4">
             <h2 className="text-sm font-semibold">AI Trading</h2>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-              <StatCard label="Strategies" value={ai.count} hint={`${ai.active} active`} />
-              <StatCard label="Total Invested" value={usd(ai.allocated)} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatCard label="Total Invested" value={usd(ai.invested)} />
               <StatCard
-                label="Net PnL"
-                value={<span className={ai.net >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(ai.net)}</span>}
+                label="Total AI Profit"
+                value={<span className={ai.profit >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(ai.profit)}</span>}
+                hint="All time"
               />
-              <StatCard label="ROI" value={`${ai.roi.toFixed(2)}%`} />
-              <StatCard label="Avg Win Rate" value={`${ai.avgWin.toFixed(1)}%`} />
-              <StatCard label="AI Trades" value={ai.trades} />
+              <StatCard label="Active Strategies" value={ai.active} />
             </div>
-            <Card title="Invested Strategies">
-              <Grid data={user.aiStrategies} columns={aiCols} onCellEdit={editList("aiStrategies")} height={240} />
+            <Card title={`Strategies (${user.aiStrategies.length})`}>
+              <Grid data={user.aiStrategies} columns={aiCols} onCellEdit={editList("aiStrategies")} height={260} />
+              <p className="mt-3 text-xs text-muted-foreground">
+                Every plan locks the stake for {DEFAULT_LOCK_DAYS} days from the day it is invested.
+              </p>
             </Card>
+
             <Card title={`AI Trade History (${user.aiTrades.length})`}>
+              <div className="mb-3 grid grid-cols-3 gap-3">
+                <StatCard label="Total Trades" value={ai.trades} />
+                <StatCard label="Win Rate" value={`${ai.winRate.toFixed(0)}%`} />
+                <StatCard
+                  label="Net P&L"
+                  value={
+                    <span className={ai.netPnl >= 0 ? "text-emerald-500" : "text-rose-500"}>
+                      {ai.netPnl >= 0 ? "+" : "-"}
+                      {usd(Math.abs(ai.netPnl))}
+                    </span>
+                  }
+                />
+              </div>
               <Grid data={user.aiTrades} columns={aiTradeCols} height={360} />
             </Card>
           </section>
