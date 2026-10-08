@@ -329,7 +329,16 @@ export async function createSession(user: DbUser, remember: boolean) {
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ user_id: user.id, token_hash: hash(token), expires_at: expiresAt }),
   });
-  const res = NextResponse.json({ ok: true });
+  
+  // Determine redirect based on role
+  let redirect = "/dashboard";
+  if (user.role === "owner") {
+    redirect = "/owner";
+  } else if (user.role === "admin") {
+    redirect = "/admin";
+  }
+  
+  const res = NextResponse.json({ ok: true, redirect });
   res.cookies.set("auth_session", token, {
     httpOnly: true,
     sameSite: "lax",

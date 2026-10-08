@@ -77,107 +77,38 @@ function Stat({
 
 // ── Plans data ───────────────────────────────────────────────────────────────
 
-type PlanTier = "starter" | "growth" | "elite";
+type PlanTier = string;
 
 type Plan = {
   id: PlanTier;
   name: string;
-  rate: number;        // daily %, e.g. 1.7
+  rate: number;
   minimum: number;
   icon: React.ReactNode;
   badge: string;
-  accentClass: string; // Tailwind border/ring
+  accentClass: string;
   badgeClass: string;
   buttonClass: string;
   ribbon?: string;
 };
 
-const PLANS: Plan[] = [
-  {
-    id: "starter",
-    name: "Starter Plan",
-    rate: 1.7,
-    minimum: 10,
-    icon: <Zap className="size-4" />,
-    badge: "Starter",
-    accentClass: "border-border",
-    badgeClass: "bg-muted text-muted-foreground",
-    buttonClass:
-      "bg-foreground text-background hover:opacity-90",
-  },
-  {
-    id: "growth",
-    name: "Growth Plan",
-    rate: 2.1,
-    minimum: 30,
-    icon: <TrendingUp className="size-4" />,
-    badge: "Growth",
-    accentClass: "border-border",
-    badgeClass: "bg-muted text-muted-foreground",
-    buttonClass:
-      "bg-foreground text-background hover:opacity-90",
-  },
-  {
-    id: "elite",
-    name: "Elite Plan",
-    rate: 2.5,
-    minimum: 50,
-    icon: <Crown className="size-4" />,
-    badge: "Elite",
-    accentClass: "border-border",
-    badgeClass: "bg-muted text-muted-foreground",
-    buttonClass:
-      "bg-foreground text-background hover:opacity-90",
-  },
-];
-
-// ── Active plans (mock state) ─────────────────────────────────────────────────
-
 type ActivePlan = {
   id: string;
-  planId: PlanTier;
+  planId: string;
   planName: string;
   rate: number;
   invested: number;
-  startedAt: Date;         // when the plan started
-  creditsEarned: number;   // count of 24h cycles credited so far
-  profitPerCycle: number;  // principal × rate / 100
+  startedAt: Date;
+  creditsEarned: number;
+  profitPerCycle: number;
+  nextCreditAt: Date;
 };
-
-// Mock: one plan started 2 days ago (cancellable), one started 10 hours ago (locked)
-const MOCK_START_OLD = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 - 3 * 3600 * 1000);
-const MOCK_START_NEW = new Date(Date.now() - 10 * 60 * 60 * 1000);
-
-const MOCK_ACTIVE_PLANS: ActivePlan[] = [
-  {
-    id: "ap1",
-    planId: "growth",
-    planName: "Growth Plan",
-    rate: 2.1,
-    invested: 100,
-    startedAt: MOCK_START_OLD,
-    creditsEarned: 2,
-    profitPerCycle: 2.1,
-  },
-  {
-    id: "ap2",
-    planId: "starter",
-    planName: "Starter Plan",
-    rate: 1.7,
-    invested: 50,
-    startedAt: MOCK_START_NEW,
-    creditsEarned: 0,
-    profitPerCycle: 0.85,
-  },
-];
-
-// ── History data ─────────────────────────────────────────────────────────────
 
 type HistoryRow = {
   id: string;
-  date: string;         // YYYY-MM-DD
+  date: string;
   planName: string;
-  planId: PlanTier;
+  planId: string;
   invested: number;
   rate: number;
   profit: number;
@@ -185,17 +116,6 @@ type HistoryRow = {
   cumulative: number;
   status: "active" | "cancelled";
 };
-
-const HISTORY_DATA: HistoryRow[] = [
-  { id: "h1",  date: "2025-07-20", planName: "Growth Plan",  planId: "growth",  invested: 100, rate: 2.1, profit: 2.10,  walletCredited: "Investment Wallet", cumulative: 4.20,  status: "active"    },
-  { id: "h2",  date: "2025-07-19", planName: "Growth Plan",  planId: "growth",  invested: 100, rate: 2.1, profit: 2.10,  walletCredited: "Investment Wallet", cumulative: 2.10,  status: "active"    },
-  { id: "h3",  date: "2025-07-18", planName: "Elite Plan",   planId: "elite",   invested: 200, rate: 2.5, profit: 5.00,  walletCredited: "Investment Wallet", cumulative: 35.00, status: "cancelled" },
-  { id: "h4",  date: "2025-07-17", planName: "Elite Plan",   planId: "elite",   invested: 200, rate: 2.5, profit: 5.00,  walletCredited: "Investment Wallet", cumulative: 30.00, status: "cancelled" },
-  { id: "h5",  date: "2025-07-16", planName: "Starter Plan", planId: "starter", invested: 50,  rate: 1.7, profit: 0.85,  walletCredited: "Investment Wallet", cumulative: 8.50,  status: "active"    },
-  { id: "h6",  date: "2025-07-15", planName: "Starter Plan", planId: "starter", invested: 50,  rate: 1.7, profit: 0.85,  walletCredited: "Investment Wallet", cumulative: 7.65,  status: "active"    },
-  { id: "h7",  date: "2025-07-14", planName: "Elite Plan",   planId: "elite",   invested: 200, rate: 2.5, profit: 5.00,  walletCredited: "Investment Wallet", cumulative: 25.00, status: "cancelled" },
-  { id: "h8",  date: "2025-07-13", planName: "Growth Plan",  planId: "growth",  invested: 100, rate: 2.1, profit: 2.10,  walletCredited: "Investment Wallet", cumulative: 0,     status: "active"    },
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -223,12 +143,18 @@ function useCountdown(targetMs: number) {
   };
 }
 
-function planBadge(planId: PlanTier) {
-  const p = PLANS.find((p) => p.id === planId)!;
+function getIcon(planId: string) {
+  if (planId === "starter") return <Zap className="size-4" />;
+  if (planId === "growth") return <TrendingUp className="size-4" />;
+  if (planId === "elite") return <Crown className="size-4" />;
+  return <Star className="size-4" />;
+}
+
+function planBadge(planId: string, badge?: string) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.badgeClass}`}>
-      {p.icon}
-      {p.badge}
+    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground">
+      {getIcon(planId)}
+      {badge || planId}
     </span>
   );
 }
@@ -360,8 +286,7 @@ function ActivePlanCard({
   onCancel: (plan: ActivePlan) => void;
 }) {
   const cancelUnlockMs = plan.startedAt.getTime() + 24 * 60 * 60 * 1000;
-  const nextCreditMs =
-    plan.startedAt.getTime() + (plan.creditsEarned + 1) * 24 * 60 * 60 * 1000;
+  const nextCreditMs = plan.nextCreditAt.getTime();
 
   const cancelCountdown = useCountdown(cancelUnlockMs);
   const creditCountdown = useCountdown(nextCreditMs);
@@ -381,7 +306,7 @@ function ActivePlanCard({
       {/* Header */}
       <div className="mb-3.5 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          {planBadge(plan.planId)}
+          {planBadge(plan.planId, plan.planName)}
           <span className="flex items-center gap-1.5 text-xs font-medium text-success">
             <CircleDot className="size-3 animate-pulse" />
             Active
@@ -509,7 +434,7 @@ function InvestModal({
               <Wallet className="size-3.5" />
               Source wallet
             </span>
-            <span className="text-sm font-medium text-foreground">Main Wallet · $1,240.00</span>
+            <span className="text-sm font-medium text-foreground">Investment Wallet</span>
           </div>
         </div>
 
@@ -620,7 +545,7 @@ function CancelModal({
           </div>
           <div className="flex items-center gap-1.5 pt-1 text-xs text-muted-foreground">
             <Wallet className="size-3.5" />
-            Sent to Main Wallet
+            Sent to Investment Wallet
           </div>
         </div>
 
@@ -787,7 +712,7 @@ function HistoryTable({ rows }: { rows: HistoryRow[] }) {
                         year: "numeric",
                       })}
                     </td>
-                    <td className="px-4 py-3">{planBadge(r.planId)}</td>
+                    <td className="px-4 py-3">{planBadge(r.planId, r.planName)}</td>
                     <td className="px-4 py-3 text-right font-medium text-foreground">
                       {fmt(r.invested)}
                     </td>
@@ -851,8 +776,10 @@ function HistoryTable({ rows }: { rows: HistoryRow[] }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DailyProfitPage() {
-  const [activePlans, setActivePlans] = useState<ActivePlan[]>(MOCK_ACTIVE_PLANS);
-  const [historyRows, setHistoryRows] = useState<HistoryRow[]>(HISTORY_DATA);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [activePlans, setActivePlans] = useState<ActivePlan[]>([]);
+  const [historyRows, setHistoryRows] = useState<HistoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Modals
   const [investTarget, setInvestTarget] = useState<{ plan: Plan; amount: number } | null>(null);
@@ -862,6 +789,69 @@ export default function DailyProfitPage() {
   const [toast, setToast] = useState<string | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
 
+  // Fetch plans from API
+  useEffect(() => {
+    fetch("/api/investment/daily-profit/plans")
+      .then((r) => r.json())
+      .then((data) => {
+        const fetchedPlans: Plan[] = data.plans.map((p: any) => ({
+          id: p.plan_id,
+          name: p.name,
+          rate: parseFloat(p.daily_rate),
+          minimum: parseFloat(p.minimum_amount),
+          icon: getIcon(p.plan_id),
+          badge: p.badge_label,
+          accentClass: "border-border",
+          badgeClass: "bg-muted text-muted-foreground",
+          buttonClass: "bg-foreground text-background hover:opacity-90",
+        }));
+        setPlans(fetchedPlans);
+      })
+      .catch(console.error);
+  }, []);
+
+  // Fetch stats and investments
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/investment/daily-profit/stats")
+      .then((r) => r.json())
+      .then((data) => {
+        // Map investments to ActivePlan
+        const active: ActivePlan[] = data.investments.map((inv: any) => ({
+          id: inv.id,
+          planId: inv.plan_id,
+          planName: inv.plan_name,
+          rate: parseFloat(inv.daily_rate),
+          invested: parseFloat(inv.amount),
+          startedAt: new Date(inv.started_at),
+          creditsEarned: inv.credits_earned,
+          profitPerCycle: parseFloat(inv.profit_per_cycle),
+          nextCreditAt: new Date(inv.next_credit_at),
+        }));
+        setActivePlans(active);
+
+        // Map history
+        const history: HistoryRow[] = data.history.map((h: any) => ({
+          id: h.id,
+          date: h.credited_at.split("T")[0],
+          planName: h.plan_name,
+          planId: h.plan_id,
+          invested: parseFloat(h.invested_amount),
+          rate: parseFloat(h.daily_rate),
+          profit: parseFloat(h.profit_amount),
+          walletCredited: "Investment Wallet",
+          cumulative: parseFloat(h.cumulative_profit),
+          status: h.status,
+        }));
+        setHistoryRows(history);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, []);
+
   // Derived stats
   const totalInvested = activePlans.reduce((s, p) => s + p.invested, 0);
   const totalEarnedAll = historyRows.reduce((s, r) => s + r.profit, 0);
@@ -870,35 +860,75 @@ export default function DailyProfitPage() {
     .filter((r) => r.date === todayStr)
     .reduce((s, r) => s + r.profit, 0);
 
-  function handleInvestConfirm() {
+  async function handleInvestConfirm() {
     if (!investTarget) return;
     const { plan, amount } = investTarget;
-    const newPlan: ActivePlan = {
-      id: `ap${Date.now()}`,
-      planId: plan.id,
-      planName: plan.name,
-      rate: plan.rate,
-      invested: amount,
-      startedAt: new Date(),
-      creditsEarned: 0,
-      profitPerCycle: (amount * plan.rate) / 100,
-    };
-    setActivePlans((prev) => [newPlan, ...prev]);
-    setToast(
-      `${plan.name} activated! First profit credit in 24 hours.`
-    );
-    setInvestTarget(null);
+    
+    try {
+      const res = await fetch("/api/investment/daily-profit/invest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: plan.id, amount }),
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        setToast(err.error || "Investment failed");
+        setInvestTarget(null);
+        return;
+      }
+
+      // Refresh data
+      const data = await fetch("/api/investment/daily-profit/stats").then(r => r.json());
+      const active: ActivePlan[] = data.investments.map((inv: any) => ({
+        id: inv.id,
+        planId: inv.plan_id,
+        planName: inv.plan_name,
+        rate: parseFloat(inv.daily_rate),
+        invested: parseFloat(inv.amount),
+        startedAt: new Date(inv.started_at),
+        creditsEarned: inv.credits_earned,
+        profitPerCycle: parseFloat(inv.profit_per_cycle),
+        nextCreditAt: new Date(inv.next_credit_at),
+      }));
+      setActivePlans(active);
+      
+      setToast(`${plan.name} activated! First profit credit in 24 hours.`);
+      setInvestTarget(null);
+    } catch (err) {
+      console.error(err);
+      setToast("Investment failed");
+      setInvestTarget(null);
+    }
   }
 
-  function handleCancelConfirm() {
+  async function handleCancelConfirm() {
     if (!cancelTarget) return;
-    const total = cancelTarget.invested + cancelTarget.profitPerCycle * cancelTarget.creditsEarned;
-    setActivePlans((prev) => prev.filter((p) => p.id !== cancelTarget.id));
-    setToast(`Plan cancelled. ${fmt(total)} returned to Main Wallet.`);
-    setCancelTarget(null);
-  }
+    
+    try {
+      const res = await fetch("/api/investment/daily-profit/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ investmentId: cancelTarget.id }),
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        setToast(err.error || "Cancel failed");
+        setCancelTarget(null);
+        return;
+      }
 
-  const loading = false;
+      const total = cancelTarget.invested + cancelTarget.profitPerCycle * cancelTarget.creditsEarned;
+      setActivePlans((prev) => prev.filter((p) => p.id !== cancelTarget.id));
+      setToast(`Plan cancelled. ${fmt(total)} returned to Investment Wallet.`);
+      setCancelTarget(null);
+    } catch (err) {
+      console.error(err);
+      setToast("Cancel failed");
+      setCancelTarget(null);
+    }
+  }
 
   return (
     <UserShell active="Daily Profit">
@@ -967,7 +997,7 @@ export default function DailyProfitPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {PLANS.map((plan) => (
+            {plans.map((plan) => (
               <PlanCard
                 key={plan.id}
                 plan={plan}

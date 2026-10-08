@@ -99,9 +99,6 @@ function SectionHeader({ title, action, actionLabel }: {
 }
 
 // ── Strategy tier data ───────────────────────────────────────────────────
-// Each tier = a stake bracket on the "9 EMA" (or other) strategy. Lock period
-// is fixed at 15 days from the moment a user invests in a plan; funds can't
-// be withdrawn until that window elapses.
 
 type StrategyStatus = "not-invested" | "running" | "unlocked";
 
@@ -110,67 +107,14 @@ type Strategy = {
   name: string;
   exchange: string;
   minStake: number;
-  roiPct: number;          // total ROI % since inception, this tier
+  roiPct: number;
   daysRunning: number;
-  lockDays: number;        // fixed at 15
-  daysElapsed: number;     // how many of the lock days have passed (0 if not invested)
+  lockDays: number;
+  daysElapsed: number;
   status: StrategyStatus;
   invested?: number;
   currentProfit?: number;
 };
-
-const AI_TRADING_BALANCE = 1820.3;
-
-const STRATEGIES: Strategy[] = [
-  {
-    id: "s1",
-    name: "9 EMA Strategy",
-    exchange: "Binance",
-    minStake: 20,
-    roiPct: 18.4,
-    daysRunning: 62,
-    lockDays: 15,
-    daysElapsed: 15,
-    status: "unlocked",
-    invested: 20,
-    currentProfit: 3.68,
-  },
-  {
-    id: "s2",
-    name: "Momentum Breakout",
-    exchange: "Binance",
-    minStake: 40,
-    roiPct: 24.1,
-    daysRunning: 48,
-    lockDays: 15,
-    daysElapsed: 9,
-    status: "running",
-    invested: 40,
-    currentProfit: 9.64,
-  },
-  {
-    id: "s3",
-    name: "Grid Scalper Pro",
-    exchange: "Binance",
-    minStake: 70,
-    roiPct: 31.7,
-    daysRunning: 35,
-    lockDays: 15,
-    daysElapsed: 0,
-    status: "not-invested",
-  },
-  {
-    id: "s4",
-    name: "Trend Reversal AI",
-    exchange: "Binance",
-    minStake: 100,
-    roiPct: 42.9,
-    daysRunning: 21,
-    lockDays: 15,
-    daysElapsed: 0,
-    status: "not-invested",
-  },
-];
 
 // ── Invest dialog ────────────────────────────────────────────────────────
 
@@ -473,8 +417,28 @@ function StrategyCard({
   const runWithdraw = async () => {
     if (state === "loading") return;
     setState("loading");
-    await new Promise((r) => setTimeout(r, 800));
-    setState("success");
+    
+    try {
+      const res = await fetch("/api/ai-trading/withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ investmentId: strategy.id }),
+      });
+
+      if (res.ok) {
+        setState("success");
+        // Refresh page after 1s
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        setState("idle");
+        const err = await res.json();
+        alert(err.error || "Withdrawal failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setState("idle");
+      alert("Withdrawal failed");
+    }
   };
 
   return (
@@ -572,27 +536,16 @@ function StrategyCard({
   );
 }
 
-// ── AI trade history (feeds the "trade history" table for this page) ───────
+// ── AI trade history ───────────────────────────────────────────────────────
 
 type AiTrade = {
   id: string;
   date: string;
   strategy: string;
-  size: number;      // trade size in USDT
-  duration: string;  // how long the trade was open
-  pnl: number;       // realised P&L in USDT (negative = loss)
+  size: number;
+  duration: string;
+  pnl: number;
 };
-
-const AI_TRADES: AiTrade[] = [
-  { id: "ai1", date: "2025-07-18", strategy: "9 EMA Strategy",    size: 250, duration: "2h 14m", pnl: 14.2  },
-  { id: "ai2", date: "2025-07-18", strategy: "Momentum Breakout", size: 400, duration: "1h 05m", pnl: 9.6   },
-  { id: "ai3", date: "2025-07-17", strategy: "9 EMA Strategy",    size: 250, duration: "3h 40m", pnl: -6.4  },
-  { id: "ai4", date: "2025-07-16", strategy: "Momentum Breakout", size: 400, duration: "4h 22m", pnl: 31.8  },
-  { id: "ai5", date: "2025-07-15", strategy: "9 EMA Strategy",    size: 250, duration: "1h 48m", pnl: 7.35  },
-  { id: "ai6", date: "2025-07-15", strategy: "Momentum Breakout", size: 400, duration: "52m",    pnl: -11.9 },
-  { id: "ai7", date: "2025-07-14", strategy: "9 EMA Strategy",    size: 250, duration: "2h 31m", pnl: 18.75 },
-  { id: "ai8", date: "2025-07-13", strategy: "Momentum Breakout", size: 400, duration: "5h 10m", pnl: 22.4  },
-];
 
 const AI_TRADE_COLUMNS = [
   { key: "date",     header: "Date",     width: "110px" },
@@ -618,35 +571,135 @@ const AI_TRADE_COLUMNS = [
 ];
 
 export default function AiTradingPage() {
-  const loading = false;
-
-  const [strategies, setStrategies] = useState<Strategy[]>(STRATEGIES);
-  const [balance, setBalance] = useState(AI_TRADING_BALANCE);
+  const [loading, setLoading] = useState(true);
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [balance, setBalance] = useState(0);
   const [investing, setInvesting] = useState<Strategy | null>(null);
+  const [trades, setTrades] = useState<AiTrade[]>([]);
+
+  // Fetch available strategies
+  useEffect(() => {
+    fetch("/api/ai-trading/strategies")
+      .then((r) => r.json())
+      .then((data) => {
+        const strats: Strategy[] = data.strategies.map((s: any) => ({
+          id: s.strategy_id,
+          name: s.name,
+          exchange: s.exchange,
+          minStake: parseFloat(s.min_stake),
+          roiPct: parseFloat(s.total_roi_pct),
+          daysRunning: s.days_running,
+          lockDays: s.lock_days,
+          daysElapsed: 0,
+          status: "not-invested" as StrategyStatus,
+        }));
+        setStrategies(strats);
+      })
+      .catch(console.error);
+  }, []);
+
+  // Fetch stats and investments
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/ai-trading/stats")
+      .then((r) => r.json())
+      .then((data) => {
+        setBalance(parseFloat(data.balance) || 0);
+
+        // Merge strategies with user investments
+        setStrategies((prevStrats) => {
+          const investmentMap = new Map(
+            data.investments.map((inv: any) => [inv.strategy_id, inv])
+          );
+
+          return prevStrats.map((s) => {
+            const inv = investmentMap.get(s.id);
+            if (!inv) return s;
+
+            const elapsed = Math.floor(
+              (Date.now() - new Date(inv.invested_at).getTime()) / 86400000
+            );
+            const daysLeft = Math.max(0, inv.lock_days - elapsed);
+            const status: StrategyStatus =
+              inv.status === "unlocked" ? "unlocked" : daysLeft === 0 ? "unlocked" : "running";
+
+            return {
+              ...s,
+              status,
+              daysElapsed: elapsed,
+              invested: parseFloat(inv.amount),
+              currentProfit: parseFloat(inv.total_profit),
+            };
+          });
+        });
+
+        // Map trades
+        const aiTrades: AiTrade[] = data.trades.map((t: any) => ({
+          id: t.id,
+          date: t.executed_at.split("T")[0],
+          strategy: t.strategy_name,
+          size: parseFloat(t.trade_size),
+          duration: `${Math.floor(t.duration_minutes / 60)}h ${t.duration_minutes % 60}m`,
+          pnl: parseFloat(t.pnl),
+        }));
+        setTrades(aiTrades);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, []);
 
   const totalInvested = strategies.reduce((sum, s) => sum + (s.invested ?? 0), 0);
   const totalProfit = strategies.reduce((sum, s) => sum + (s.currentProfit ?? 0), 0);
   const activeCount = strategies.filter((s) => s.status !== "not-invested").length;
 
-  // Trade history summary (derived from the rows below)
-  const tradeCount = AI_TRADES.length;
-  const winCount = AI_TRADES.filter((t) => t.pnl >= 0).length;
+  // Trade history summary
+  const tradeCount = trades.length;
+  const winCount = trades.filter((t) => t.pnl >= 0).length;
   const winRate = tradeCount > 0 ? (winCount / tradeCount) * 100 : 0;
-  const netPnl = AI_TRADES.reduce((sum, t) => sum + t.pnl, 0);
+  const netPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
 
-  // TODO: replace with your real API call (e.g. POST /api/ai-trading/invest)
-  // and only update local state after it succeeds.
-  const handleInvest = (strategy: Strategy, amount: number) => {
-    setStrategies((prev) =>
-      prev.map((s) =>
-        s.id === strategy.id
-          ? { ...s, status: "running", invested: amount, currentProfit: 0, daysElapsed: 0 }
-          : s,
-      ),
-    );
-    setBalance((b) => Math.round((b - amount) * 100) / 100);
-    setInvesting(null);
-  };
+  async function handleInvest(strategy: Strategy, amount: number) {
+    try {
+      const res = await fetch("/api/ai-trading/invest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ strategyId: strategy.id, amount }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || "Investment failed");
+        setInvesting(null);
+        return;
+      }
+
+      // Refresh stats
+      const data = await fetch("/api/ai-trading/stats").then((r) => r.json());
+      setBalance(parseFloat(data.balance) || 0);
+
+      setStrategies((prev) =>
+        prev.map((s) => {
+          if (s.id !== strategy.id) return s;
+          return {
+            ...s,
+            status: "running" as StrategyStatus,
+            invested: amount,
+            currentProfit: 0,
+            daysElapsed: 0,
+          };
+        })
+      );
+
+      setInvesting(null);
+    } catch (err) {
+      console.error(err);
+      alert("Investment failed");
+      setInvesting(null);
+    }
+  }
 
   return (
     <UserShell active="AI Trading">
@@ -719,7 +772,7 @@ export default function AiTradingPage() {
           </div>
 
           <Table
-            data={AI_TRADES}
+            data={trades}
             columns={AI_TRADE_COLUMNS}
             getRowId={(r) => r.id}
             height={400}

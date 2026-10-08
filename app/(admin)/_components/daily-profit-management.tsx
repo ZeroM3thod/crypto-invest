@@ -7,7 +7,7 @@ import {
 } from "@/app/(admin)/_components/admin-ui";
 import { Table } from "@/components/motion/table";
 import { Clock, Pencil, Plus, Search, TrendingUp, Users, Wallet } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 // ── Time helpers (everything is stored in seconds) ───────────────────────
 const DAY_SEC = 86400;
@@ -52,18 +52,6 @@ type Investor = {
 };
 
 // ── Mock data (replace with API) ─────────────────────────────────────────
-const INITIAL_PLANS: Plan[] = [
-  { id: "starter", name: "Starter Plan", badge: "Starter", rate: 1.7, minimum: 10, profitIntervalSec: 86400, lockPeriodSec: 86400, payout: "Principal + profits", returnType: "Simple interest", active: true },
-  { id: "growth",  name: "Growth Plan",  badge: "Growth",  rate: 2.1, minimum: 30, profitIntervalSec: 86400, lockPeriodSec: 86400, payout: "Principal + profits", returnType: "Simple interest", active: true },
-  { id: "elite",   name: "Elite Plan",   badge: "Elite",   rate: 2.5, minimum: 50, profitIntervalSec: 86400, lockPeriodSec: 86400, payout: "Principal + profits", returnType: "Simple interest", active: true },
-];
-
-const INITIAL_INVESTORS: Investor[] = [
-  { id: "i1", planId: "growth",  name: "Rahim Uddin",   email: "rahim@mail.com",  walletBalance: 1240.0, invested: 100, earned: 4.2,  startedAt: "2026-09-28T09:00:00Z", status: "active" },
-  { id: "i2", planId: "starter", name: "Nusrat Jahan",  email: "nusrat@mail.com", walletBalance: 86.5,   invested: 50,  earned: 0.85, startedAt: "2026-10-04T14:30:00Z", status: "active" },
-  { id: "i3", planId: "elite",   name: "Karim Hossain", email: "karim@mail.com",  walletBalance: 5320.9, invested: 200, earned: 35,   startedAt: "2026-09-20T11:10:00Z", status: "active" },
-  { id: "i4", planId: "elite",   name: "Sadia Akter",   email: "sadia@mail.com",  walletBalance: 410.0,  invested: 60,  earned: 7.5,  startedAt: "2026-09-25T16:45:00Z", status: "cancelled" },
-];
 
 // ── Form state (strings so number inputs can be edited freely) ───────────
 type PlanForm = {
@@ -187,13 +175,65 @@ function AdminPlanCard({
 
 // ── Page ─────────────────────────────────────────────────────────────────
 export function DailyProfitManagement() {
-  const [plans, setPlans] = useState<Plan[]>(INITIAL_PLANS);
-  const [investors] = useState<Investor[]>(INITIAL_INVESTORS);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [investors, setInvestors] = useState<Investor[]>([]);
   const [form, setForm] = useState<PlanForm | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [planFilter, setPlanFilter] = useState<"all" | string>("all");
   const [query, setQuery] = useState("");
+
+  // Fetch plans and investments
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetch("/api/admin/daily-profit/plans").then(r => {
+        console.log("Plans API status:", r.status);
+        return r.json();
+      }),
+      fetch("/api/admin/daily-profit/investments").then(r => {
+        console.log("Investments API status:", r.status);
+        return r.json();
+      }),
+    ])
+      .then(([plansData, investmentsData]) => {
+        console.log("Plans data:", plansData);
+        console.log("Investments data:", investmentsData);
+        
+        const fetchedPlans: Plan[] = (plansData.plans || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          badge: p.badge_label,
+          rate: parseFloat(p.daily_rate),
+          minimum: parseFloat(p.minimum_amount),
+          profitIntervalSec: p.profit_interval_seconds,
+          lockPeriodSec: p.cancel_policy_hours * 3600,
+          payout: "Principal + profits",
+          returnType: "Simple interest",
+          active: p.active,
+        }));
+        setPlans(fetchedPlans);
+
+        const fetchedInvestors: Investor[] = (investmentsData.investments || []).map((inv: any) => ({
+          id: inv.id,
+          planId: inv.plan_id,
+          name: `${inv.user.first_name} ${inv.user.last_name}`,
+          email: inv.user.email,
+          walletBalance: 0,
+          invested: parseFloat(inv.amount),
+          earned: parseFloat(inv.total_profit),
+          startedAt: inv.started_at,
+          status: inv.status,
+        }));
+        setInvestors(fetchedInvestors);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Fetch error:", err);
+        setLoading(false);
+      });
+  }, []);
 
   // Stats
   const activeInvestors = investors.filter((i) => i.status === "active");
@@ -214,7 +254,7 @@ export function DailyProfitManagement() {
   }, [investors, plans, planFilter, query]);
 
   // Save plan (create or edit)
-  function handleSave() {
+  async function handleSave() {
     if (!form) return;
     const rate = parseFloat(form.rate);
     const minimum = parseFloat(form.minimum);
@@ -230,19 +270,78 @@ export function DailyProfitManagement() {
     if (!Number.isInteger(lockSec) || lockSec < 0)
       return setError("Lock period must be a whole number of seconds (0 or more)");
 
-    const next: Plan = {
-      id: form.id ?? form.name.trim().toLowerCase().replace(/\s+/g, "-") + "-" + Date.now(),
-      name: form.name.trim(), badge: form.badge.trim(), rate, minimum,
-      profitIntervalSec: intervalSec, lockPeriodSec: lockSec, payout: form.payout.trim(), returnType: form.returnType.trim(),
-      active: form.active,
-    };
+    try {
+      if (form.id) {
+        // Update existing
+        await fetch(`/api/admin/daily-profit/plans/${form.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: form.name.trim(),
+            badge_label: form.badge.trim(),
+            daily_rate: rate,
+            minimum_amount: minimum,
+            profit_interval_seconds: intervalSec,
+            cancel_policy_hours: Math.floor(lockSec / 3600),
+            active: form.active,
+          }),
+        });
 
-    // TODO: API → form.id ? PATCH /api/admin/daily-profit/plans/:id : POST /api/admin/daily-profit/plans
-    setPlans((prev) =>
-      form.id ? prev.map((p) => (p.id === form.id ? next : p)) : [...prev, next],
-    );
-    setError(null);
-    setForm(null);
+        setPlans((prev) =>
+          prev.map((p) =>
+            p.id === form.id
+              ? {
+                  ...p,
+                  name: form.name.trim(),
+                  badge: form.badge.trim(),
+                  rate,
+                  minimum,
+                  profitIntervalSec: intervalSec,
+                  lockPeriodSec: lockSec,
+                  active: form.active,
+                }
+              : p
+          )
+        );
+      } else {
+        // Create new
+        const planId = form.name.trim().toLowerCase().replace(/\s+/g, "_");
+        await fetch("/api/admin/daily-profit/plans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plan_id: planId,
+            name: form.name.trim(),
+            badge_label: form.badge.trim(),
+            daily_rate: rate,
+            minimum_amount: minimum,
+            profit_interval_seconds: intervalSec,
+            cancel_policy_hours: Math.floor(lockSec / 3600),
+          }),
+        });
+
+        // Refresh plans
+        const data = await fetch("/api/admin/daily-profit/plans").then(r => r.json());
+        setPlans(data.plans.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          badge: p.badge_label,
+          rate: parseFloat(p.daily_rate),
+          minimum: parseFloat(p.minimum_amount),
+          profitIntervalSec: p.profit_interval_seconds,
+          lockPeriodSec: p.cancel_policy_hours * 3600,
+          payout: "Principal + profits",
+          returnType: "Simple interest",
+          active: p.active,
+        })));
+      }
+
+      setError(null);
+      setForm(null);
+    } catch (err) {
+      console.error(err);
+      setError("Save failed");
+    }
   }
 
   const set = <K extends keyof PlanForm>(k: K, v: PlanForm[K]) =>
@@ -298,10 +397,18 @@ export function DailyProfitManagement() {
                 plan={plan}
                 investors={investors.filter((i) => i.planId === plan.id)}
                 onEdit={() => { setError(null); setForm(planToForm(plan)); }}
-                onToggle={(v) =>
-                  // TODO: API → PATCH /api/admin/daily-profit/plans/:id { active }
-                  setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, active: v } : p)))
-                }
+                onToggle={async (v) => {
+                  try {
+                    await fetch(`/api/admin/daily-profit/plans/${plan.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ active: v }),
+                    });
+                    setPlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, active: v } : p)));
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
                 onViewUsers={() => {
                   setPlanFilter(plan.id);
                   document.getElementById("plan-investors")?.scrollIntoView({ behavior: "smooth" });

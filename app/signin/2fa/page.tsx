@@ -41,7 +41,8 @@ export default function TwoFactorPage() {
 
         if (res.ok) {
           setOtpStatus("success");
-          setTimeout(() => router.push("/dashboard"), 900);
+          const data = await res.json().catch(() => null);
+          setTimeout(() => router.push(data?.redirect || "/dashboard"), 900);
           return;
         }
 
