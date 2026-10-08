@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { User, Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 import { Checkbox } from "@/components/motion/checkbox";
@@ -22,7 +22,7 @@ function shaderSideFor(step: number): "left" | "right" {
   return step % 2 === 1 ? "right" : "left";
 }
 
-export default function SignUpWizardPage() {
+function SignUpWizardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
@@ -370,5 +370,13 @@ export default function SignUpWizardPage() {
       ) : null}
     </WizardShell>
     </>
+  );
+}
+
+export default function SignUpWizardPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <SignUpWizardContent />
+    </Suspense>
   );
 }
