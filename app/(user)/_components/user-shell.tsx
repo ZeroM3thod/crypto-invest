@@ -398,7 +398,10 @@ export function UserShell({ active: initialActive, children }: UserShellProps) {
               <ContextMenuItem
                 tone="destructive"
                 textValue="Log out"
-                onSelect={() => console.log("logout")}
+                onSelect={async () => {
+                  await fetch("/api/logout", { method: "POST" });
+                  router.push("/signin");
+                }}
               >
                 <LogOut aria-hidden="true" className="h-4 w-4" />
                 Log out
