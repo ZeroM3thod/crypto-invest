@@ -1,16 +1,29 @@
-/investment/daily-profit- on this page here here in the 
+/fund/deposit- on this page here user can place deposits request like on Select Asset & Amount here user select the coin (usdt or usdc) then the amount and do continue then show the network here now only show 3 network byt replace it add this network list 
+BEP20,ERC20,Aptos,Polygon POS,Solana this network and when the user click on any net work and continue then he can see the qrcode and deposit address accroding to coin and network and then when the user click on I've Sent the Payment button then user have to place the Transaction ID / Hash then click on confirm Deposit button after this the deposit go on pending and the admin(/admin/deposits) or owner(/owner/finance/deposits) check and approve or reject the deposit id admin approve then add the balance and id rejected then just rejected . and in the Deposit History section here show all deposit history and make sure if the deposit just rejected then here also show Rejection Reason . 
 
-Total Profit Earned,Total Invested,Today's Profit,Active Plans on this card here show real datas from database 
-and on this Available Plans section here show the all avaible plans and every plans
-have this Plan name,Badge label,Daily profit (%),Minimum join fee ($),Cancel policy (hours),Payout text,Return type etc and all of this are store in the database of this 3 plans because admin can edit all of this from admin panal . and on the amount input section here user can enter the amount and click on the Invest no button then show the Confirm Investment dialog and here on the Source wallet section here replace the Main Wallet to Investment Wallet and make sure user only can invest on this daily profit pakage from their investment wallet money and confim the investment. and here add one things on the database update the profit adding time in hour like profit add in every 24 hour (86400 seconds)
+and from the /admin/deposits- on this page Pending,Approved,Total records,Total approved here all is show real numbers from database . and on the Deposit records section here show all deposit request list (do a little change here on the username make sure here show the userid) and from here admin place on confirm button then it auto confirm and if click on reject button then a dialog open where admin have to wright the rejection reson and this reson show in user deposit details . and also admin if click on the view button then open a dialog where he can see the User,User ID,Amount (USDT),Coin,Network,Date,Status,Transaction hash etc real from database . 
 
-
-and on the My Active Plans section here show all buyed plan of his and their details from database . 
-
-Profit History - on this page here user can see all of his profits historys . from database .
-
-and also add this with full admin panal (/admin/investment/daily-profit) from here admin can change every details  of the pakage and see the user list also from database  
+owner/finance/deposits here also same as this /admin/deposits page but here some extra features like Deposit addresses dont do anythings with this keep it same . in the Deposit records here same all things just add some extra features like - it have a EDIT button and from this edit button here owner can change the Coin,Network,Amount,Transaction hash and it also update on database . 
 
 
 
-/trading/ai-trading on this page here - AI Trading Balance,Total Invested,Total AI Profit,Active Strategies every this of this data comes from database . on the Strategies section here show the every available strageis like this Grid Scalper Pro , Trend Reversal AI etc and which is already invested tose are show like this 9 EMA Strategy and the Momentum Breakout stragies and on the every details on the stragies here showed make sure alls are showed from database . and also store the Strategies pakage dataset in database .   and reove this Total Trades,Win Rate,Net P&L all card and also make sure the ai trade history section datas comes showed from database . and this managing  admin panal page is /admin/ai-trading and make sure from here admin can do all things manage and increase and decrease every things and make sure this profit system is difrent from daily profit like if ny user invest 30$ in any strages and 1st day he gain 10% profit and now he have 33$ and next day he get 20% profit so it is 33$ 20% not 30$ 20% like this .
+
+
+
+
+
+/fund/withdraw on this page here Available for Withdrawal here show the main wallet balance , on the Withdrawal Details section here user select the coin like usdt or usdc and then select the network BEP20 OR Aptos then enter the amount   and then he have to enter the recive wallet address and then on this place "BNB Smart Chain — BEP-20
+Fee: 10% · Time: 24–72 hours" here show the Network name he selected and also remove this Note option You Receive Withdrawal Fee (10%),You Request etc show real and well calculated and then click on then show a confirmation dialog then condirm then it is pending order . on this Withdrawal History section here show all withdraw history with their details real details from database . 
+
+
+/admin/withdraws on this page here on Pending,approved,Total paid out here show all real data from database not mock data .remove this Withdrawal fee profit card
+
+on this Withdrawal records cards here show all real request from database not those mock data and every request have 3 button like approve,rejecand view/details if admin click on approve button the details dialog open (not directly approved) and if reject then follow same workflow like now and if click on view button then show the details dialog , on this details dialog here show all (User,User ID,Amount (USDT),,Net payout,Coin,Network,Date,Status,Wallet address) all of this show real from database not mock . and then admin can reject or approved and if reject then write the reason . 
+
+
+and in the /owner/finance/withdrawals on this page here on Pending,approved,Total paid out here show all real data from database not mock data .remove this Withdrawal fee profit card
+
+on this Withdrawal records cards here show all real request from database not those mock data and every request have 3 button like approve,rejecand view/details if owner click on approve button the details dialog open (not directly approved) and if reject then follow same workflow like now and if click on view button then show the details dialog , on this details dialog here show all (User,User ID,Amount (USDT),,Net payout,Coin,Network,Date,Status,Wallet address) all of this show real from database not mock . and then owner can reject or approved and if reject then write the reason .  on this page here show one more button which is Edit button when owner click on this edit button then he can see the Edit withdrawal dialog and here owner can edit coin name , network ,amount,date and wallet address every things of this withdrawal request and and this is also update on the database . thats the specialty of the owner . 
+
+
+on this page /owner/finance/history and on this page /admin/history here only show the deposit withdraw trancesition remove all trade related logics and remove all mock data and add here all real datas . and on the Fees collected button here show the fee what collect from send money . and here all transactions show real data from database.

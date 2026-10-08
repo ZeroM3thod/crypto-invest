@@ -1,14 +1,16 @@
 import { NextRequest } from "next/server";
 import { bad, getSession, supabase, q } from "@/lib/auth/backend";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession(req);
   if (!session) return bad("Unauthorized", 401);
   if (session.user.role !== "admin" && session.user.role !== "owner") {
     return bad("Forbidden", 403);
   }
 
-  await supabase(`ai_trading_investments?id=eq.${q(params.id)}`, {
+  const { id } = await params;
+
+  await supabase(`ai_trading_investments?id=eq.${q(id)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify({

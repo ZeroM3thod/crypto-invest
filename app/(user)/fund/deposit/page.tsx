@@ -2,7 +2,7 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import {
   ArrowRight,
   ArrowLeft,
@@ -19,7 +19,7 @@ import {
 ──────────────────────────────────────────────────────────── */
 
 type Asset = "USDT" | "USDC";
-type Network = "TRC-20" | "ERC-20" | "BEP-20";
+type Network = "BEP20" | "ERC20" | "Aptos" | "Polygon_POS" | "Solana";
 
 const ASSETS: { id: Asset; name: string; symbol: string }[] = [
   { id: "USDT", name: "Tether USD", symbol: "₮" },
@@ -28,34 +28,44 @@ const ASSETS: { id: Asset; name: string; symbol: string }[] = [
 
 const ADDRESSES: Record<Asset, Record<Network, string>> = {
   USDT: {
-    "TRC-20": "TWp8HQiAEygKcb6wiDSD4QJmCD7o7pdrK6",
-    "ERC-20": "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
-    "BEP-20": "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    BEP20: "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    ERC20: "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    Aptos: "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    Polygon_POS: "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    Solana: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
   },
   USDC: {
-    "TRC-20": "TWp8HQiAEygKcb6wiDSD4QJmCD7o7pdrK6",
-    "ERC-20": "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
-    "BEP-20": "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    BEP20: "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    ERC20: "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    Aptos: "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    Polygon_POS: "0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7",
+    Solana: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
   },
 };
 
 const QR_IMAGES: Record<Asset, Record<Network, string>> = {
   USDT: {
-    "TRC-20": "/qr/usdt-trc20.png",
-    "ERC-20": "/qr/usdt-erc20.png",
-    "BEP-20": "/qr/usdt-bep20.png",
+    BEP20: "/qr/usdt-bep20.png",
+    ERC20: "/qr/usdt-erc20.png",
+    Aptos: "/qr/usdt-aptos.png",
+    Polygon_POS: "/qr/usdt-polygon.png",
+    Solana: "/qr/usdt-solana.png",
   },
   USDC: {
-    "TRC-20": "/qr/usdc-trc20.png",
-    "ERC-20": "/qr/usdc-erc20.png",
-    "BEP-20": "/qr/usdc-bep20.png",
+    BEP20: "/qr/usdc-bep20.png",
+    ERC20: "/qr/usdc-erc20.png",
+    Aptos: "/qr/usdc-aptos.png",
+    Polygon_POS: "/qr/usdc-polygon.png",
+    Solana: "/qr/usdc-solana.png",
   },
 };
 
 const NET_INFO: Record<Network, { chain: string; desc: string }> = {
-  "TRC-20": { chain: "TRON Network", desc: "Fastest & cheapest — recommended" },
-  "ERC-20": { chain: "Ethereum Network", desc: "Most widely supported" },
-  "BEP-20": { chain: "BNB Smart Chain", desc: "Low fees, fast confirmation" },
+  BEP20: { chain: "BNB Smart Chain (BEP-20)", desc: "Low fees, fast confirmation" },
+  ERC20: { chain: "Ethereum Network (ERC-20)", desc: "Most widely supported" },
+  Aptos: { chain: "Aptos Network", desc: "High-speed Layer 1" },
+  Polygon_POS: { chain: "Polygon (POS)", desc: "Low-cost Ethereum scaling" },
+  Solana: { chain: "Solana Network", desc: "Ultra-fast transactions" },
 };
 
 interface DepState {
@@ -75,34 +85,8 @@ interface DepHistory {
   reason?: string;
 }
 
-/* Placeholder history — replace with a real fetch from your API route */
-const INITIAL_HISTORY: DepHistory[] = [
-  {
-    id: "d3f8a1c2-91e4-4b7a-8c3d-1a2b3c4d5e6f",
-    date: "Jul 18, 2025",
-    amount: 500,
-    asset: "USDT",
-    network: "TRC-20",
-    status: "approved",
-  },
-  {
-    id: "b9e2f4a1-73d5-4c8b-9a1e-6f2d3c4b5a6e",
-    date: "Jul 14, 2025",
-    amount: 250,
-    asset: "USDC",
-    network: "ERC-20",
-    status: "pending",
-  },
-  {
-    id: "a1c3e5f7-24b6-4d9a-8e2c-5f1a3b4d6c7e",
-    date: "Jul 10, 2025",
-    amount: 80,
-    asset: "USDT",
-    network: "BEP-20",
-    status: "rejected",
-    reason: "Transaction hash could not be verified on-chain.",
-  },
-];
+/* TODO: Fetch from API */
+const INITIAL_HISTORY: DepHistory[] = [];
 
 /* ────────────────────────────────────────────────────────────
    Small UI primitives (b/w/gray, shadcn-style tokens)
@@ -193,32 +177,24 @@ export default function DepositPage() {
 
     setSubmitting(true);
     try {
-      // TODO: replace with your real API call, e.g.:
-      // const res = await fetch("/api/deposits", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({
-      //     amount: depState.amount,
-      //     asset: depState.asset,
-      //     network: depState.network,
-      //     txHash: txnId.trim(),
-      //   }),
-      // });
-      // if (!res.ok) throw new Error("Submission failed");
-
-      const newEntry: DepHistory = {
-        id: crypto.randomUUID(),
-        date: new Date().toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
+      const res = await fetch("/api/deposits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: depState.amount,
+          coin: depState.asset,
+          network: depState.network,
+          transactionHash: txnId.trim(),
         }),
-        amount: depState.amount,
-        asset: depState.asset,
-        network: depState.network as string,
-        status: "pending",
-      };
-      setHistory((prev) => [newEntry, ...prev]);
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Submission failed");
+      }
+
+      // Refresh history
+      fetchHistory();
 
       showToast("Deposit submitted — pending review");
       setDepState({ amount: 0, asset: "USDT", network: "", address: "" });
@@ -232,6 +208,23 @@ export default function DepositPage() {
       setSubmitting(false);
     }
   };
+
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch("/api/deposits");
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data.deposits || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch deposit history:", err);
+    }
+  };
+
+  // Fetch history on mount
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   const copyAddress = () => {
     if (!depState.address) return;
@@ -439,7 +432,7 @@ export default function DepositPage() {
                 {(Object.keys(NET_INFO) as Network[]).map((net) => {
                   const meta = NET_INFO[net];
                   const isSelected = depState.network === net;
-                  const isRecommended = net === "TRC-20";
+                  const displayName = net === "Polygon_POS" ? "Polygon POS" : net;
                   return (
                     <button
                       key={net}
@@ -456,12 +449,7 @@ export default function DepositPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-foreground">{net}</span>
-                          {isRecommended && (
-                            <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
-                              Recommended
-                            </span>
-                          )}
+                          <span className="text-sm font-semibold text-foreground">{displayName}</span>
                         </div>
                         <div className="text-xs font-medium text-muted-foreground">{meta.chain}</div>
                         <div className="text-xs text-muted-foreground">{meta.desc}</div>

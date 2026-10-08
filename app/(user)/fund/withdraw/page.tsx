@@ -2,7 +2,7 @@
 "use client";
 
 import { UserShell } from "@/app/(user)/_components/user-shell";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertTriangle, Check, Wallet, X } from "lucide-react";
 
 /* ────────────────────────────────────────────────────────────
@@ -10,6 +10,7 @@ import { AlertTriangle, Check, Wallet, X } from "lucide-react";
 ──────────────────────────────────────────────────────────── */
 
 type Coin = "USDT" | "USDC";
+type Network = "BEP20" | "Aptos";
 
 interface WdHistory {
   id: string;
@@ -18,7 +19,7 @@ interface WdHistory {
   fee: number;
   receive: number;
   coin: Coin;
-  network: string;
+  network: Network;
   wallet: string;
   status: "approved" | "pending" | "rejected";
   note?: string;
@@ -30,17 +31,15 @@ interface ConfirmDetails {
   fee: number;
   recv: number;
   coin: Coin;
+  network: Network;
   addr: string;
   note: string;
   shortAddr: string;
 }
 
-/* Placeholder data — wire these to your real API/backend later */
-const MAIN_WALLET_BALANCE = 1250.0;
-// Non-withdrawable reward principal held in this wallet (mirrors
-// Wallet.lockedBalance in lib/users-data). Withdrawals may only use
-// balance - lockedBalance.
-const LOCKED_BALANCE = 0;
+/* TODO: Fetch from API */
+const INITIAL_HISTORY: WdHistory[] = [];
+
 const WITHDRAW_FEE_RATE = 0.1; // 10%
 
 const COINS: { id: Coin; name: string; symbol: string }[] = [
@@ -48,48 +47,15 @@ const COINS: { id: Coin; name: string; symbol: string }[] = [
   { id: "USDC", name: "USD Coin", symbol: "$" },
 ];
 
-const ADDRESS_PLACEHOLDER: Record<Coin, string> = {
-  USDT: "Enter your USDT BEP-20 wallet address (e.g. 0xA73e...c0e7)",
-  USDC: "Enter your USDC BEP-20 wallet address (e.g. 0x91Cd...0a19)",
-};
-
-const INITIAL_HISTORY: WdHistory[] = [
-  {
-    id: "9F2A7C31",
-    date: "Jul 16, 2025",
-    amount: 200,
-    fee: 20,
-    receive: 180,
-    coin: "USDT",
-    network: "BEP-20",
-    wallet: "0xa73e40...c7c0e7",
-    status: "approved",
-  },
-  {
-    id: "4B8E1D02",
-    date: "Jul 11, 2025",
-    amount: 75,
-    fee: 7.5,
-    receive: 67.5,
-    coin: "USDC",
-    network: "BEP-20",
-    wallet: "0x91cd22...5f0a19",
-    status: "pending",
-    note: "Monthly cash-out",
-  },
-  {
-    id: "1C5F9A44",
-    date: "Jul 3, 2025",
-    amount: 40,
-    fee: 4,
-    receive: 36,
-    coin: "USDT",
-    network: "BEP-20",
-    wallet: "0x77ab90...2e4b31",
-    status: "rejected",
-    reason: "Wallet address did not match verified profile records.",
-  },
+const NETWORKS: { id: Network; name: string; desc: string }[] = [
+  { id: "BEP20", name: "BNB Smart Chain (BEP-20)", desc: "Fee: 10% · Time: 24–72 hours" },
+  { id: "Aptos", name: "Aptos Network", desc: "Fee: 10% · Time: 24–72 hours" },
 ];
+
+const ADDRESS_PLACEHOLDER: Record<Coin, string> = {
+  USDT: "Enter your wallet address",
+  USDC: "Enter your wallet address",
+};
 
 /* ────────────────────────────────────────────────────────────
    Small UI primitives (b/w/gray)
@@ -139,6 +105,7 @@ function calcFeeAndReceive(amount: number) {
 
 export default function WithdrawPage() {
   const [coin, setCoin] = useState<Coin>("USDT");
+  const [network, setNetwork] = useState<Network>("BEP20");
   const [wdAmt, setWdAmt] = useState("");
   const [wdAddr, setWdAddr] = useState("");
   const [wdNote, setWdNote] = useState("");
@@ -150,9 +117,11 @@ export default function WithdrawPage() {
   const [modalEntry, setModalEntry] = useState<WdHistory | null>(null);
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: "", show: false });
   const [submitting, setSubmitting] = useState(false);
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  // Withdrawable amount: balance - lockedBalance (locked rewards stay invested)
-  const availableBalance = MAIN_WALLET_BALANCE - LOCKED_BALANCE;
+  // Withdrawable amount
+  const availableBalance = balance;
 
   const parsedAmt = parseFloat(wdAmt) || 0;
   const { fee: previewFee, receive: previewReceive } = calcFeeAndReceive(parsedAmt);
@@ -196,7 +165,7 @@ export default function WithdrawPage() {
 
     const { fee, receive } = calcFeeAndReceive(amt);
     const shortAddr = addr.length > 20 ? addr.slice(0, 10) + "..." + addr.slice(-6) : addr;
-    setConfirmDetails({ amt, fee, recv: receive, coin, addr, note, shortAddr });
+    setConfirmDetails({ amt, fee, recv: receive, coin, network, addr, note, shortAddr });
     setConfirmOpen(true);
   };
 
@@ -204,35 +173,24 @@ export default function WithdrawPage() {
     if (!confirmDetails) return;
     setSubmitting(true);
     try {
-      // TODO: replace with your real API call, e.g.:
-      // const res = await fetch("/api/withdrawals", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({
-      //     amount: confirmDetails.amt,
-      //     fee: confirmDetails.fee,
-      //     receive: confirmDetails.recv,
-      //     coin: confirmDetails.coin,
-      //     address: confirmDetails.addr,
-      //     network: "BEP-20",
-      //     note: confirmDetails.note || null,
-      //   }),
-      // });
-      // if (!res.ok) throw new Error("Submission failed");
+      const res = await fetch("/api/withdrawals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: confirmDetails.amt,
+          coin: confirmDetails.coin,
+          network: confirmDetails.network,
+          walletAddress: confirmDetails.addr,
+        }),
+      });
 
-      const newEntry: WdHistory = {
-        id: crypto.randomUUID().slice(0, 8).toUpperCase(),
-        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        amount: confirmDetails.amt,
-        fee: confirmDetails.fee,
-        receive: confirmDetails.recv,
-        coin: confirmDetails.coin,
-        network: "BEP-20",
-        wallet: confirmDetails.shortAddr,
-        status: "pending",
-        note: confirmDetails.note || undefined,
-      };
-      setHistory((prev) => [newEntry, ...prev]);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Submission failed");
+      }
+
+      // Refresh history
+      fetchHistory();
 
       showToast("Withdrawal submitted — pending admin approval");
       setConfirmOpen(false);
@@ -246,6 +204,38 @@ export default function WithdrawPage() {
       setSubmitting(false);
     }
   };
+
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch("/api/withdrawals");
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data.withdrawals || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch withdrawal history:", err);
+    }
+  };
+
+  const fetchBalance = async () => {
+    try {
+      const res = await fetch("/api/wallet/balance");
+      if (res.ok) {
+        const data = await res.json();
+        setBalance(data.mainBalance || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch balance:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch history and balance on mount
+  useEffect(() => {
+    fetchHistory();
+    fetchBalance();
+  }, []);
 
   return (
     <UserShell active="Withdraw">
@@ -278,11 +268,6 @@ export default function WithdrawPage() {
                   ${availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="mt-1 text-xs text-background/50">Main wallet balance</div>
-              </div>
-              <div className="text-right">
-                <div className="text-[11px] font-medium uppercase tracking-wide text-background/40">Network</div>
-                <div className="mt-1.5 text-sm text-background/70">BEP-20</div>
-                <div className="mt-0.5 text-xs text-background/40">USDT / USDC</div>
               </div>
             </div>
           </div>
@@ -318,6 +303,34 @@ export default function WithdrawPage() {
                       <div className="truncate text-xs text-muted-foreground">{c.name}</div>
                     </div>
                     {coin === c.id && <Check className="ml-auto size-4 shrink-0 text-foreground" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Network selection */}
+            <div className="mb-5">
+              <FieldLabel>Network</FieldLabel>
+              <div className="flex flex-col gap-2">
+                {NETWORKS.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => setNetwork(n.id)}
+                    className={[
+                      "flex items-center gap-3 rounded-2xl border p-3 text-left transition-colors",
+                      network === n.id
+                        ? "border-foreground bg-foreground/5"
+                        : "border-border hover:border-foreground/40",
+                    ].join(" ")}
+                  >
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted">
+                      <Wallet className="size-4 text-foreground" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-foreground">{n.name}</div>
+                      <div className="text-xs text-muted-foreground">{n.desc}</div>
+                    </div>
+                    {network === n.id && <Check className="ml-auto size-4 shrink-0 text-foreground" />}
                   </button>
                 ))}
               </div>
@@ -379,25 +392,8 @@ export default function WithdrawPage() {
                 className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Only {coin} on BNB Smart Chain (BEP-20) is supported.
+                Only {coin} on {NETWORKS.find(n => n.id === network)?.name} is supported.
               </p>
-            </div>
-
-            {/* Network info */}
-            <div className="mb-5">
-              <FieldLabel>Network</FieldLabel>
-              <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
-                  <Wallet className="size-4 text-foreground" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-foreground">BNB Smart Chain — BEP-20</div>
-                  <div className="text-xs text-muted-foreground">Fee: 10% · Time: 24–72 hours</div>
-                </div>
-                <span className="shrink-0 rounded-full bg-foreground/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground">
-                  {coin}
-                </span>
-              </div>
             </div>
 
             {/* Note */}
@@ -546,7 +542,9 @@ export default function WithdrawPage() {
                   </div>
                   <div className={`flex items-center justify-between py-2 ${confirmDetails.note ? "border-b border-border" : ""}`}>
                     <span className="text-xs text-muted-foreground">Network</span>
-                    <span className="text-sm font-medium text-foreground">BNB Smart Chain</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {NETWORKS.find(n => n.id === confirmDetails.network)?.name}
+                    </span>
                   </div>
                   {confirmDetails.note && (
                     <div className="flex items-center justify-between py-2">

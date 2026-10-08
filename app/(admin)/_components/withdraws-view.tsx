@@ -65,33 +65,69 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
     setMode("reject");
   }, []);
 
-  /* ---------- actions (no DB — local state only) ---------- */
+  /* ---------- actions ---------- */
 
   const doConfirm = useCallback(
-    (w: Withdraw) => {
-      // TODO: call your API here (mark withdrawal as paid)
-      setRows((prev) =>
-        prev.map((r) => (r.id === w.id ? { ...r, status: "approved" } : r)),
-      );
-      showToast(`✓ ${w.id} approved — $${netOf(w).toLocaleString()} ${w.coin} payout`);
-      closeModal();
+    async (w: Withdraw) => {
+      try {
+        const res = await fetch("/api/admin/withdrawals", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            withdrawalId: w.id,
+            action: "approve",
+          }),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || "Failed to approve");
+        }
+
+        setRows((prev) =>
+          prev.map((r) => (r.id === w.id ? { ...r, status: "approved" } : r)),
+        );
+        showToast(`✓ ${w.id} approved — $${netOf(w).toLocaleString()} ${w.coin} payout`);
+        closeModal();
+      } catch (err: any) {
+        showToast(`Error: ${err.message || "Failed to approve"}`);
+      }
     },
     [showToast],
   );
 
-  const doReject = (id: string, reason: string) => {
+  const doReject = async (id: string, reason: string) => {
     if (reason.trim().length < 5) {
       showToast("Please enter a rejection reason.");
       return;
     }
-    // TODO: call your API here (reject + refund user balance + save reason)
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: "rejected", reason: reason.trim() } : r,
-      ),
-    );
-    showToast(`✕ ${id} rejected`);
-    closeModal();
+
+    try {
+      const res = await fetch("/api/admin/withdrawals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          withdrawalId: id,
+          action: "reject",
+          reason: reason.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to reject");
+      }
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, status: "rejected", reason: reason.trim() } : r,
+        ),
+      );
+      showToast(`✕ ${id} rejected`);
+      closeModal();
+    } catch (err: any) {
+      showToast(`Error: ${err.message || "Failed to reject"}`);
+    }
   };
 
   /* ---------- filtering ---------- */
@@ -176,11 +212,16 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
             <span className="grid size-7 shrink-0 place-items-center rounded-full border border-border bg-muted text-[10px] font-semibold text-foreground">
               {initials(w.name)}
             </span>
-            <div className="min-w-0">
-              <p className="truncate font-medium">{w.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{w.username}</p>
-            </div>
+            <span className="truncate font-medium">{w.name}</span>
           </div>
+        ),
+      },
+      {
+        key: "userId",
+        header: "User ID",
+        width: "100px",
+        cell: (w) => (
+          <span className="text-xs font-mono text-muted-foreground">{w.userId}</span>
         ),
       },
       {
@@ -257,14 +298,14 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
         cell: (w) =>
           w.status === "pending" ? (
             <div className="flex justify-end gap-1.5">
-              <Button size="sm" variant="primary" onClick={() => doConfirm(w)}>
-                Approve
-              </Button>
               <Button size="sm" variant="outline" onClick={() => openReject(w.id)}>
                 Reject
               </Button>
               <Button size="sm" variant="ghost" onClick={() => openView(w.id)}>
                 View
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => openView(w.id)}>
+                Approve
               </Button>
             </div>
           ) : (
@@ -345,7 +386,7 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <StatCard label="Pending" value={stats.pendCount} icon={Clock} hint={`$${fmtAmt(stats.pendAmt)}`} />
           <StatCard label="Approved" value={stats.confCount} icon={CheckCircle2} hint="Paid out" />
           <StatCard
@@ -353,13 +394,6 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
             value={stats.paidOut}
             format={(n) => `$${(n / 1000).toFixed(1)}K`}
             icon={ArrowUpFromLine}
-          />
-          <StatCard
-            label="Withdrawal fee profit"
-            value={stats.feeProfit}
-            format={(n) => `$${fmtAmt(n)}`}
-            icon={Coins}
-            positive
           />
         </div>
 

@@ -61,33 +61,69 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
     setMode("reject");
   }, []);
 
-  /* ---------- actions (no DB — local state only) ---------- */
+  /* ---------- actions ---------- */
 
   const doConfirm = useCallback(
-    (d: Deposit) => {
-      // TODO: call your API here (approve deposit + credit user balance)
-      setRows((prev) =>
-        prev.map((r) => (r.id === d.id ? { ...r, status: "approved" } : r)),
-      );
-      showToast(`✓ ${d.id} confirmed — $${d.amount.toLocaleString()} ${d.coin}`);
-      closeModal();
+    async (d: Deposit) => {
+      try {
+        const res = await fetch("/api/admin/deposits", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            depositId: d.id,
+            action: "approve",
+          }),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || "Failed to approve");
+        }
+
+        setRows((prev) =>
+          prev.map((r) => (r.id === d.id ? { ...r, status: "approved" } : r)),
+        );
+        showToast(`✓ ${d.id} confirmed — $${d.amount.toLocaleString()} ${d.coin}`);
+        closeModal();
+      } catch (err: any) {
+        showToast(`Error: ${err.message || "Failed to approve"}`);
+      }
     },
     [showToast],
   );
 
-  const doReject = (id: string, reason: string) => {
+  const doReject = async (id: string, reason: string) => {
     if (reason.trim().length < 5) {
       showToast("Please enter a rejection reason.");
       return;
     }
-    // TODO: call your API here (reject deposit + save reason)
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: "rejected", reason: reason.trim() } : r,
-      ),
-    );
-    showToast(`✕ ${id} rejected`);
-    closeModal();
+
+    try {
+      const res = await fetch("/api/admin/deposits", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          depositId: id,
+          action: "reject",
+          reason: reason.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to reject");
+      }
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, status: "rejected", reason: reason.trim() } : r,
+        ),
+      );
+      showToast(`✕ ${id} rejected`);
+      closeModal();
+    } catch (err: any) {
+      showToast(`Error: ${err.message || "Failed to reject"}`);
+    }
   };
 
   /* ---------- filtering ---------- */
@@ -175,11 +211,11 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
         ),
       },
       {
-        key: "username",
-        header: "Username",
-        width: "110px",
+        key: "userId",
+        header: "User ID",
+        width: "100px",
         cell: (d) => (
-          <span className="text-xs text-muted-foreground">{d.username}</span>
+          <span className="text-xs font-mono text-muted-foreground">{d.userId}</span>
         ),
       },
       {
@@ -239,14 +275,14 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
         cell: (d) =>
           d.status === "pending" ? (
             <div className="flex justify-end gap-1.5">
-              <Button size="sm" variant="primary" onClick={() => doConfirm(d)}>
-                Confirm
-              </Button>
               <Button size="sm" variant="outline" onClick={() => openReject(d.id)}>
                 Reject
               </Button>
               <Button size="sm" variant="ghost" onClick={() => openView(d.id)}>
                 View
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => openView(d.id)}>
+                Confirm
               </Button>
             </div>
           ) : (

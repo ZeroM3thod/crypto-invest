@@ -608,8 +608,8 @@ export default function AiTradingPage() {
 
         // Merge strategies with user investments
         setStrategies((prevStrats) => {
-          const investmentMap = new Map(
-            data.investments.map((inv: any) => [inv.strategy_id, inv])
+          const investmentMap = new Map<string, any>(
+            data.investments.map((inv: any): [string, any] => [inv.strategy_id, inv])
           );
 
           return prevStrats.map((s) => {

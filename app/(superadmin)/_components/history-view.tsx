@@ -14,7 +14,7 @@ import {
   usd,
 } from "./finance-ui";
 
-type Filter = "all" | "Deposit" | "Withdraw" | "Send Money" | "Manual Trade";
+type Filter = "all" | "Deposit" | "Withdraw" | "Send Money";
 
 const columns: TableColumn<HistoryItem>[] = [
   { key: "id", header: "ID", width: "110px" },
@@ -68,7 +68,7 @@ export function HistoryView({ items }: { items: HistoryItem[] }) {
       total: items.length,
       moneyIn: sum("Deposit"),
       moneyOut: sum("Withdraw"),
-      fees: done.reduce((a, i) => a + i.fee, 0),
+      fees: done.filter((i) => i.type === "Send Money").reduce((a, i) => a + i.fee, 0),
     };
   }, [items]);
 
@@ -88,7 +88,7 @@ export function HistoryView({ items }: { items: HistoryItem[] }) {
     <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
       <PageHeader
         title="History"
-        description="Every deposit, withdrawal, transfer and trade on the platform."
+        description="Every deposit, withdrawal and transfer on the platform."
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -130,7 +130,6 @@ export function HistoryView({ items }: { items: HistoryItem[] }) {
               <TabsTrigger value="Deposit">Deposits</TabsTrigger>
               <TabsTrigger value="Withdraw">Withdraws</TabsTrigger>
               <TabsTrigger value="Send Money">Send Money</TabsTrigger>
-              <TabsTrigger value="Manual Trade">Trades</TabsTrigger>
             </TabsList>
           </Tabs>
           <SearchInput

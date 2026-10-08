@@ -929,6 +929,267 @@ end;
 $$;
 
 -- ════════════════════════════════════════════════════════════
+-- DEPOSIT & WITHDRAWAL SYSTEM
+-- ════════════════════════════════════════════════════════════
+
+-- Crypto networks configuration
+create table if not exists public.crypto_networks (
+  id uuid primary key default gen_random_uuid(),
+  network_code text not null unique check (network_code in ('BEP20', 'ERC20', 'Aptos', 'Polygon_POS', 'Solana')),
+  network_name text not null,
+  fee_percentage numeric(5, 2) not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- Deposit addresses for each coin and network
+create table if not exists public.deposit_addresses (
+  id uuid primary key default gen_random_uuid(),
+  coin text not null check (coin in ('USDT', 'USDC')),
+  network_code text not null,
+  address text not null,
+  qr_code_url text,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(coin, network_code)
+);
+
+-- Deposits
+create table if not exists public.deposits (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  coin text not null check (coin in ('USDT', 'USDC')),
+  network_code text not null,
+  amount numeric(18, 2) not null check (amount > 0),
+  transaction_hash text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  rejection_reason text,
+  approved_by uuid references public.auth_users(id),
+  approved_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Withdrawals
+create table if not exists public.withdrawals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  coin text not null check (coin in ('USDT', 'USDC')),
+  network_code text not null,
+  amount numeric(18, 2) not null check (amount > 0),
+  fee_percentage numeric(5, 2) not null default 10.00,
+  fee_amount numeric(18, 2) not null,
+  net_payout numeric(18, 2) not null,
+  wallet_address text not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  rejection_reason text,
+  approved_by uuid references public.auth_users(id),
+  approved_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Indexes
+create index if not exists deposits_user_idx on public.deposits (user_id, created_at desc);
+create index if not exists deposits_status_idx on public.deposits (status, created_at desc);
+create index if not exists withdrawals_user_idx on public.withdrawals (user_id, created_at desc);
+create index if not exists withdrawals_status_idx on public.withdrawals (status, created_at desc);
+
+-- Enable RLS
+alter table public.crypto_networks enable row level security;
+alter table public.deposit_addresses enable row level security;
+alter table public.deposits enable row level security;
+alter table public.withdrawals enable row level security;
+
+-- Insert default networks
+insert into public.crypto_networks (network_code, network_name, fee_percentage) values
+  ('BEP20', 'BNB Smart Chain (BEP-20)', 0),
+  ('ERC20', 'Ethereum (ERC-20)', 0),
+  ('Aptos', 'Aptos', 0),
+  ('Polygon_POS', 'Polygon (POS)', 0),
+  ('Solana', 'Solana', 0)
+on conflict (network_code) do nothing;
+
+-- Function: approve deposit
+create or replace function public.approve_deposit(
+  p_deposit_id uuid,
+  p_admin_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_deposit record;
+  v_tx_hash text;
+begin
+  select * into v_deposit from public.deposits
+  where id = p_deposit_id and status = 'pending';
+
+  if not found then
+    raise exception 'Deposit not found or already processed';
+  end if;
+
+  -- Update deposit status
+  update public.deposits
+  set status = 'approved', approved_by = p_admin_id, approved_at = now(), updated_at = now()
+  where id = p_deposit_id;
+
+  -- Add to main wallet
+  update public.wallet_accounts
+  set balance = balance + v_deposit.amount, updated_at = now()
+  where user_id = v_deposit.user_id and wallet = 'main';
+
+  -- Record transaction
+  v_tx_hash := gen_random_uuid()::text;
+  insert into public.wallet_transactions (user_id, wallet, type, asset, amount, status, tx_hash)
+  values (v_deposit.user_id, 'main', 'deposit', v_deposit.coin, v_deposit.amount, 'completed', v_tx_hash);
+
+  -- Mark referral eligible on first deposit
+  perform public.mark_referral_eligible(v_deposit.user_id);
+end;
+$$;
+
+-- Function: reject deposit
+create or replace function public.reject_deposit(
+  p_deposit_id uuid,
+  p_admin_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.deposits
+  set status = 'rejected', rejection_reason = p_reason, approved_by = p_admin_id, approved_at = now(), updated_at = now()
+  where id = p_deposit_id and status = 'pending';
+
+  if not found then
+    raise exception 'Deposit not found or already processed';
+  end if;
+end;
+$$;
+
+-- Function: approve withdrawal
+create or replace function public.approve_withdrawal(
+  p_withdrawal_id uuid,
+  p_admin_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_withdrawal record;
+begin
+  select * into v_withdrawal from public.withdrawals
+  where id = p_withdrawal_id and status = 'pending';
+
+  if not found then
+    raise exception 'Withdrawal not found or already processed';
+  end if;
+
+  update public.withdrawals
+  set status = 'approved', approved_by = p_admin_id, approved_at = now(), updated_at = now()
+  where id = p_withdrawal_id;
+end;
+$$;
+
+-- Function: reject withdrawal
+create or replace function public.reject_withdrawal(
+  p_withdrawal_id uuid,
+  p_admin_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_withdrawal record;
+  v_tx_hash text;
+begin
+  select * into v_withdrawal from public.withdrawals
+  where id = p_withdrawal_id and status = 'pending';
+
+  if not found then
+    raise exception 'Withdrawal not found or already processed';
+  end if;
+
+  update public.withdrawals
+  set status = 'rejected', rejection_reason = p_reason, approved_by = p_admin_id, approved_at = now(), updated_at = now()
+  where id = p_withdrawal_id;
+
+  -- Refund to main wallet
+  update public.wallet_accounts
+  set balance = balance + v_withdrawal.amount, updated_at = now()
+  where user_id = v_withdrawal.user_id and wallet = 'main';
+
+  -- Record refund transaction
+  v_tx_hash := gen_random_uuid()::text;
+  insert into public.wallet_transactions (user_id, wallet, type, asset, amount, status, tx_hash)
+  values (v_withdrawal.user_id, 'main', 'withdrawal_refund', v_withdrawal.coin, v_withdrawal.amount, 'completed', v_tx_hash);
+end;
+$$;
+
+-- Function: create withdrawal request
+create or replace function public.create_withdrawal(
+  p_user_id uuid,
+  p_coin text,
+  p_network_code text,
+  p_amount numeric,
+  p_wallet_address text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_withdrawal_id uuid;
+  v_fee_pct numeric := 10.00;
+  v_fee_amount numeric;
+  v_net_payout numeric;
+  v_tx_hash text;
+begin
+  -- Calculate fees
+  v_fee_amount := (p_amount * v_fee_pct) / 100;
+  v_net_payout := p_amount - v_fee_amount;
+
+  -- Check balance
+  if not exists (
+    select 1 from public.wallet_accounts
+    where user_id = p_user_id and wallet = 'main' and balance >= p_amount
+  ) then
+    raise exception 'Insufficient balance';
+  end if;
+
+  -- Deduct from main wallet
+  update public.wallet_accounts
+  set balance = balance - p_amount, updated_at = now()
+  where user_id = p_user_id and wallet = 'main';
+
+  -- Create withdrawal record
+  insert into public.withdrawals (user_id, coin, network_code, amount, fee_percentage, fee_amount, net_payout, wallet_address)
+  values (p_user_id, p_coin, p_network_code, p_amount, v_fee_pct, v_fee_amount, v_net_payout, p_wallet_address)
+  returning id into v_withdrawal_id;
+
+  -- Record transaction
+  v_tx_hash := gen_random_uuid()::text;
+  insert into public.wallet_transactions (user_id, wallet, type, asset, amount, status, tx_hash)
+  values (p_user_id, 'main', 'withdrawal_pending', p_coin, -p_amount, 'pending', v_tx_hash);
+
+  return v_withdrawal_id;
+end;
+$$;
+
+-- ════════════════════════════════════════════════════════════
 -- CRON JOBS
 -- ════════════════════════════════════════════════════════════
 
