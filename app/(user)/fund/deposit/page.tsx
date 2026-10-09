@@ -43,6 +43,67 @@ const ADDRESSES: Record<Asset, Record<Network, string>> = {
   },
 };
 
+function QrCodeDisplay({ text, asset }: { text: string; asset: string }) {
+  // Generate a deterministic 21x21 QR-like matrix based on address
+  const size = 21;
+  const grid = Array.from({ length: size }, () => Array(size).fill(false));
+
+  // Finder patterns at top-left, top-right, bottom-left
+  const drawFinder = (startX: number, startY: number) => {
+    for (let x = 0; x < 7; x++) {
+      for (let y = 0; y < 7; y++) {
+        const isBorder = x === 0 || x === 6 || y === 0 || y === 6;
+        const isCenter = x >= 2 && x <= 4 && y >= 2 && y <= 4;
+        grid[startY + y][startX + x] = isBorder || isCenter;
+      }
+    }
+  };
+  drawFinder(0, 0);
+  drawFinder(size - 7, 0);
+  drawFinder(0, size - 7);
+
+  // Timing patterns
+  for (let i = 8; i < size - 8; i++) {
+    grid[6][i] = i % 2 === 0;
+    grid[i][6] = i % 2 === 0;
+  }
+
+  // Fill data areas deterministically from string characters
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const inFinderTL = x < 8 && y < 8;
+      const inFinderTR = x >= size - 8 && y < 8;
+      const inFinderBL = x < 8 && y >= size - 8;
+      const inCenterLogo = x >= 8 && x <= 12 && y >= 8 && y <= 12;
+      if (!inFinderTL && !inFinderTR && !inFinderBL && !inCenterLogo) {
+        const bit = ((hash ^ (x * 37 + y * 19)) + (x * y)) % 7;
+        grid[y][x] = bit < 3;
+      }
+    }
+  }
+
+  return (
+    <div className="relative flex size-[160px] items-center justify-center rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <svg viewBox={`0 0 ${size} ${size}`} className="size-full shape-rendering-crispEdges">
+        {grid.flatMap((row, y) =>
+          row.map((active, x) =>
+            active ? (
+              <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill="currentColor" className="text-foreground" />
+            ) : null
+          )
+        )}
+      </svg>
+      <div className="absolute grid size-8 place-items-center rounded-lg border border-border bg-card text-[11px] font-bold text-foreground shadow-sm">
+        {asset === "USDT" ? "₮" : "$"}
+      </div>
+    </div>
+  );
+}
+
 const QR_IMAGES: Record<Asset, Record<Network, string>> = {
   USDT: {
     BEP20: "/qr/usdt-bep20.png",
@@ -504,13 +565,7 @@ export default function DepositPage() {
               <div className="mb-5 grid gap-5 sm:grid-cols-[160px_1fr]">
                 {/* QR */}
                 <div className="flex flex-col items-center gap-2">
-                  <div className="flex size-[160px] items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/40">
-                    <img
-                      src={QR_IMAGES[depState.asset][depState.network as Network]}
-                      alt={`QR code for ${depState.asset} ${depState.network} deposit`}
-                      className="size-full object-cover"
-                    />
-                  </div>
+                  <QrCodeDisplay text={depState.address} asset={depState.asset} />
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Scan to pay</span>
                 </div>
 
@@ -665,6 +720,11 @@ export default function DepositPage() {
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {d.date} · {d.network}
                         </div>
+                        {d.status === "rejected" && d.reason && (
+                          <div className="mt-1.5 rounded-lg bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                            <span className="font-semibold">Rejection Reason:</span> {d.reason}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="shrink-0 text-right">

@@ -281,13 +281,13 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
               <Button size="sm" variant="ghost" onClick={() => openView(d.id)}>
                 View
               </Button>
-              <Button size="sm" variant="primary" onClick={() => openView(d.id)}>
+              <Button size="sm" variant="primary" onClick={() => doConfirm(d)}>
                 Confirm
               </Button>
             </div>
           ) : (
             <Button size="sm" variant="ghost" onClick={() => openView(d.id)}>
-              Details
+              View
             </Button>
           ),
       },
@@ -319,7 +319,7 @@ export function DepositsView({ initial }: { initial: Deposit[] }) {
             ? [
                 { label: "User", value: current.name },
                 { label: "User ID", value: current.userId },
-                { label: `Amount (${current.coin})`, value: `+$${fmtAmt(current.amount)}`, strong: true },
+                { label: "Amount (USDT)", value: `+$${fmtAmt(current.amount)}`, strong: true },
                 { label: "Coin", value: current.coin },
                 { label: "Network", value: current.network },
                 { label: "Date", value: current.date },
