@@ -151,6 +151,7 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
   const [rf, setRf] = useState(rewardInitial);
   const [rewardBusy, setRewardBusy] = useState(false);
   const [refForm, setRefForm] = useState(referralInitial);
+  const [loginBusy, setLoginBusy] = useState(false);
 
   const dirty = JSON.stringify(user) !== JSON.stringify(saved);
   const set = <K extends keyof User>(key: K, value: User[K]) =>
@@ -210,6 +211,27 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
       suspending ? "User suspended" : "User activated",
     );
   };
+
+  /** Owner logs in as this user: the server creates an impersonation session
+   *  and returns the URL to open (new tab, so the admin session stays intact). */
+  async function loginAsUser() {
+    if (!confirm(`Login as ${user.firstName} ${user.lastName}? This action may be logged.`)) return;
+    // open the tab synchronously so popup blockers don't stop it
+    const win = window.open("", "_blank");
+    setLoginBusy(true);
+    try {
+      const res = await fetch(`/api/owner/users/${user.id}/impersonate`, { method: "POST" });
+      if (!res.ok) throw new Error(String(res.status));
+      const { url } = (await res.json()) as { url: string };
+      if (win) win.location.href = url;
+      else window.open(url, "_blank");
+    } catch {
+      win?.close();
+      flash("Login as user failed. Check your API route.");
+    } finally {
+      setLoginBusy(false);
+    }
+  }
 
   /** Owner adds a referral to this user (saved with "Save changes"). */
   const addReferral = () => {
@@ -598,6 +620,9 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
         <div className="flex flex-wrap items-center gap-2">
           {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
           <Btn onClick={() => router.push("/owner/users")}>Back</Btn>
+          <Btn onClick={loginAsUser} disabled={loginBusy || user.status !== "active"}>
+            {loginBusy ? "Opening..." : "Login as user"}
+          </Btn>
           <Btn tone={user.status === "active" ? "danger" : "default"} onClick={toggleSuspend} disabled={busy}>
             {user.status === "active" ? "Suspend user" : "Activate user"}
           </Btn>
