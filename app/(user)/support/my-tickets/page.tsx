@@ -250,7 +250,7 @@ export default function MyTicketsPage() {
 
                 <div className="flex flex-col overflow-hidden rounded-md border border-border">
                   <div ref={chatMessagesRef} className="flex h-64 flex-col gap-3 overflow-y-auto p-4">
-                    {activeTicket.messages.length === 0 ? (
+                    {!activeTicket.messages || activeTicket.messages.length === 0 ? (
                       <p className="py-8 text-center text-sm text-muted-foreground">No messages yet.</p>
                     ) : (
                       activeTicket.messages.map((m) => {
