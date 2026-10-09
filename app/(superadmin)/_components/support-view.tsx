@@ -1,4 +1,4 @@
-// app/(superadmin)/_components/support-view.tsx
+// app/(admin)/_components/support-view.tsx
 "use client";
 
 import {
@@ -107,21 +107,150 @@ const LOG_DOT: Record<TicketLog["action"], string> = {
 
 /* ---------- main view ---------- */
 
-export function SupportView({ initial }: { initial: Ticket[] }) {
+type DbTicket = {
+  id: string;
+  ticket_id: string;
+  user_id: string;
+  subject: string;
+  category: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  created_at: string;
+  user: {
+    id: string;
+    user_id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  };
+};
+
+type DbMessage = {
+  id: string;
+  message: string;
+  created_at: string;
+  sender: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+  };
+};
+
+type DbLog = {
+  id: string;
+  action: TicketLog["action"];
+  description: string;
+  created_at: string;
+  performer: {
+    first_name: string;
+    last_name: string;
+  } | null;
+};
+
+export function SupportView() {
   const { toast, showToast } = useToast();
-  const [tickets, setTickets] = useState(initial);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const chatRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const active = tickets.find((t) => t.id === activeId) ?? null;
   const closeModal = useCallback(() => {
     setActiveId(null);
     setReplyText("");
   }, []);
+
+  const fetchTickets = async () => {
+    try {
+      const res = await fetch('/api/admin/support/tickets');
+      if (!res.ok) return;
+      const data = await res.json();
+      
+      const mapped: Ticket[] = (data.tickets || []).map((t: DbTicket) => ({
+        id: t.id,
+        ticket_id: t.ticket_id,
+        user_id: t.user_id,
+        subject: t.subject,
+        category: t.category,
+        priority: t.priority,
+        status: t.status,
+        created_at: t.created_at,
+        profile: {
+          first_name: t.user.first_name,
+          last_name: t.user.last_name,
+          username: t.user.user_id,
+          email: t.user.email,
+          phone_number: t.user.phone || ''
+        },
+        messages: [],
+        logs: []
+      }));
+      
+      setTickets(mapped);
+    } catch (error) {
+      console.error('Fetch tickets error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTicketDetails = async (ticketId: string) => {
+    try {
+      const res = await fetch(`/api/admin/support/ticket?ticketId=${ticketId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      
+      const messages = (data.messages || []).map((m: DbMessage) => ({
+        id: m.id,
+        from: m.sender.role === 'user' ? 'user' : 'staff',
+        staffName: m.sender.role !== 'user' ? `${m.sender.first_name} ${m.sender.last_name}` : undefined,
+        message: m.message,
+        created_at: m.created_at
+      }));
+
+      const logs = (data.logs || []).map((l: DbLog) => ({
+        id: l.id,
+        action: l.action,
+        text: l.description,
+        performer: l.performer ? `${l.performer.first_name} ${l.performer.last_name}` : undefined,
+        created_at: l.created_at
+      }));
+      
+      setTickets(prev => prev.map(t => 
+        t.id === ticketId ? { ...t, messages, logs } : t
+      ));
+    } catch (error) {
+      console.error('Fetch ticket details error:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  useEffect(() => {
+    if (activeId) {
+      fetchTicketDetails(activeId);
+      
+      pollingRef.current = setInterval(() => {
+        fetchTicketDetails(activeId);
+      }, 3000);
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [activeId]);
 
   /* ---------- stats ---------- */
 
@@ -156,72 +285,59 @@ export function SupportView({ initial }: { initial: Ticket[] }) {
 
   /* ---------- actions (local state only — no DB) ---------- */
 
-  const setStatus = (id: string, newStatus: TicketStatus) => {
-    // TODO: call your API here (update ticket status)
-    const now = new Date().toISOString();
-    setTickets((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? {
-              ...t,
-              status: newStatus,
-              logs: [
-                {
-                  id: `l-${Date.now()}`,
-                  action: "status_changed",
-                  text: `Status changed to ${newStatus}`,
-                  performer: MODERATOR.name,
-                  created_at: now,
-                },
-                ...t.logs,
-              ],
-            }
-          : t,
-      ),
-    );
-    showToast(`Status updated to ${newStatus}.`);
+  const setStatus = async (id: string, newStatus: TicketStatus) => {
+    try {
+      const res = await fetch('/api/admin/support/ticket', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId: id, status: newStatus })
+      });
+
+      if (!res.ok) {
+        showToast('Failed to update status');
+        return;
+      }
+
+      setTickets(prev => prev.map(t => 
+        t.id === id ? { ...t, status: newStatus } : t
+      ));
+      
+      showToast(`Status updated to ${newStatus}.`);
+      await fetchTicketDetails(id);
+    } catch (error) {
+      console.error('Status update error:', error);
+      showToast('Failed to update status');
+    }
   };
 
-  const sendChat = (t: Ticket) => {
+  const sendChat = async (t: Ticket) => {
     if (!replyText.trim()) return;
     if (t.status === "closed") {
       showToast("Re-open the ticket before replying.");
       return;
     }
-    // TODO: call your API here (send reply to user)
-    const now = new Date().toISOString();
+
     const text = replyText.trim();
     setReplyText("");
-    setTickets((prev) =>
-      prev.map((x) =>
-        x.id === t.id
-          ? {
-              ...x,
-              messages: [
-                ...x.messages,
-                {
-                  id: `m-${Date.now()}`,
-                  from: "staff",
-                  staffName: MODERATOR.name,
-                  message: text,
-                  created_at: now,
-                },
-              ],
-              logs: [
-                {
-                  id: `l-${Date.now()}`,
-                  action: "reply_sent",
-                  text: "Reply sent to user",
-                  performer: MODERATOR.name,
-                  created_at: now,
-                },
-                ...x.logs,
-              ],
-            }
-          : x,
-      ),
-    );
-    showToast("Reply sent successfully.");
+
+    try {
+      const res = await fetch('/api/admin/support/ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticketId: t.id, message: text })
+      });
+
+      if (!res.ok) {
+        showToast('Failed to send reply');
+        return;
+      }
+
+      showToast("Reply sent successfully.");
+      await fetchTicketDetails(t.id);
+    } catch (error) {
+      console.error('Send reply error:', error);
+      showToast('Failed to send reply');
+    }
   };
 
   /* ---------- auto-scroll chat ---------- */

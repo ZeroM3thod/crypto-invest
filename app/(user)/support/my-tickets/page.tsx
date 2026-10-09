@@ -1,7 +1,7 @@
 // app/(user)/support/my-tickets/page.tsx
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { UserShell } from "@/app/(user)/_components/user-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,49 +36,6 @@ interface Ticket {
   messages: TicketMessage[];
 }
 
-// ── Mock data ────────────────────────────────────────────────────────────
-
-const MOCK_TICKETS: Ticket[] = [
-  {
-    id: "t1",
-    ticket_id: "TCK-10231",
-    subject: "Unable to update billing address",
-    category: "Billing",
-    priority: "medium",
-    created_at: "2026-09-20T10:12:00Z",
-    status: "open",
-    messages: [
-      { id: "m1", message: "Hi, I tried updating my billing address but it keeps failing.", created_at: "2026-09-20T10:12:00Z", sender: { first_name: "You", last_name: "", role: "user" } },
-      { id: "m2", message: "Thanks for reaching out — could you tell us which browser you're using?", created_at: "2026-09-20T11:03:00Z", sender: { first_name: "Maya", last_name: "R.", role: "admin" } },
-    ],
-  },
-  {
-    id: "t2",
-    ticket_id: "TCK-10184",
-    subject: "Investment overview not loading",
-    category: "Investment",
-    priority: "high",
-    created_at: "2026-09-15T08:40:00Z",
-    status: "pending",
-    messages: [
-      { id: "m3", message: "The Investment → Overview page has been blank for me since yesterday.", created_at: "2026-09-15T08:40:00Z", sender: { first_name: "You", last_name: "", role: "user" } },
-    ],
-  },
-  {
-    id: "t3",
-    ticket_id: "TCK-10022",
-    subject: "Question about referral commission payout",
-    category: "Referral",
-    priority: "low",
-    created_at: "2026-09-02T14:20:00Z",
-    status: "resolved",
-    messages: [
-      { id: "m4", message: "When does referral commission move from pending to available?", created_at: "2026-09-02T14:20:00Z", sender: { first_name: "You", last_name: "", role: "user" } },
-      { id: "m5", message: "Commissions move to your available balance within 2–3 business days of the referred deposit confirming.", created_at: "2026-09-02T16:05:00Z", sender: { first_name: "Jordan", last_name: "K.", role: "admin" } },
-    ],
-  },
-];
-
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function statusVariant(s: Ticket["status"]): "default" | "outline" | "secondary" | "muted" {
@@ -97,38 +54,109 @@ function formatTime(s: string) {
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export default function MyTicketsPage() {
-  const [tickets, setTickets] = useState<Ticket[]>(MOCK_TICKETS);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const activeTicket = tickets.find((t) => t.id === activeTicketId) || null;
 
-  const sendChat = () => {
+  const fetchTickets = async () => {
+    try {
+      const res = await fetch('/api/support/my-tickets');
+      if (!res.ok) return;
+      const data = await res.json();
+      setTickets(data.tickets || []);
+    } catch (error) {
+      console.error('Fetch tickets error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTicketDetails = async (ticketId: string) => {
+    try {
+      const res = await fetch(`/api/support/ticket?ticketId=${ticketId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      
+      setTickets(prev => prev.map(t => 
+        t.id === ticketId 
+          ? { 
+              ...t, 
+              messages: data.messages.map((m: any) => ({
+                id: m.id,
+                message: m.message,
+                created_at: m.created_at,
+                sender: {
+                  first_name: m.sender.role === 'user' ? 'You' : m.sender.first_name,
+                  last_name: m.sender.role === 'user' ? '' : m.sender.last_name,
+                  role: m.sender.role
+                }
+              }))
+            }
+          : t
+      ));
+    } catch (error) {
+      console.error('Fetch ticket details error:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  useEffect(() => {
+    if (activeTicketId && activeTicket) {
+      fetchTicketDetails(activeTicketId);
+      
+      pollingRef.current = setInterval(() => {
+        fetchTicketDetails(activeTicketId);
+      }, 3000);
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [activeTicketId]);
+
+  const sendChat = async () => {
     if (!chatInput.trim() || !activeTicketId || !activeTicket) return;
     if (activeTicket.status === "closed") return;
 
     const msgText = chatInput;
     setChatInput("");
 
-    setTickets((prev) =>
-      prev.map((t) =>
-        t.id === activeTicketId
-          ? {
-              ...t,
-              messages: [
-                ...t.messages,
-                { id: "m-" + Date.now(), message: msgText, created_at: new Date().toISOString(), sender: { first_name: "You", last_name: "", role: "user" as const } },
-              ],
-            }
-          : t,
-      ),
-    );
+    try {
+      const res = await fetch('/api/support/ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: activeTicketId,
+          message: msgText
+        })
+      });
 
-    requestAnimationFrame(() => {
-      if (chatMessagesRef.current) chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
-    });
+      if (!res.ok) {
+        alert('Failed to send message');
+        return;
+      }
+
+      await fetchTicketDetails(activeTicketId);
+
+      requestAnimationFrame(() => {
+        if (chatMessagesRef.current) chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+      });
+    } catch (error) {
+      console.error('Send message error:', error);
+      alert('Failed to send message');
+    }
   };
 
   return (
@@ -153,7 +181,11 @@ export default function MyTicketsPage() {
           </div>
 
           {/* ── Ticket list (table style) ────────────────── */}
-          {tickets.length === 0 ? (
+          {loading ? (
+            <Card className="flex flex-col items-center gap-3 py-16 text-center">
+              <p className="text-sm text-muted-foreground">Loading tickets...</p>
+            </Card>
+          ) : tickets.length === 0 ? (
             <Card className="flex flex-col items-center gap-3 py-16 text-center">
               <Inbox className="size-6 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">No tickets yet. Create one to get started.</p>

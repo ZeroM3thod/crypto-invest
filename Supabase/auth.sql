@@ -1190,6 +1190,65 @@ end;
 $$;
 
 -- ════════════════════════════════════════════════════════════
+-- SUPPORT TICKETS SYSTEM
+-- ════════════════════════════════════════════════════════════
+
+create table if not exists public.support_tickets (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id text not null unique,
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  category text not null check (category in ('Billing', 'Investment', 'Referral', 'Account', 'Technical', 'Other')),
+  priority text not null default 'low' check (priority in ('low', 'medium', 'high', 'urgent')),
+  subject text not null,
+  status text not null default 'pending' check (status in ('pending', 'open', 'resolved', 'closed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.support_messages (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references public.support_tickets(id) on delete cascade,
+  sender_id uuid not null references public.auth_users(id) on delete cascade,
+  message text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.support_logs (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references public.support_tickets(id) on delete cascade,
+  action text not null check (action in ('ticket_created', 'status_changed', 'reply_sent')),
+  description text not null,
+  performer_id uuid references public.auth_users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists support_tickets_user_idx on public.support_tickets (user_id, created_at desc);
+create index if not exists support_tickets_status_idx on public.support_tickets (status, created_at desc);
+create index if not exists support_messages_ticket_idx on public.support_messages (ticket_id, created_at asc);
+create index if not exists support_logs_ticket_idx on public.support_logs (ticket_id, created_at desc);
+
+alter table public.support_tickets enable row level security;
+alter table public.support_messages enable row level security;
+alter table public.support_logs enable row level security;
+
+create or replace function public.generate_ticket_id()
+returns text
+language plpgsql
+as $$
+declare
+  v_ticket_id text;
+  v_exists boolean;
+begin
+  loop
+    v_ticket_id := 'TCK-' || floor(10000 + random() * 89999)::text;
+    select exists(select 1 from public.support_tickets where ticket_id = v_ticket_id) into v_exists;
+    exit when not v_exists;
+  end loop;
+  return v_ticket_id;
+end;
+$$;
+
+-- ════════════════════════════════════════════════════════════
 -- CRON JOBS
 -- ════════════════════════════════════════════════════════════
 

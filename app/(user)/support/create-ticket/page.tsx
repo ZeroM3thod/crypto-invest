@@ -65,13 +65,35 @@ export default function CreateTicketPage() {
     if (hasErr) return;
 
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 500));
 
-    const newId = `TCK-${Math.floor(10000 + Math.random() * 89999)}`;
+    try {
+      const res = await fetch('/api/support/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: fCategory,
+          priority: fPriority,
+          subject: fSubject,
+          message: fMessage
+        })
+      });
 
-    setNewTicketId(newId);
-    setFormSuccess(true);
-    setSubmitting(false);
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to create ticket');
+        setSubmitting(false);
+        return;
+      }
+
+      setNewTicketId(data.ticketId);
+      setFormSuccess(true);
+    } catch (error) {
+      console.error('Submit error:', error);
+      alert('Failed to submit ticket. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
