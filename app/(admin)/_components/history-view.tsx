@@ -2,10 +2,10 @@
 "use client";
 
 import { ArrowDownToLine, ArrowUpFromLine, Coins, ListChecks } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Table, type TableColumn } from "@/components/motion/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/motion/tabs";
-import { getSendMoneyFees, type HistoryItem } from "@/lib/admin-finance-data";
+import type { HistoryItem } from "@/lib/admin-finance-data";
 import {
   PageHeader,
   SearchInput,
@@ -14,7 +14,7 @@ import {
   usd,
 } from "./finance-ui";
 
-type Filter = "all" | "Deposit" | "Withdraw";
+type Filter = "all" | "Deposit" | "Withdraw" | "Send Money";
 
 const columns: TableColumn<HistoryItem>[] = [
   { key: "id", header: "ID", width: "110px" },
@@ -22,7 +22,7 @@ const columns: TableColumn<HistoryItem>[] = [
     key: "user",
     header: "User",
     sortable: true,
-    width: "1.3fr",
+    width: "1.4fr",
     cell: (r) => (
       <div className="min-w-0">
         <p className="truncate font-medium">{r.user}</p>
@@ -30,15 +30,7 @@ const columns: TableColumn<HistoryItem>[] = [
       </div>
     ),
   },
-  {
-    key: "userId" as never,
-    header: "User ID",
-    width: "100px",
-    cell: (r) => (
-      <span className="font-mono text-xs text-muted-foreground">{r.userId || "—"}</span>
-    ),
-  },
-  { key: "type", header: "Type", sortable: true, width: "120px" },
+  { key: "type", header: "Type", sortable: true, width: "130px" },
   {
     key: "amount",
     header: "Amount",
@@ -64,19 +56,9 @@ const columns: TableColumn<HistoryItem>[] = [
   { key: "date", header: "Date", sortable: true, width: "150px" },
 ];
 
-export function HistoryView({ items: initialItems }: { items: HistoryItem[] }) {
-  const [items, setItems] = useState<HistoryItem[]>(initialItems);
+export function HistoryView({ items }: { items: HistoryItem[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    fetch("/api/admin/history")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.items) setItems(data.items);
-      })
-      .catch(() => {});
-  }, []);
 
   const stats = useMemo(() => {
     const done = items.filter((i) => i.status === "completed");
@@ -86,7 +68,7 @@ export function HistoryView({ items: initialItems }: { items: HistoryItem[] }) {
       total: items.length,
       moneyIn: sum("Deposit"),
       moneyOut: sum("Withdraw"),
-      fees: getSendMoneyFees(),
+      fees: done.filter((i) => i.type === "Send Money").reduce((a, i) => a + i.fee, 0),
     };
   }, [items]);
 
@@ -96,8 +78,8 @@ export function HistoryView({ items: initialItems }: { items: HistoryItem[] }) {
       (i) =>
         (filter === "all" || i.type === filter) &&
         (!q ||
-          [i.id, i.user, i.email, i.userId, i.type].some((v) =>
-            v?.toLowerCase().includes(q),
+          [i.id, i.user, i.email, i.type].some((v) =>
+            v.toLowerCase().includes(q),
           )),
     );
   }, [items, filter, query]);
@@ -106,7 +88,7 @@ export function HistoryView({ items: initialItems }: { items: HistoryItem[] }) {
     <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
       <PageHeader
         title="History"
-        description="Every deposit and withdrawal transaction on the platform."
+        description="Every deposit, withdrawal and transfer on the platform."
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -130,7 +112,6 @@ export function HistoryView({ items: initialItems }: { items: HistoryItem[] }) {
         <StatCard
           label="Fees collected"
           value={stats.fees}
-          hint="From send money"
           format={usd}
           icon={Coins}
           positive
@@ -147,7 +128,8 @@ export function HistoryView({ items: initialItems }: { items: HistoryItem[] }) {
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="Deposit">Deposits</TabsTrigger>
-              <TabsTrigger value="Withdraw">Withdrawals</TabsTrigger>
+              <TabsTrigger value="Withdraw">Withdraws</TabsTrigger>
+              <TabsTrigger value="Send Money">Send Money</TabsTrigger>
             </TabsList>
           </Tabs>
           <SearchInput
@@ -177,4 +159,3 @@ export function HistoryView({ items: initialItems }: { items: HistoryItem[] }) {
     </div>
   );
 }
-

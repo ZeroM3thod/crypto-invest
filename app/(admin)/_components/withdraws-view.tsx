@@ -342,7 +342,8 @@ export function WithdrawsView({ initial }: { initial: Withdraw[] }) {
             ? [
                 { label: "User", value: current.name },
                 { label: "User ID", value: current.userId },
-                { label: "Amount (USDT)", value: `−$${fmtAmt(current.amount)}`, strong: true },
+                { label: `Amount (${current.coin})`, value: `−$${fmtAmt(current.amount)}`, strong: true },
+                { label: "Fee (10%)", value: `$${fmtAmt(feeOf(current))}` },
                 { label: "Net payout", value: `$${fmtAmt(netOf(current))}`, strong: true },
                 { label: "Coin", value: current.coin },
                 { label: "Network", value: current.network },

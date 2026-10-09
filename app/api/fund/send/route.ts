@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { bad, getSession, supabase, q, txHash } from "@/lib/auth/backend";
-import { mockDb } from "@/lib/db/mock-db";
 
 const SEND_FEE = 0.1;
 
@@ -106,18 +105,6 @@ export async function POST(req: NextRequest) {
       tx_hash: txId,
       status: "completed",
     }),
-  });
-
-  // Also record in mockDb for persistence across platform
-  mockDb.recordSendTransaction({
-    sender_id: session.user.id,
-    recipient_id: recipientId,
-    amount,
-    fee: SEND_FEE,
-    total,
-    note: note || undefined,
-    tx_hash: txId,
-    status: "completed",
   });
 
   return Response.json({

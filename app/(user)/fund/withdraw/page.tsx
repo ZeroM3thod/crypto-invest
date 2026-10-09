@@ -22,6 +22,7 @@ interface WdHistory {
   network: Network;
   wallet: string;
   status: "approved" | "pending" | "rejected";
+  note?: string;
   reason?: string;
 }
 
@@ -32,6 +33,7 @@ interface ConfirmDetails {
   coin: Coin;
   network: Network;
   addr: string;
+  note: string;
   shortAddr: string;
 }
 
@@ -46,7 +48,7 @@ const COINS: { id: Coin; name: string; symbol: string }[] = [
 ];
 
 const NETWORKS: { id: Network; name: string; desc: string }[] = [
-  { id: "BEP20", name: "BNB Smart Chain — BEP-20", desc: "Fee: 10% · Time: 24–72 hours" },
+  { id: "BEP20", name: "BNB Smart Chain (BEP-20)", desc: "Fee: 10% · Time: 24–72 hours" },
   { id: "Aptos", name: "Aptos Network", desc: "Fee: 10% · Time: 24–72 hours" },
 ];
 
@@ -106,6 +108,7 @@ export default function WithdrawPage() {
   const [network, setNetwork] = useState<Network>("BEP20");
   const [wdAmt, setWdAmt] = useState("");
   const [wdAddr, setWdAddr] = useState("");
+  const [wdNote, setWdNote] = useState("");
   const [selectedChip, setSelectedChip] = useState<number | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmDetails, setConfirmDetails] = useState<ConfirmDetails | null>(null);
@@ -141,6 +144,7 @@ export default function WithdrawPage() {
   const openConfirm = () => {
     const amt = parseFloat(wdAmt);
     const addr = wdAddr.trim();
+    const note = wdNote.trim();
 
     if (!amt || amt < 10) {
       showToast("Please enter a valid amount (min $10)");
@@ -161,7 +165,7 @@ export default function WithdrawPage() {
 
     const { fee, receive } = calcFeeAndReceive(amt);
     const shortAddr = addr.length > 20 ? addr.slice(0, 10) + "..." + addr.slice(-6) : addr;
-    setConfirmDetails({ amt, fee, recv: receive, coin, network, addr, shortAddr });
+    setConfirmDetails({ amt, fee, recv: receive, coin, network, addr, note, shortAddr });
     setConfirmOpen(true);
   };
 
@@ -192,6 +196,7 @@ export default function WithdrawPage() {
       setConfirmOpen(false);
       setWdAmt("");
       setWdAddr("");
+      setWdNote("");
       setSelectedChip(null);
     } catch (err) {
       showToast(`Error: ${err instanceof Error && err.message ? err.message : "Submission failed"}`);
@@ -386,12 +391,21 @@ export default function WithdrawPage() {
                 onChange={(e) => setWdAddr(e.target.value)}
                 className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
               />
-              <div className="mt-2 rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">
-                  {NETWORKS.find((n) => n.id === network)?.name}:
-                </span>{" "}
-                Fee: 10% · Time: 24–72 hours
-              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Only {coin} on {NETWORKS.find(n => n.id === network)?.name} is supported.
+              </p>
+            </div>
+
+            {/* Note */}
+            <div className="mb-5">
+              <FieldLabel hint="(optional — visible to admin)">Note</FieldLabel>
+              <textarea
+                placeholder="Any note for this withdrawal (e.g. reason, reference)"
+                value={wdNote}
+                onChange={(e) => setWdNote(e.target.value)}
+                rows={3}
+                className="w-full resize-y rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground"
+              />
             </div>
 
             {/* Summary */}
@@ -458,6 +472,9 @@ export default function WithdrawPage() {
                         </div>
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {d.date} · {d.wallet}
+                          {d.note && (
+                            <span className="ml-1.5 italic text-muted-foreground/80">· &ldquo;{d.note}&rdquo;</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -523,12 +540,20 @@ export default function WithdrawPage() {
                     <span className="text-xs text-muted-foreground">To Wallet</span>
                     <span className="text-sm font-medium text-foreground">{confirmDetails.shortAddr}</span>
                   </div>
-                  <div className="flex items-center justify-between py-2">
+                  <div className={`flex items-center justify-between py-2 ${confirmDetails.note ? "border-b border-border" : ""}`}>
                     <span className="text-xs text-muted-foreground">Network</span>
                     <span className="text-sm font-medium text-foreground">
                       {NETWORKS.find(n => n.id === confirmDetails.network)?.name}
                     </span>
                   </div>
+                  {confirmDetails.note && (
+                    <div className="flex items-center justify-between py-2">
+                      <span className="text-xs text-muted-foreground">Note</span>
+                      <span className="max-w-[200px] truncate text-right text-sm font-medium text-foreground">
+                        {confirmDetails.note}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -601,6 +626,14 @@ export default function WithdrawPage() {
                   <span className="text-xs text-muted-foreground">Status</span>
                   <StatusBadge status={modalEntry.status} />
                 </div>
+                {modalEntry.note && (
+                  <div className="flex items-center justify-between border-t border-border pt-2">
+                    <span className="text-xs text-muted-foreground">Note</span>
+                    <span className="max-w-[200px] truncate text-right text-sm font-medium italic text-foreground">
+                      {modalEntry.note}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {modalEntry.status === "rejected" && modalEntry.reason && (

@@ -1,30 +1,42 @@
 import { NextRequest } from "next/server";
-import { bad, getSession } from "@/lib/auth/backend";
-import { mockDb } from "@/lib/db/mock-db";
+import { bad, getSession, supabase, q } from "@/lib/auth/backend";
 
 export async function GET(req: NextRequest) {
   const session = await getSession(req);
   if (!session) return bad("Unauthorized", 401);
 
-  // Fetch all deposits with user information from database
-  const deposits = mockDb.getAllDeposits();
+  // Check admin/owner role
+  const userRoles = await supabase<{ role: string }[]>(
+    `auth_users?select=role&id=eq.${q(session.user.id)}&limit=1`
+  );
+  if (!userRoles[0] || !["admin", "owner"].includes(userRoles[0].role)) {
+    return bad("Forbidden", 403);
+  }
+
+  // Fetch all deposits with user information
+  const deposits = await supabase<any[]>(
+    `deposits?select=id,user_id,coin,network_code,amount,transaction_hash,status,rejection_reason,created_at,updated_at&order=created_at.desc`
+  );
+
+  // Fetch user details for each deposit
+  const userIds = [...new Set(deposits.map(d => d.user_id))];
+  const users = await supabase<any[]>(
+    `auth_users?select=id,user_id,first_name,last_name,email&id=in.(${userIds.map(id => q(id)).join(',')})`
+  );
+
+  const userMap = new Map(users.map(u => [u.id, u]));
 
   return Response.json({
     deposits: deposits.map((d) => {
-      const user = mockDb.getUserById(d.user_id) || {
-        user_id: "N/A",
-        first_name: "Unknown",
-        last_name: "User",
-        email: "N/A",
-      };
+      const user = userMap.get(d.user_id) || { user_id: 'N/A', first_name: 'Unknown', last_name: 'User', email: 'N/A' };
       return {
         id: d.id,
-        name: `${user.first_name} ${user.last_name}`.trim(),
+        name: `${user.first_name} ${user.last_name}`,
         username: user.email,
         userId: user.user_id,
         coin: d.coin,
-        amount: d.amount,
-        network: d.network_code === "Polygon_POS" ? "Polygon POS" : d.network_code,
+        amount: parseFloat(d.amount),
+        network: d.network_code,
         hash: d.transaction_hash || "",
         date: d.created_at.split("T")[0],
         reason: d.rejection_reason || "",
@@ -38,6 +50,14 @@ export async function PATCH(req: NextRequest) {
   const session = await getSession(req);
   if (!session) return bad("Unauthorized", 401);
 
+  // Check admin/owner role
+  const userRoles = await supabase<{ role: string }[]>(
+    `auth_users?select=role&id=eq.${q(session.user.id)}&limit=1`
+  );
+  if (!userRoles[0] || !["admin", "owner"].includes(userRoles[0].role)) {
+    return bad("Forbidden", 403);
+  }
+
   const body = await req.json().catch(() => null);
   const depositId = String(body?.depositId || "").trim();
   const action = String(body?.action || "").trim();
@@ -47,12 +67,26 @@ export async function PATCH(req: NextRequest) {
   if (!["approve", "reject"].includes(action)) return bad("Invalid action");
 
   if (action === "approve") {
-    const success = mockDb.approveDeposit(depositId, session.user.id);
-    if (!success) return bad("Deposit not found or not in pending state");
+    // Call approve_deposit function
+    await supabase("rpc/approve_deposit", {
+      method: "POST",
+      body: JSON.stringify({
+        p_deposit_id: depositId,
+        p_admin_id: session.user.id,
+      }),
+    });
   } else {
+    // Reject
     if (!reason || reason.length < 5) return bad("Rejection reason required (min 5 chars)");
-    const success = mockDb.rejectDeposit(depositId, session.user.id, reason);
-    if (!success) return bad("Deposit not found or not in pending state");
+    
+    await supabase("rpc/reject_deposit", {
+      method: "POST",
+      body: JSON.stringify({
+        p_deposit_id: depositId,
+        p_admin_id: session.user.id,
+        p_reason: reason,
+      }),
+    });
   }
 
   return Response.json({ success: true });
@@ -62,6 +96,14 @@ export async function PATCH(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const session = await getSession(req);
   if (!session) return bad("Unauthorized", 401);
+
+  // Check owner role
+  const userRoles = await supabase<{ role: string }[]>(
+    `auth_users?select=role&id=eq.${q(session.user.id)}&limit=1`
+  );
+  if (!userRoles[0] || userRoles[0].role !== "owner") {
+    return bad("Forbidden", 403);
+  }
 
   const body = await req.json().catch(() => null);
   const depositId = String(body?.depositId || "").trim();
@@ -76,14 +118,17 @@ export async function PUT(req: NextRequest) {
   if (amount <= 0) return bad("Amount must be greater than 0");
   if (!transactionHash) return bad("Transaction hash required");
 
-  const success = mockDb.updateDeposit(depositId, {
-    coin: coin as "USDT" | "USDC",
-    network: (network === "Polygon POS" ? "Polygon_POS" : network) as any,
-    amount,
-    transactionHash,
+  await supabase(`deposits?id=eq.${q(depositId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      coin,
+      network_code: network,
+      amount,
+      transaction_hash: transactionHash,
+      updated_at: new Date().toISOString(),
+    }),
   });
-
-  if (!success) return bad("Deposit record not found");
 
   return Response.json({ success: true });
 }

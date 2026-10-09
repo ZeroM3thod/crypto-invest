@@ -1,14 +1,18 @@
 import { NextRequest } from "next/server";
-import { bad, getSession } from "@/lib/auth/backend";
-import { mockDb } from "@/lib/db/mock-db";
+import { bad, getSession, supabase, q } from "@/lib/auth/backend";
 
 export async function GET(req: NextRequest) {
   const session = await getSession(req);
   if (!session) return bad("Unauthorized", 401);
 
-  const mainBalance = mockDb.getMainBalance(session.user.id);
+  // Fetch main wallet balance
+  const wallets = await supabase<{ balance: number }[]>(
+    `wallet_accounts?select=balance&user_id=eq.${q(session.user.id)}&wallet=eq.main&limit=1`
+  );
+
+  const mainBalance = wallets[0]?.balance || 0;
 
   return Response.json({
-    mainBalance,
+    mainBalance: parseFloat(mainBalance.toString()),
   });
 }
