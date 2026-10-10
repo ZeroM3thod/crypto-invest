@@ -126,7 +126,7 @@ create index if not exists send_transactions_sender_idx on public.send_transacti
 create index if not exists send_transactions_recipient_idx on public.send_transactions (recipient_id, created_at desc);
 
 alter table public.auth_users add column if not exists wallet_address text;
-alter table public.auth_users add column if not exists kyc_status text not null default 'not_verified';
+alter table public.auth_users add column if not exists kyc_status text not null default 'not_verified' check (kyc_status in ('not_verified', 'pending', 'verified', 'rejected'));
 alter table public.auth_users add column if not exists two_fa_enabled boolean not null default false;
 alter table public.auth_users add column if not exists two_fa_secret text;
 alter table public.auth_users add column if not exists backup_codes text[];
@@ -1245,6 +1245,188 @@ begin
     exit when not v_exists;
   end loop;
   return v_ticket_id;
+end;
+$$;
+
+-- ════════════════════════════════════════════════════════════
+-- KYC VERIFICATION SYSTEM
+-- ════════════════════════════════════════════════════════════
+
+-- KYC submissions table
+create table if not exists public.kyc_submissions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  submission_id text not null unique,
+  country_code text not null,
+  country_name text not null,
+  document_type text not null check (document_type in ('national_id', 'passport', 'driver_license')),
+  first_name text not null,
+  last_name text not null,
+  dob date not null,
+  document_number text not null,
+  address_line_1 text not null,
+  address_line_2 text,
+  city text not null,
+  state text,
+  postal_code text not null,
+  front_image_url text not null,
+  back_image_url text,
+  selfie_image_url text not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  rejection_reason text,
+  reviewed_by uuid references public.auth_users(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- KYC history/audit log
+create table if not exists public.kyc_history (
+  id uuid primary key default gen_random_uuid(),
+  submission_id uuid not null references public.kyc_submissions(id) on delete cascade,
+  action text not null check (action in ('submitted', 'approved', 'rejected', 'reopened')),
+  reason text,
+  performed_by uuid references public.auth_users(id),
+  created_at timestamptz not null default now()
+);
+
+-- Indexes
+create index if not exists kyc_submissions_user_idx on public.kyc_submissions (user_id, created_at desc);
+create index if not exists kyc_submissions_status_idx on public.kyc_submissions (status, created_at desc);
+create index if not exists kyc_history_submission_idx on public.kyc_history (submission_id, created_at desc);
+
+-- Enable RLS
+alter table public.kyc_submissions enable row level security;
+alter table public.kyc_history enable row level security;
+
+-- Generate unique submission ID
+create or replace function public.generate_kyc_submission_id()
+returns text
+language plpgsql
+as $$
+declare
+  v_submission_id text;
+  v_exists boolean;
+begin
+  loop
+    v_submission_id := 'KYC-' || upper(to_hex(floor(random() * 16777215)::int));
+    select exists(select 1 from public.kyc_submissions where submission_id = v_submission_id) into v_exists;
+    exit when not v_exists;
+  end loop;
+  return v_submission_id;
+end;
+$$;
+
+-- Function: approve KYC
+create or replace function public.approve_kyc(
+  p_submission_id uuid,
+  p_admin_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_submission record;
+begin
+  select * into v_submission from public.kyc_submissions
+  where id = p_submission_id and status = 'pending';
+
+  if not found then
+    raise exception 'KYC submission not found or already processed';
+  end if;
+
+  -- Update submission status
+  update public.kyc_submissions
+  set status = 'approved', reviewed_by = p_admin_id, reviewed_at = now(), updated_at = now()
+  where id = p_submission_id;
+
+  -- Update user kyc_status
+  update public.auth_users
+  set kyc_status = 'verified', updated_at = now()
+  where id = v_submission.user_id;
+
+  -- Log action
+  insert into public.kyc_history (submission_id, action, performed_by)
+  values (p_submission_id, 'approved', p_admin_id);
+end;
+$$;
+
+-- Function: reject KYC
+create or replace function public.reject_kyc(
+  p_submission_id uuid,
+  p_admin_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_submission record;
+begin
+  if p_reason is null or trim(p_reason) = '' then
+    raise exception 'Rejection reason is required';
+  end if;
+
+  select * into v_submission from public.kyc_submissions
+  where id = p_submission_id and status = 'pending';
+
+  if not found then
+    raise exception 'KYC submission not found or already processed';
+  end if;
+
+  -- Update submission status
+  update public.kyc_submissions
+  set status = 'rejected', rejection_reason = trim(p_reason), reviewed_by = p_admin_id, reviewed_at = now(), updated_at = now()
+  where id = p_submission_id;
+
+  -- Update user kyc_status
+  update public.auth_users
+  set kyc_status = 'rejected', updated_at = now()
+  where id = v_submission.user_id;
+
+  -- Log action
+  insert into public.kyc_history (submission_id, action, reason, performed_by)
+  values (p_submission_id, 'rejected', trim(p_reason), p_admin_id);
+end;
+$$;
+
+-- Function: reopen KYC for review
+create or replace function public.reopen_kyc(
+  p_submission_id uuid,
+  p_admin_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_submission record;
+begin
+  select * into v_submission from public.kyc_submissions
+  where id = p_submission_id and status in ('approved', 'rejected');
+
+  if not found then
+    raise exception 'KYC submission not found or already pending';
+  end if;
+
+  -- Update submission status
+  update public.kyc_submissions
+  set status = 'pending', rejection_reason = null, reviewed_by = null, reviewed_at = null, updated_at = now()
+  where id = p_submission_id;
+
+  -- Update user kyc_status
+  update public.auth_users
+  set kyc_status = 'pending', updated_at = now()
+  where id = v_submission.user_id;
+
+  -- Log action
+  insert into public.kyc_history (submission_id, action, performed_by)
+  values (p_submission_id, 'reopened', p_admin_id);
 end;
 $$;
 

@@ -147,7 +147,6 @@ type FormState = {
   lastName: string;
   dob: string;
   docNumber: string;
-  docExpiry: string;
   address1: string;
   address2: string;
   city: string;
@@ -162,7 +161,6 @@ const EMPTY_FORM: FormState = {
   lastName: "",
   dob: "",
   docNumber: "",
-  docExpiry: "",
   address1: "",
   address2: "",
   city: "",
@@ -183,7 +181,6 @@ function getAge(dob: string) {
 
 function validateDetails(f: FormState): Errors {
   const e: Errors = {};
-  const today = new Date().toISOString().slice(0, 10);
 
   if (!f.firstName.trim()) e.firstName = "Enter your first name";
   if (!f.lastName.trim()) e.lastName = "Enter your last name";
@@ -195,9 +192,6 @@ function validateDetails(f: FormState): Errors {
   else if (!/^[A-Za-z0-9-]{5,20}$/.test(f.docNumber.trim()))
     e.docNumber = "Use 5–20 letters, numbers or dashes";
 
-  if (!f.docExpiry) e.docExpiry = "Enter the expiry date";
-  else if (f.docExpiry <= today) e.docExpiry = "This document has expired";
-
   if (!f.address1.trim()) e.address1 = "Enter your street address";
   if (!f.city.trim()) e.city = "Enter your city";
   if (!f.postal.trim()) e.postal = "Enter your postal code";
@@ -205,10 +199,12 @@ function validateDetails(f: FormState): Errors {
   return e;
 }
 
-function checkFile(file: File, allowPdf: boolean): string | null {
-  const allowed = ["image/jpeg", "image/png", "image/webp", ...(allowPdf ? ["application/pdf"] : [])];
+function checkFile(file: File, isSelfie: boolean): string | null {
+  const allowed = isSelfie 
+    ? ["image/jpeg", "image/png", "image/webp"]
+    : ["image/jpeg", "image/png", "image/webp"];
   if (!allowed.includes(file.type))
-    return allowPdf ? "Upload a JPG, PNG, WEBP or PDF file" : "Upload a JPG, PNG or WEBP image";
+    return "Upload a JPG, PNG or WEBP image";
   if (file.size > MAX_BYTES) return "File is larger than 5 MB";
   return null;
 }
@@ -686,16 +682,44 @@ export default function KycPage() {
   const [submitting, setSubmitting] = useState(false);
   const [refCode, setRefCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [kycStatus, setKycStatus] = useState<string | null>(null);
+  const [kycData, setKycData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const topRef = useRef<HTMLDivElement>(null);
 
   const doc = DOC_TYPES.find((d) => d.id === docType) ?? null;
   const needsBack = doc?.needsBack ?? true;
 
-  const today = new Date().toISOString().slice(0, 10);
   const maxDob = useMemo(() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() - 18);
     return d.toISOString().slice(0, 10);
+  }, []);
+
+  // Fetch KYC status on mount
+  useEffect(() => {
+    const fetchKycStatus = async () => {
+      try {
+        const res = await fetch("/api/kyc/status");
+        if (res.ok) {
+          const data = await res.json();
+          setKycStatus(data.kycStatus);
+          setKycData(data.submission);
+          if (data.submission?.submission_id) {
+            setRefCode(data.submission.submission_id);
+          }
+          // If status is pending or approved, show review step
+          if (data.kycStatus === "pending" || data.kycStatus === "verified") {
+            setStep(REVIEW_STEP);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch KYC status:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchKycStatus();
   }, []);
 
   useEffect(() => {
@@ -718,7 +742,7 @@ export default function KycPage() {
   };
 
   const setDocFile = (kind: "front" | "back" | "selfie", file: File) => {
-    const problem = checkFile(file, kind !== "selfie");
+    const problem = checkFile(file, kind === "selfie");
     if (problem) {
       setErrors((prev) => ({ ...prev, [kind]: problem }));
       return;
@@ -765,12 +789,52 @@ export default function KycPage() {
     setErrors({});
     setSubmitting(true);
     try {
-      // TODO: connect to your backend.
-      //  1. Upload files.front / files.back / files.selfie to Supabase Storage (private bucket)
-      //  2. Insert a row into your kyc_submissions table with `country`, `docType` and `form`
-      //  3. Use the returned reference id below
-      await new Promise((resolve) => setTimeout(resolve, 1400));
-      setRefCode(`KYC-${Date.now().toString(36).toUpperCase()}`);
+      // Upload images to Cloudinary
+      const uploadFile = async (file: File, type: string) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", type);
+        
+        const res = await fetch("/api/kyc/upload", {
+          method: "POST",
+          body: formData,
+        });
+        
+        if (!res.ok) throw new Error("Upload failed");
+        const data = await res.json();
+        return data.url;
+      };
+
+      const frontImageUrl = await uploadFile(files.front!, "front");
+      const backImageUrl = files.back ? await uploadFile(files.back, "back") : null;
+      const selfieImageUrl = await uploadFile(files.selfie, "selfie");
+
+      // Submit KYC
+      const res = await fetch("/api/kyc/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          country,
+          docType,
+          firstName: form.firstName,
+          lastName: form.lastName,
+          dob: form.dob,
+          docNumber: form.docNumber,
+          address1: form.address1,
+          address2: form.address2,
+          city: form.city,
+          state: form.state,
+          postal: form.postal,
+          frontImageUrl,
+          backImageUrl,
+          selfieImageUrl,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Submission failed");
+      
+      const data = await res.json();
+      setRefCode(data.submissionId);
       goTo(REVIEW_STEP);
     } catch {
       setErrors({ submit: "We couldn't submit your documents. Check your connection and try again." });
@@ -789,11 +853,16 @@ export default function KycPage() {
   };
 
   const submitted = step === REVIEW_STEP;
-  const status: { label: string; tone: "default" | "muted" | "success" } = submitted
-    ? { label: "Pending review", tone: "default" }
-    : step === 0 && !country
-      ? { label: "Not started", tone: "muted" }
-      : { label: "In progress", tone: "default" };
+  const status: { label: string; tone: "default" | "muted" | "success" } = 
+    kycStatus === "verified" 
+      ? { label: "Verified", tone: "success" }
+      : kycStatus === "rejected"
+        ? { label: "Rejected", tone: "default" }
+        : submitted || kycStatus === "pending"
+          ? { label: "Pending review", tone: "default" }
+          : step === 0 && !country
+            ? { label: "Not started", tone: "muted" }
+            : { label: "In progress", tone: "default" };
 
   return (
     <UserShell active="KYC Verification">
@@ -913,10 +982,7 @@ export default function KycPage() {
                         <Input id="dob" label="Date of birth" type="date" autoComplete="bday" max={maxDob} value={form.dob} error={errors.dob} onChange={(v) => setField("dob", v)} />
                         <Input id="issuingCountry" label="Issuing country" value={country?.name ?? ""} readOnly />
                       </div>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <Input id="docNumber" label={`${doc?.label ?? "Document"} number`} value={form.docNumber} error={errors.docNumber} placeholder="e.g. A1234567" onChange={(v) => setField("docNumber", v)} />
-                        <Input id="docExpiry" label="Expiry date" type="date" min={today} value={form.docExpiry} error={errors.docExpiry} onChange={(v) => setField("docExpiry", v)} />
-                      </div>
+                      <Input id="docNumber" label={`${doc?.label ?? "Document"} number`} value={form.docNumber} error={errors.docNumber} placeholder="e.g. A1234567" onChange={(v) => setField("docNumber", v)} />
 
                       <div className="flex items-center gap-3 pt-2">
                         <span className="text-xs font-semibold text-foreground">Residential address</span>
@@ -939,18 +1005,18 @@ export default function KycPage() {
                   <div>
                     <StepHeader
                       title={`Upload your ${doc?.label ?? "document"}`}
-                      description={
-                        needsBack
-                          ? "We need clear photos of both sides. JPG, PNG, WEBP or PDF, up to 5 MB each."
-                          : "We need a clear photo of the photo page. JPG, PNG, WEBP or PDF, up to 5 MB."
-                      }
+                        description={
+                          needsBack
+                            ? "We need clear photos of both sides. JPG, PNG or WEBP, up to 5 MB each."
+                            : "We need a clear photo of the photo page. JPG, PNG or WEBP, up to 5 MB."
+                        }
                     />
                     <div className={`mb-5 grid gap-4 sm:mb-6 ${needsBack ? "sm:grid-cols-2" : ""}`}>
                       <UploadZone
                         id="doc-front"
                         title={needsBack ? "Front side" : "Photo page"}
                         hint="Drag a file here or click to browse"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        accept="image/jpeg,image/png,image/webp"
                         file={files.front}
                         error={errors.front}
                         onSelect={(f) => setDocFile("front", f)}
@@ -961,7 +1027,7 @@ export default function KycPage() {
                           id="doc-back"
                           title="Back side"
                           hint="Drag a file here or click to browse"
-                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          accept="image/jpeg,image/png,image/webp"
                           file={files.back}
                           error={errors.back}
                           onSelect={(f) => setDocFile("back", f)}
@@ -1002,63 +1068,146 @@ export default function KycPage() {
                   </div>
                 )}
 
-                {/* Step 5 — Review / pending */}
+                {/* Step 5 — Review / pending / approved / rejected */}
                 {step === REVIEW_STEP && (
                   <div className="flex flex-col items-center text-center">
-                    <div className="relative mb-5 grid size-20 place-items-center sm:mb-6 sm:size-24">
-                      <span aria-hidden="true" className="absolute inset-0 animate-ping rounded-full bg-foreground/10" />
-                      <span aria-hidden="true" className="absolute inset-3 rounded-full border border-foreground/25" />
-                      <div className="relative grid size-12 place-items-center rounded-2xl bg-foreground/10 text-foreground sm:size-14">
-                        <ShieldCheck aria-hidden="true" className="size-7" />
-                      </div>
-                    </div>
-                    <Badge label="Pending review" />
-                    <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
-                      Your documents are under review
-                    </h2>
-                    <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                      We&apos;ll notify you as soon as the review is done. Most reviews finish within 24 hours.
-                    </p>
-
-                    <div className="mt-6 grid w-full gap-3 sm:grid-cols-3">
-                      {[
-                        { label: "Document check", icon: FileText },
-                        { label: "Face match", icon: Camera },
-                        { label: "Final review", icon: ShieldCheck },
-                      ].map(({ label, icon: Icon }) => (
-                        <div key={label} className="flex items-center gap-3 rounded-2xl bg-muted p-4 text-left sm:block">
-                          <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-foreground/10 text-foreground sm:mb-3">
-                            <Icon aria-hidden="true" className="size-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">{label}</p>
-                            <p className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                              <span aria-hidden="true" className="inline-block size-1.5 animate-pulse rounded-full bg-foreground" />
-                              In queue
-                            </p>
+                    {kycStatus === "verified" ? (
+                      // Approved Status
+                      <>
+                        <div className="relative mb-5 grid size-20 place-items-center sm:mb-6 sm:size-24">
+                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-success/10" />
+                          <div className="relative grid size-12 place-items-center rounded-2xl bg-success/10 text-success sm:size-14">
+                            <ShieldCheck aria-hidden="true" className="size-7" />
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <Badge label="KYC Verified" tone="success" />
+                        <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                          Your identity is verified
+                        </h2>
+                        <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                          You now have full access to deposits, withdrawals, trading and investment plans.
+                        </p>
+                        {refCode && (
+                          <div className="mt-6 flex w-full items-center justify-between gap-4 rounded-2xl bg-muted p-4 text-left">
+                            <div className="min-w-0">
+                              <p className="text-xs text-muted-foreground">Reference number</p>
+                              <p className="mt-0.5 truncate font-mono text-sm font-semibold text-foreground">{refCode}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCopy}
+                              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-1 py-1 text-xs font-medium text-foreground transition-opacity hover:opacity-75 ${FOCUS}`}
+                            >
+                              {copied ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
+                              {copied ? "Copied" : "Copy"}
+                            </button>
+                          </div>
+                        )}
+                        <Link href="/dashboard" className={`${BTN_PRIMARY} mt-6 w-full flex-none sm:w-auto sm:px-8`}>
+                          Back to dashboard
+                        </Link>
+                      </>
+                    ) : kycStatus === "rejected" && kycData?.rejection_reason ? (
+                      // Rejected Status
+                      <>
+                        <div className="relative mb-5 grid size-20 place-items-center sm:mb-6 sm:size-24">
+                          <span aria-hidden="true" className="absolute inset-0 rounded-full bg-destructive/10" />
+                          <div className="relative grid size-12 place-items-center rounded-2xl bg-destructive/10 text-destructive sm:size-14">
+                            <X aria-hidden="true" className="size-7" />
+                          </div>
+                        </div>
+                        <Badge label="Rejected" tone="destructive" />
+                        <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                          KYC verification was rejected
+                        </h2>
+                        <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                          Please review the reason below and submit again with the correct documents.
+                        </p>
+                        
+                        <div className="mt-6 w-full rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-left">
+                          <p className="text-xs font-semibold text-destructive">Rejection Reason:</p>
+                          <p className="mt-1.5 text-sm text-foreground">{kycData.rejection_reason}</p>
+                        </div>
 
-                    <div className="mt-4 flex w-full items-center justify-between gap-4 rounded-2xl bg-muted p-4 text-left">
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted-foreground">Reference number</p>
-                        <p className="mt-0.5 truncate font-mono text-sm font-semibold text-foreground">{refCode}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCopy}
-                        className={`flex shrink-0 items-center gap-1.5 rounded-lg px-1 py-1 text-xs font-medium text-foreground transition-opacity hover:opacity-75 ${FOCUS}`}
-                      >
-                        {copied ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
-                        {copied ? "Copied" : "Copy"}
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStep(0);
+                            setCountry(null);
+                            setDocType(null);
+                            setForm(EMPTY_FORM);
+                            setFiles({ front: null, back: null, selfie: null });
+                            setErrors({});
+                            setKycStatus(null);
+                            setKycData(null);
+                            setRefCode("");
+                          }}
+                          className={`${BTN_PRIMARY} mt-6 w-full flex-none sm:w-auto sm:px-8`}
+                        >
+                          Submit Again
+                        </button>
+                      </>
+                    ) : (
+                      // Pending Status
+                      <>
+                        <div className="relative mb-5 grid size-20 place-items-center sm:mb-6 sm:size-24">
+                          <span aria-hidden="true" className="absolute inset-0 animate-ping rounded-full bg-foreground/10" />
+                          <span aria-hidden="true" className="absolute inset-3 rounded-full border border-foreground/25" />
+                          <div className="relative grid size-12 place-items-center rounded-2xl bg-foreground/10 text-foreground sm:size-14">
+                            <ShieldCheck aria-hidden="true" className="size-7" />
+                          </div>
+                        </div>
+                        <Badge label="Pending review" />
+                        <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                          Your documents are under review
+                        </h2>
+                        <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                          We&apos;ll notify you as soon as the review is done. Most reviews finish within 24 hours.
+                        </p>
 
-                    <Link href="/dashboard" className={`${BTN_PRIMARY} mt-6 w-full flex-none sm:w-auto sm:px-8`}>
-                      Back to dashboard
-                    </Link>
+                        <div className="mt-6 grid w-full gap-3 sm:grid-cols-3">
+                          {[
+                            { label: "Document check", icon: FileText },
+                            { label: "Face match", icon: Camera },
+                            { label: "Final review", icon: ShieldCheck },
+                          ].map(({ label, icon: Icon }) => (
+                            <div key={label} className="flex items-center gap-3 rounded-2xl bg-muted p-4 text-left sm:block">
+                              <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-foreground/10 text-foreground sm:mb-3">
+                                <Icon aria-hidden="true" className="size-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">{label}</p>
+                                <p className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                                  <span aria-hidden="true" className="inline-block size-1.5 animate-pulse rounded-full bg-foreground" />
+                                  In queue
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {refCode && (
+                          <div className="mt-4 flex w-full items-center justify-between gap-4 rounded-2xl bg-muted p-4 text-left">
+                            <div className="min-w-0">
+                              <p className="text-xs text-muted-foreground">Reference number</p>
+                              <p className="mt-0.5 truncate font-mono text-sm font-semibold text-foreground">{refCode}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCopy}
+                              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-1 py-1 text-xs font-medium text-foreground transition-opacity hover:opacity-75 ${FOCUS}`}
+                            >
+                              {copied ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
+                              {copied ? "Copied" : "Copy"}
+                            </button>
+                          </div>
+                        )}
+
+                        <Link href="/dashboard" className={`${BTN_PRIMARY} mt-6 w-full flex-none sm:w-auto sm:px-8`}>
+                          Back to dashboard
+                        </Link>
+                      </>
+                    )}
                   </div>
                 )}
 

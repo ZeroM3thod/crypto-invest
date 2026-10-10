@@ -81,7 +81,7 @@ const SELECT_CLS =
 
 /* ---------- main view ---------- */
 
-export function KycView({ initial }: { initial: KycItem[] }) {
+export function KycView({ initial }: { initial: any[] }) {
   const { toast, showToast } = useToast();
   const [kycData, setKycData] = useState(initial);
   const [query, setQuery] = useState("");
@@ -89,9 +89,10 @@ export function KycView({ initial }: { initial: KycItem[] }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const active = useMemo(
-    () => kycData.find((k) => k.id === activeId) ?? null,
+    () => kycData.find((k: any) => k.id === activeId) ?? null,
     [kycData, activeId],
   );
 
@@ -106,9 +107,9 @@ export function KycView({ initial }: { initial: KycItem[] }) {
   const stats = useMemo(
     () => ({
       total: kycData.length,
-      pending: kycData.filter((k) => k.status === "pending").length,
-      approved: kycData.filter((k) => k.status === "approved").length,
-      rejected: kycData.filter((k) => k.status === "rejected").length,
+      pending: kycData.filter((k: any) => k.status === "pending").length,
+      approved: kycData.filter((k: any) => k.status === "approved").length,
+      rejected: kycData.filter((k: any) => k.status === "rejected").length,
     }),
     [kycData],
   );
@@ -118,79 +119,105 @@ export function KycView({ initial }: { initial: KycItem[] }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return kycData.filter(
-      (k) =>
+      (k: any) =>
         (!q ||
-          k.fullName.toLowerCase().includes(q) ||
-          k.username.toLowerCase().includes(q) ||
-          k.email.toLowerCase().includes(q) ||
-          k.id.toLowerCase().includes(q)) &&
+          `${k.first_name} ${k.last_name}`.toLowerCase().includes(q) ||
+          k.user?.email.toLowerCase().includes(q) ||
+          k.submission_id.toLowerCase().includes(q) ||
+          k.user?.user_id.toLowerCase().includes(q)) &&
         (statusFilter === "all" || k.status === statusFilter),
     );
   }, [kycData, query, statusFilter]);
 
-  /* ---------- actions (local state only — no DB) ---------- */
+  /* ---------- actions ---------- */
 
-  const update = (
-    id: string,
-    status: KycStatus,
-    entry: Omit<HistoryEntry, "date" | "by">,
-  ) =>
-    setKycData((prev) =>
-      prev.map((k) =>
-        k.id === id
-          ? {
-              ...k,
-              status,
-              history: [
-                ...k.history,
-                { ...entry, date: nowStr(), by: MODERATOR },
-              ],
-            }
-          : k,
-      ),
-    );
-
-  const approveKyc = (id: string) => {
-    // TODO: call your API here (approve KYC)
-    update(id, "approved", {
-      type: "approved",
-      text: "KYC approved by moderator",
-      reason: null,
-    });
-    showToast("✓ KYC has been approved.");
+  const approveKyc = async (id: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/kyc/${id}/approve`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Approval failed");
+      
+      // Reload data
+      const listRes = await fetch("/api/admin/kyc");
+      const { submissions } = await listRes.json();
+      setKycData(submissions);
+      
+      showToast("✓ KYC has been approved.");
+      closeModal();
+    } catch (error) {
+      showToast("Failed to approve KYC. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const confirmReject = (id: string) => {
+  const confirmReject = async (id: string) => {
     if (!rejectReason.trim()) {
       showToast("Please write a rejection reason.");
       return;
     }
-    // TODO: call your API here (reject KYC + save reason)
-    update(id, "rejected", {
-      type: "rejected",
-      text: "KYC rejected by moderator",
-      reason: rejectReason.trim(),
-    });
-    showToast("✕ KYC has been rejected.");
-    setShowRejectBox(false);
-    setRejectReason("");
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/kyc/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: rejectReason.trim() }),
+      });
+      if (!res.ok) throw new Error("Rejection failed");
+      
+      // Reload data
+      const listRes = await fetch("/api/admin/kyc");
+      const { submissions } = await listRes.json();
+      setKycData(submissions);
+      
+      showToast("✕ KYC has been rejected.");
+      setShowRejectBox(false);
+      setRejectReason("");
+      closeModal();
+    } catch (error) {
+      showToast("Failed to reject KYC. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const reopenKyc = (id: string) => {
-    // TODO: call your API here (re-open KYC)
-    update(id, "pending", {
-      type: "reopened",
-      text: "Application re-opened for review",
-      reason: null,
-    });
-    showToast("↺ KYC re-opened for review.");
+  const reopenKyc = async (id: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/kyc/${id}/reopen`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Reopen failed");
+      
+      // Reload data
+      const listRes = await fetch("/api/admin/kyc");
+      const { submissions } = await listRes.json();
+      setKycData(submissions);
+      
+      showToast("↺ KYC re-opened for review.");
+      closeModal();
+    } catch (error) {
+      showToast("Failed to reopen KYC. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const exportCSV = () => {
     downloadCSV(`kyc-applications-${Date.now()}.csv`, [
-      ["ID", "Full Name", "Username", "Email", "Country", "ID Type", "Submitted", "Status"],
-      ...filtered.map((k) => [
-        k.id, k.fullName, k.username, k.email, k.country, k.idType, k.submittedDate, k.status,
+      ["ID", "Full Name", "User ID", "Email", "Country", "ID Type", "Submitted", "Status"],
+      ...filtered.map((k: any) => [
+        k.submission_id,
+        `${k.first_name} ${k.last_name}`,
+        k.user?.user_id || "",
+        k.user?.email || "",
+        k.country_name,
+        k.document_type,
+        formatDate(k.created_at),
+        k.status,
       ]),
     ]);
     showToast("CSV exported successfully.");
@@ -198,50 +225,58 @@ export function KycView({ initial }: { initial: KycItem[] }) {
 
   /* ---------- table ---------- */
 
-  const columns = useMemo<TableColumn<KycItem>[]>(
+  const columns = useMemo<TableColumn<any>[]>(
     () => [
       {
         key: "fullName",
         header: "User",
         sortable: true,
         width: "1.3fr",
-        cell: (k) => (
+        cell: (k: any) => (
           <div className="flex items-center gap-2.5">
-            <Avatar text={initials(k.fullName)} />
+            <Avatar text={initials(`${k.first_name} ${k.last_name}`)} />
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{k.fullName}</p>
-              <p className="truncate text-xs text-muted-foreground">{k.uid}</p>
+              <p className="truncate text-sm font-medium">{k.first_name} {k.last_name}</p>
+              <p className="truncate text-xs text-muted-foreground">{k.user?.user_id || "N/A"}</p>
             </div>
           </div>
         ),
       },
       {
-        key: "username",
-        header: "Username",
+        key: "submission_id",
+        header: "ID",
         width: "130px",
-        cell: (k) => (
-          <span className="text-xs text-muted-foreground">{k.username}</span>
+        cell: (k: any) => (
+          <span className="text-xs text-muted-foreground">{k.submission_id}</span>
         ),
       },
       {
         key: "email",
         header: "Email",
         width: "1.4fr",
-        cell: (k) => (
+        cell: (k: any) => (
           <span className="block truncate text-xs text-muted-foreground">
-            {k.email}
+            {k.user?.email || "N/A"}
           </span>
         ),
       },
-      { key: "idType", header: "ID type", sortable: true, width: "130px" },
+      { 
+        key: "document_type", 
+        header: "ID type", 
+        sortable: true, 
+        width: "130px",
+        cell: (k: any) => (
+          <span className="text-xs capitalize">{k.document_type.replace("_", " ")}</span>
+        ),
+      },
       {
-        key: "submittedDate",
+        key: "created_at",
         header: "Submitted",
         sortable: true,
         width: "120px",
-        cell: (k) => (
+        cell: (k: any) => (
           <span className="text-xs text-muted-foreground">
-            {formatDate(k.submittedDate)}
+            {formatDate(k.created_at)}
           </span>
         ),
       },
@@ -249,14 +284,14 @@ export function KycView({ initial }: { initial: KycItem[] }) {
         key: "status",
         header: "Status",
         width: "120px",
-        cell: (k) => <KycBadge status={k.status} />,
+        cell: (k: any) => <KycBadge status={k.status} />,
       },
       {
         key: "actions" as never,
         header: "Action",
         align: "right",
         width: "100px",
-        cell: (k) => (
+        cell: (k: any) => (
           <Button size="sm" variant="ghost" onClick={() => setActiveId(k.id)}>
             View →
           </Button>
@@ -266,7 +301,7 @@ export function KycView({ initial }: { initial: KycItem[] }) {
     [],
   );
 
-  const processed = active?.history.find((h) => h.by);
+  const processed = active?.history?.find((h: any) => h.performed_by);
 
   return (
     <>
@@ -279,10 +314,10 @@ export function KycView({ initial }: { initial: KycItem[] }) {
             <div className="flex items-start justify-between gap-3 border-b border-border p-5">
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-lg font-semibold text-foreground">
-                  {active.fullName}
+                  {active.first_name} {active.last_name}
                 </h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {active.id} · {active.uid}
+                  {active.submission_id} · {active.user?.user_id || "N/A"}
                 </p>
               </div>
               <div className="flex items-center gap-2.5">
@@ -301,41 +336,41 @@ export function KycView({ initial }: { initial: KycItem[] }) {
             <div className="flex flex-col gap-6 overflow-y-auto p-5">
               <Section title="User basic information">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Field label="Full name" value={active.fullName} />
-                  <Field label="Email address" value={active.email} />
-                  <Field label="Username" value={active.username} />
-                  <Field label="Phone number" value={active.phone} />
+                  <Field label="User ID" value={active.user?.user_id || "N/A"} />
+                  <Field label="Email address" value={active.user?.email || "N/A"} />
+                  <Field label="Phone number" value={active.user?.phone || "N/A"} />
+                  <Field label="Full name" value={`${active.first_name} ${active.last_name}`} />
                 </div>
               </Section>
 
               <Section title="KYC details">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Field label="Full name (on ID)" value={active.fullName} />
+                  <Field label="Full name (on ID)" value={`${active.first_name} ${active.last_name}`} />
                   <Field label="Date of birth" value={formatDate(active.dob)} />
-                  <Field label="ID type" value={active.idType} />
-                  <Field label="ID document number" value={active.idNumber} mono />
-                  <Field label="Address line 1" value={active.address1} />
-                  <Field label="Address line 2" value={active.address2} />
+                  <Field label="ID type" value={active.document_type.replace("_", " ")} />
+                  <Field label="ID document number" value={active.document_number} mono />
+                  <Field label="Address line 1" value={active.address_line_1} />
+                  <Field label="Address line 2" value={active.address_line_2 || "—"} />
                   <Field label="City" value={active.city} />
-                  <Field label="State / province" value={active.state} />
-                  <Field label="Zip / postal code" value={active.zip} mono />
-                  <Field label="Country" value={active.country} />
-                  <Field label="Submission date" value={formatDate(active.submittedDate)} />
-                  <Field label="Application ID" value={active.id} mono />
+                  <Field label="State / province" value={active.state || "—"} />
+                  <Field label="Zip / postal code" value={active.postal_code} mono />
+                  <Field label="Country" value={active.country_name} />
+                  <Field label="Submission date" value={formatDate(active.created_at)} />
+                  <Field label="Application ID" value={active.submission_id} mono />
                 </div>
               </Section>
 
               <Section title="Uploaded documents">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {[
-                    { url: active.idFrontUrl, label: "ID Card — Front", Icon: CreditCard },
-                    { url: active.idBackUrl, label: "ID Card — Back", Icon: CreditCard },
-                    { url: active.selfieUrl, label: "Selfie Photo", Icon: User },
+                    { url: active.front_image_url, label: "ID Card — Front", Icon: CreditCard },
+                    { url: active.back_image_url, label: "ID Card — Back", Icon: CreditCard },
+                    { url: active.selfie_image_url, label: "Selfie Photo", Icon: User },
                   ].map((img) => (
                     <div key={img.label}>
                       <button
                         type="button"
-                        onClick={() => showToast(`Opening ${img.label} view…`)}
+                        onClick={() => img.url && window.open(img.url, "_blank")}
                         className="grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-xl border border-dashed border-border bg-muted/40 transition-colors hover:bg-muted"
                       >
                         {img.url ? (
@@ -360,15 +395,15 @@ export function KycView({ initial }: { initial: KycItem[] }) {
                 </div>
               </Section>
 
-              {processed?.by ? (
+              {processed ? (
                 <Section title="Processed by">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <span className="inline-flex items-center gap-2 rounded-full border border-border bg-muted py-1 pl-1 pr-3 text-sm text-foreground">
-                      <Avatar text={processed.by.initials} dark />
-                      {processed.by.name}
+                      <Avatar text={initials(`${processed.performer?.first_name || ""} ${processed.performer?.last_name || ""}`)} dark />
+                      {processed.performer?.first_name} {processed.performer?.last_name}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      · {processed.date}
+                      · {formatDate(processed.created_at)}
                     </span>
                     <KycBadge
                       status={active.status === "rejected" ? "rejected" : "approved"}
@@ -384,15 +419,15 @@ export function KycView({ initial }: { initial: KycItem[] }) {
                 <div className="flex flex-wrap gap-2">
                   {active.status === "pending" ? (
                     <>
-                      <Button size="md" variant="primary" onClick={() => approveKyc(active.id)}>
+                      <Button size="md" variant="primary" onClick={() => approveKyc(active.id)} disabled={loading}>
                         ✓ Approve
                       </Button>
-                      <Button size="md" variant="outline" onClick={() => setShowRejectBox((v) => !v)}>
+                      <Button size="md" variant="outline" onClick={() => setShowRejectBox((v) => !v)} disabled={loading}>
                         ✕ Reject
                       </Button>
                     </>
                   ) : (
-                    <Button size="md" variant="outline" onClick={() => reopenKyc(active.id)}>
+                    <Button size="md" variant="outline" onClick={() => reopenKyc(active.id)} disabled={loading}>
                       ↺ Re-open for Review
                     </Button>
                   )}
@@ -411,7 +446,7 @@ export function KycView({ initial }: { initial: KycItem[] }) {
                       className="min-h-24 w-full resize-y rounded-xl border border-border bg-background p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
                     />
                     <div className="mt-3 flex gap-2">
-                      <Button size="md" variant="primary" onClick={() => confirmReject(active.id)}>
+                      <Button size="md" variant="primary" onClick={() => confirmReject(active.id)} disabled={loading}>
                         Confirm Rejection
                       </Button>
                       <Button size="md" variant="ghost" onClick={() => setShowRejectBox(false)}>
@@ -424,31 +459,31 @@ export function KycView({ initial }: { initial: KycItem[] }) {
 
               <Section title="Activity log">
                 <div className="flex flex-col rounded-xl border border-border">
-                  {[...active.history].reverse().map((h, i) => (
+                  {[...(active.history || [])].reverse().map((h: any, i: number) => (
                     <div
                       key={i}
                       className="flex gap-3 border-b border-border p-3 last:border-b-0"
                     >
                       <span
-                        className={`mt-1.5 size-2 shrink-0 rounded-full ${LOG_DOT[h.type]}`}
+                        className={`mt-1.5 size-2 shrink-0 rounded-full ${LOG_DOT[h.action as keyof typeof LOG_DOT] || "bg-muted-foreground"}`}
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-foreground">
-                          <strong className="font-semibold">{h.text}</strong>
-                          {h.by ? (
+                          <strong className="font-semibold capitalize">{h.action}</strong>
+                          {h.performer ? (
                             <span className="text-muted-foreground">
                               {" "}
-                              — {h.by.name}
+                              — {h.performer.first_name} {h.performer.last_name}
                             </span>
                           ) : null}
                         </p>
                         {h.reason ? (
                           <p className="mt-0.5 text-xs italic text-muted-foreground">
-                            “{h.reason}”
+                            "{h.reason}"
                           </p>
                         ) : null}
                         <p className="text-[10px] text-muted-foreground">
-                          {h.date}
+                          {formatDate(h.created_at)}
                         </p>
                       </div>
                     </div>
