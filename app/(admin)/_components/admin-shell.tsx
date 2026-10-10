@@ -81,7 +81,7 @@ const ROUTES: Record<string, string> = {
   // Trading
   "Trading": "/admin/trading/overview",
   "Trade Overview": "/admin/trading/overview",
-  "AI Trading": "/admin/ai-trading/daily-profit",
+  "AI Trading": "/admin/ai-trading",
   "Manual Trading": "/admin/trading/manual-trading",
   "Trade History": "/admin/trading/trade-history",
 

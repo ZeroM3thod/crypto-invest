@@ -60,12 +60,14 @@ export function Field({
   onChange,
   type = "text",
   readOnly,
+  placeholder,
 }: {
   label: string;
   value: string | number;
   onChange?: (v: string) => void;
   type?: "text" | "email" | "date" | "number";
   readOnly?: boolean;
+  placeholder?: string;
 }) {
   return (
     <label className="flex flex-col gap-1.5">
@@ -75,6 +77,7 @@ export function Field({
         value={value}
         readOnly={readOnly}
         onChange={(e) => onChange?.(e.target.value)}
+        placeholder={placeholder}
         className={inputCls}
       />
     </label>
@@ -111,11 +114,13 @@ export function Btn({
   onClick,
   tone = "default",
   disabled,
+  size = "default",
 }: {
   children: ReactNode;
   onClick?: () => void;
   tone?: "default" | "primary" | "danger";
   disabled?: boolean;
+  size?: "default" | "sm";
 }) {
   return (
     <button
@@ -123,7 +128,8 @@ export function Btn({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "h-9 rounded-lg px-3 text-sm font-medium transition-colors disabled:opacity-50",
+        "rounded-lg px-3 text-sm font-medium transition-colors disabled:opacity-50",
+        size === "default" ? "h-9" : "h-8 text-xs",
         tone === "primary" && "bg-foreground text-background hover:opacity-90",
         tone === "danger" && "bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 dark:text-rose-400",
         tone === "default" && "border border-border text-foreground hover:bg-muted",

@@ -1,4 +1,85 @@
-/admin/users on this page - Here remove all mock data and add here the real backend and database here show all details from database and when admin or owner click on any user then it go to this user details page - on this page here admin see user all details (remove all mock data and add real backend), on the profile section here admin see all details here all is ok just add a mobile number section where admin can see the mobile number of user. and all details from database. oon the wallet section also same remove all mock data and add here the user real wallets data but here also add a new wallet like trading wallet same as the investment wallet , on the referral section here admin can see who refer this user and total referral and can add referral user by just userid (remove the name , email , level , total deposit , balance etc ), on the referred members here admin see this user refer list (remove the level from here also), on the investment and on the trading section here admin can see user which which investment plan buy or end etc details and how much earn profit or loss from here and which which things are running etc and if need any ui update then do it . on the reward section here admin can send a reward to a user by reward title ,amount ,wallet select (here also add trading wallet), reward use and description etc and admin send any reward when the user login or enter the dashboard then he can see a popup dialog where he can see all dtails and its 1 time popup dialog , and if the reward is non withdrawal able then it use only from invest in daily profit pakage or ai trading and if it is withdrawl able then it can withdraw. 
-and in the sequrity and login here show user login details , . and if the user role is owner then he can see a extra buton as login as this user and when owner click on this then he just auto login as this user or admin without password or if the 2fa is on and make sure this button only visible to owner role not for admin . AND IF THE USER 2FA is on then it can be disable by admin or owner . and if any admin or owner suspend any user then he cannot login and also he auto logout from every device auto , and also admin and owner can change the details and also those data are also update in database
+PS C:\Users\KHAN GADGET\Documents\Crypto\crypto-invest> npm run build 
 
-and in the login system here add expiration system like user after 5 hr auto logout from browser or device and when also the user logout the account then also it logout if he visit to the dashboar or other user page then he need to signin 
+> crypto-invest@0.1.0 build
+> next build
+
+▲ Next.js 16.3.5 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 139ms
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead.
+
+  To migrate automatically, run:
+  npx @next/codemod@canary middleware-to-proxy .
+
+  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 42s
+.next/dev/types/routes.d.ts(61,1): error TS1109: Expression expected.
+.next/dev/types/routes.d.ts(61,27): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,51): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,70): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,102): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,133): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,164): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,194): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,225): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,246): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,272): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,311): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,347): error TS1351: An identifier or keyword cannot immediately follow a numeric literal.
+.next/dev/types/routes.d.ts(61,384): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,418): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,445): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,472): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,498): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,529): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,558): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,576): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,601): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,622): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,641): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,668): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,708): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,748): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,787): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,826): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,846): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,866): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,886): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,902): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,941): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,970): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,999): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1025): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1063): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1097): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1129): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1161): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1178): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1209): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1235): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1259): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1289): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1313): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1337): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1353): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1371): error TS1351: An identifier or keyword cannot immediately follow a numeric literal.
+.next/dev/types/routes.d.ts(61,1391): error TS1351: An identifier or keyword cannot immediately follow a numeric literal.
+.next/dev/types/routes.d.ts(61,1400): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1416): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1440): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1468): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1492): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1524): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1555): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1575): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1591): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1615): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1636): error TS1005: ';' expected.
+.next/dev/types/routes.d.ts(61,1637): error TS1002: Unterminated string literal.
+.next/dev/types/validator.ts(1146,1): error TS1128: Declaration or statement expected.
+Failed to type check.
+
+PS C:\Users\KHAN GADGET\Documents\Crypto\crypto-invest> 
+

@@ -68,7 +68,7 @@ export async function PATCH(
     // Update wallet balances if provided
     if (body.wallets) {
       for (const [wallet, data] of Object.entries(body.wallets as any)) {
-        if (data.balance !== undefined) {
+        if ((data as any).balance !== undefined) {
           const { data: userRecord } = await db
             .from('auth_users')
             .select('id')
@@ -78,7 +78,7 @@ export async function PATCH(
           if (userRecord) {
             await db
               .from('wallet_accounts')
-              .update({ balance: data.balance, updated_at: new Date().toISOString() })
+              .update({ balance: (data as any).balance, updated_at: new Date().toISOString() })
               .eq('user_id', userRecord.id)
               .eq('wallet', wallet);
           }
