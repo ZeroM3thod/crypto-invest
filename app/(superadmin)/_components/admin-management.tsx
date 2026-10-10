@@ -15,6 +15,14 @@ const kycTone = {
   not_submitted: "gray",
 } as const;
 
+/** A user or admin whose ID, when used as a referral code, keeps a new signup visible to admins. */
+type RestrictedEntry = {
+  id: string;
+  name: string;
+  kind: "Admin" | "User";
+  addedAt: string;
+};
+
 /** Shared columns for both user tables (selection checkboxes come from `Table`'s `selectable`). */
 const userColumns: TableColumn<ManagedUser>[] = [
   { key: "id", header: "User ID", sortable: true, width: "120px" },
@@ -67,6 +75,11 @@ export function AdminManagement({
   const [openAdmin, setOpenAdmin] = useState<AdminRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+
+  // ---------- restricted mode (demo) ----------
+  const [restrictedMode, setRestrictedMode] = useState(false);
+  const [restricted, setRestricted] = useState<RestrictedEntry[]>([]);
+  const [idInput, setIdInput] = useState("");
 
   const flash = (m: string) => {
     setNote(m);
@@ -157,11 +170,105 @@ export function AdminManagement({
     [busy],
   );
 
+  const restrictedColumns = useMemo<TableColumn<RestrictedEntry>[]>(
+    () => [
+      { key: "id", header: "ID", sortable: true, width: "140px" },
+      {
+        key: "name",
+        header: "Name",
+        sortable: true,
+        width: "1.4fr",
+        cell: (r) => <span className="font-medium">{r.name}</span>,
+      },
+      {
+        key: "kind",
+        header: "Type",
+        sortable: true,
+        width: "120px",
+        cell: (r) => <Badge tone={r.kind === "Admin" ? "amber" : "gray"}>{r.kind}</Badge>,
+      },
+      { key: "addedAt", header: "Added", sortable: true, width: "130px" },
+      {
+        key: "actions",
+        header: "",
+        align: "right",
+        width: "110px",
+        cell: (r) => (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setRestricted((list) => list.filter((x) => x.id !== r.id));
+              flash(`${r.id} removed from restricted list`);
+            }}
+            className="h-8 rounded-lg border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Remove
+          </button>
+        ),
+      },
+    ],
+    [],
+  );
+
   // ---------- selection helpers ----------
   const toggle = (setter: typeof setSelVisible, id: string) =>
     setter((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+
+  // ---------- restricted mode actions (demo only, no API calls) ----------
+  function toggleRestrictedMode() {
+    const next = !restrictedMode;
+    setRestrictedMode(next);
+    flash(
+      next
+        ? "Restricted mode on. New users are hidden from admins unless referred by a restricted ID."
+        : "Restricted mode off. All new users are visible to admins.",
+    );
+  }
+
+  function addRestrictedIds() {
+    const ids = Array.from(
+      new Set(
+        idInput
+          .split(/[\s,;]+/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    );
+    if (ids.length === 0) {
+      flash("Enter at least one user or admin ID.");
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const added: RestrictedEntry[] = [];
+    const missing: string[] = [];
+    let duplicates = 0;
+
+    for (const raw of ids) {
+      const key = raw.toLowerCase();
+      if (restricted.some((r) => r.id.toLowerCase() === key)) {
+        duplicates++;
+        continue;
+      }
+      const admin = admins.find((a) => a.id.toLowerCase() === key);
+      const user = users.find((u) => u.id.toLowerCase() === key);
+      if (admin) added.push({ id: admin.id, name: admin.name, kind: "Admin", addedAt: today });
+      else if (user) added.push({ id: user.id, name: user.name, kind: "User", addedAt: today });
+      else missing.push(raw);
+    }
+
+    if (added.length) setRestricted((list) => [...added, ...list]);
+    setIdInput(missing.join(", "));
+
+    const parts: string[] = [];
+    if (added.length) parts.push(`${added.length} ID(s) added`);
+    if (duplicates) parts.push(`${duplicates} already listed`);
+    if (missing.length) parts.push(`not found: ${missing.join(", ")}`);
+    flash(parts.join(" · "));
+  }
 
   // ---------- actions ----------
   async function changeVisibility(ids: string[], hidden: boolean) {
@@ -231,6 +338,84 @@ export function AdminManagement({
           hint="Hidden from every admin"
         />
       </div>
+
+      {/* ---------- restricted mode ---------- */}
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">
+              Restricted mode{" "}
+              <Badge tone={restrictedMode ? "green" : "gray"}>{restrictedMode ? "on" : "off"}</Badge>
+            </h2>
+            <p className="max-w-2xl text-xs text-muted-foreground">
+              {restrictedMode
+                ? "New users are hidden from admins. A new user stays visible to all admins only if they sign up with the ID of a restricted user or admin as their referral code."
+                : "All newly created users are visible to every admin."}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={restrictedMode}
+            aria-label="Restricted mode"
+            onClick={toggleRestrictedMode}
+            className={`relative h-6 w-11 shrink-0 rounded-full border border-border transition-colors focus:outline-none focus:ring-2 focus:ring-ring ${
+              restrictedMode ? "bg-emerald-500" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`absolute left-0.5 top-0.5 rounded-full bg-white shadow transition-transform ${
+                restrictedMode ? "translate-x-5" : "translate-x-0"
+              }`}
+              style={{ height: 18, width: 18 }}
+            />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          {/* add restricted ids */}
+          <div className="flex flex-col gap-1.5 rounded-2xl border border-border p-4">
+            <span className="text-xs text-muted-foreground">
+              Add restricted user or admin IDs (add several at once, separated by comma or space)
+            </span>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={idInput}
+                onChange={(e) => setIdInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addRestrictedIds();
+                }}
+                placeholder="e.g. ADM-001, USR-1042"
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              <Btn tone="primary" onClick={addRestrictedIds} disabled={!idInput.trim()}>
+                Add IDs
+              </Btn>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            Restricted IDs{" "}
+            <span className="text-sm font-normal opacity-60">{restricted.length}</span>
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Users who sign up with one of these IDs as a referral code are shown to all admins.
+          </p>
+        </div>
+        <Table
+          data={restricted}
+          columns={restrictedColumns}
+          getRowId={(r) => r.id}
+          resizable
+          defaultSort={{ key: "addedAt", direction: "desc" }}
+          height={260}
+          rowHeight={52}
+          className="rounded-2xl"
+          emptyState="No restricted IDs added yet"
+        />
+      </section>
 
       {/* ---------- admins ---------- */}
       <section className="flex flex-col gap-3">
