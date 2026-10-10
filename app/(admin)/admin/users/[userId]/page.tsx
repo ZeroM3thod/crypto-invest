@@ -3,22 +3,22 @@
 import { notFound } from "next/navigation";
 import { AdminShell } from "../../../_components/admin-shell";
 import { UserDetail } from "../../../_components/user-detail";
-import { getUser } from "@/lib/users-data";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { getUserDetail } from "@/lib/admin/users-service";
 
 export default async function AdminUserDetailPage({
   params,
 }: {
   params: Promise<{ userId: string }>;
 }) {
-  await requireAdmin();
+  const session = await requireAdmin();
   const { userId } = await params;
-  const user = getUser(userId);
+  const user = await getUserDetail(userId);
   if (!user) notFound();
 
   return (
     <AdminShell active="All Users">
-      <UserDetail initialUser={user} />
+      <UserDetail initialUser={user} adminRole={session.role} />
     </AdminShell>
   );
 }

@@ -17,81 +17,48 @@ export type SessionUser = {
 
 /**
  * Resolve the signed-in user on the server.
- * 
- * TODO: Replace this with your real session logic:
- * 1. Get session token from cookies
- * 2. Verify/decode the token
- * 3. Query auth_users table to get user data
- * 4. Return SessionUser with actual UUID from database
  */
 export async function getSessionUser(): Promise<SessionUser | null> {
-  // TEMPORARY WORKAROUND: Get the first owner from database
-  // This allows testing the KYC system before your auth is fully integrated
-  
   try {
-    const { data: user, error } = await supabase
-      .from("auth_users")
-      .select("id, user_id, role, kyc_status")
-      .eq("role", "owner")
-      .limit(1)
-      .single();
+    // Get session token from cookies
+    const token = (await cookies()).get("session_token")?.value;
     
-    if (error || !user) {
-      // If no owner exists, get any user
-      const { data: anyUser } = await supabase
-        .from("auth_users")
-        .select("id, user_id, role, kyc_status")
-        .limit(1)
-        .single();
+    if (token) {
+      // Verify token exists in auth_sessions and is not expired/revoked
+      const { data: session } = await supabase
+        .from("auth_sessions")
+        .select("user_id, expires_at, revoked_at")
+        .eq("token_hash", token)
+        .maybeSingle();
       
-      if (anyUser) {
-        return {
-          id: anyUser.id,
-          role: anyUser.role,
-          user_id: anyUser.user_id,
-          kyc_status: anyUser.kyc_status,
-        };
+      if (session && !session.revoked_at && new Date(session.expires_at) > new Date()) {
+        // Get user from database
+        const { data: user } = await supabase
+          .from("auth_users")
+          .select("id, user_id, role, kyc_status, status")
+          .eq("id", session.user_id)
+          .maybeSingle();
+        
+        if (user && user.status !== 'suspended') {
+          return {
+            id: user.id,
+            role: user.role,
+            user_id: user.user_id,
+            kyc_status: user.kyc_status,
+          };
+        }
       }
       
+      // Token is invalid, return null (no fallback)
       return null;
     }
     
-    return {
-      id: user.id,
-      role: user.role,
-      user_id: user.user_id,
-      kyc_status: user.kyc_status,
-    };
+    // No token provided, return null
+    return null;
   } catch (err) {
     console.error("Session error:", err);
     return null;
   }
-  
-  // Example of what your real implementation should look like:
-  /*
-  const token = (await cookies()).get("session_token")?.value;
-  if (!token) return null;
-  
-  // Decode your JWT or verify session
-  const decoded = await verifyToken(token);
-  if (!decoded) return null;
-  
-  // Get user from database using the actual UUID
-  const { data: user, error } = await supabase
-    .from("auth_users")
-    .select("id, user_id, role, kyc_status")
-    .eq("id", decoded.userId)
-    .single();
-    
-  if (error || !user) return null;
-  
-  return {
-    id: user.id,           // UUID from database
-    role: user.role,       // 'user', 'admin', or 'owner'
-    user_id: user.user_id, // Human-readable ID like 'USR-001'
-    kyc_status: user.kyc_status,
-  };
-  */
 }
 
 /**

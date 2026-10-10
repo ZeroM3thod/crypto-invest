@@ -1,33 +1,14 @@
-// app/(admin)/_components/user-detail.tsx
-// Admin user detail: admins can edit profile/KYC data AND wallet balances
-// (Main + Investment only), view full investment / AI trading history,
-// and send rewards to the user.
+// app/(admin)/_components/user-detail-new.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Table, type TableColumn } from "@/components/motion/table";
-import { Checkbox } from "@/components/motion/checkbox";
+import { Badge, Btn, Card, Field } from "./ui";
 import { cn } from "@/lib/utils";
-import type {
-  AiStrategy,
-  AiTrade,
-  DailyProfit,
-  Investment,
-  LoginRecord,
-  ManualTrade,
-  ReferralMember,
-  Reward,
-  RewardType,
-  RewardWallet,
-  Tx,
-  User,
-} from "@/lib/users-data";
-import { Badge, Btn, Card, Field, SelectField, StatCard } from "./ui";
 
 const TABS = [
   "Profile",
-  "Wallets",
+  "Wallets", 
   "Referrals",
   "Investments",
   "Trading",
@@ -36,429 +17,160 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number];
 
-// Only these two wallets exist now (mining / trading / referral removed)
-type WalletKey = "main" | "investment";
-const WALLET_LABELS: Record<WalletKey, string> = {
-  main: "Main Wallet",
-  investment: "Investment Wallet",
+type UserDetail = {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  mobileNumber: string | null;
+  country: string;
+  dob: string;
+  joinedAt: string;
+  walletAddress: string | null;
+  kycStatus: string;
+  twoFAEnabled: boolean;
+  status: 'active' | 'suspended' | 'pending';
+  role: 'user' | 'admin' | 'owner';
+  referredBy: string | null;
+  wallets: {
+    main: { balance: number; address: string | null };
+    investment: { balance: number };
+    trading: { balance: number };
+  };
+  referrals: {
+    referrerId: string | null;
+    totalReferred: number;
+    activeReferred: number;
+  };
+  investments: any[];
+  aiTradingInvestments: any[];
+  rewards: any[];
+  loginHistory: any[];
 };
 
 const usd = (n: number) =>
   `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
-/** Keep numbers as numbers when a text cell is edited. */
-const coerce = (sample: unknown, value: string) =>
-  typeof sample === "number" ? Number(value) || 0 : value;
-
-/** Column helper: every cell is editable + sortable by default. */
-function col<T>(
-  key: keyof T & string,
-  header: string,
-  extra: Partial<TableColumn<T>> = {},
-): TableColumn<T> {
-  return { key, header, editable: true, sortable: true, width: "140px", ...extra };
-}
-
-/** Read-only column helper (history / log tables). */
-function ro<T>(
-  key: keyof T & string,
-  header: string,
-  extra: Partial<TableColumn<T>> = {},
-): TableColumn<T> {
-  return col<T>(key, header, { editable: false, ...extra });
-}
-
-/** Editable data table used by every section. */
-function Grid<T extends { id: string }>({
-  data,
-  columns,
-  onCellEdit,
-  onDeleteRow,
-  height = 340,
-}: {
-  data: T[];
-  columns: TableColumn<T>[];
-  onCellEdit?: (rowId: string, key: string, value: string) => void;
-  onDeleteRow?: (rowId: string) => void;
-  height?: number;
+export function UserDetail({ 
+  initialUser, 
+  adminRole 
+}: { 
+  initialUser: UserDetail;
+  adminRole: string;
 }) {
-  return (
-    <Table
-      data={data}
-      columns={columns}
-      getRowId={(r) => r.id}
-      resizable
-      onCellEdit={onCellEdit}
-      onDeleteRow={onDeleteRow ? (id) => onDeleteRow(id) : undefined}
-      height={height}
-      rowHeight={48}
-      className="rounded-xl"
-      emptyState="No records"
-    />
-  );
-}
-
-const rewardInitial = {
-  title: "",
-  description: "",
-  wallet: "main" as RewardWallet,
-  type: "non_withdrawable" as RewardType,
-  amount: "",
-};
-
-export function UserDetail({ initialUser }: { initialUser: User }) {
   const router = useRouter();
-  const [user, setUser] = useState<User>(initialUser);
-  const [saved, setSaved] = useState<User>(initialUser);
+  const [user, setUser] = useState<UserDetail>(initialUser);
   const [tab, setTab] = useState<Tab>("Profile");
-  const [walletKey, setWalletKey] = useState<WalletKey>("main");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [invFilter, setInvFilter] = useState("all");
-  const [rf, setRf] = useState(rewardInitial);
-  const [rewardBusy, setRewardBusy] = useState(false);
 
-  const dirty = JSON.stringify(user) !== JSON.stringify(saved);
-  const set = <K extends keyof User>(key: K, value: User[K]) =>
-    setUser((u) => ({ ...u, [key]: value }));
+  const isOwner = adminRole === 'owner';
 
   const flash = (message: string) => {
     setNote(message);
     setTimeout(() => setNote(null), 3000);
   };
 
-  /** Admin can edit wallet balances. */
-  const setBalance = (k: WalletKey, value: number) =>
-    setUser((u) => ({
-      ...u,
-      wallets: { ...u.wallets, [k]: { ...u.wallets[k], balance: value } },
-    }));
-
-  /** Generic cell-edit handler for the editable top-level arrays. */
-  const editList =
-    (list: "referrals" | "investments" | "aiStrategies" | "manualTrades" | "logins") =>
-    (rowId: string, key: string, value: string) =>
-      setUser((u) => ({
-        ...u,
-        [list]: (u[list] as unknown as Record<string, unknown>[]).map((r) =>
-          r.id === rowId ? { ...r, [key]: coerce(r[key], value) } : r,
-        ),
-      }));
-
-  /** Persist to your backend (PATCH). Rewards are NOT sent here — they are
-   *  created only through the rewards endpoint so they can't be double-credited. */
-  async function persist(next: User, message: string) {
-    setBusy(true);
-    try {
-      const { rewards: _rewards, ...payload } = next;
-      void _rewards;
-      const res = await fetch(`/api/admin/users/${next.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      setUser(next);
-      setSaved(next);
-      flash(message);
-    } catch {
-      flash("Save failed. Check your API route.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const toggleSuspend = () => {
-    const suspending = user.status === "active";
-    if (!confirm(`${suspending ? "Suspend" : "Activate"} ${user.firstName} ${user.lastName}?`)) return;
-    void persist(
-      { ...user, status: suspending ? "suspended" : "active" },
-      suspending ? "User suspended" : "User activated",
-    );
+  const updateField = (field: keyof UserDetail, value: any) => {
+    setUser(prev => ({ ...prev, [field]: value }));
   };
 
-  /** Send a reward: credits the chosen wallet on the server, then mirrors it locally. */
-  async function sendReward() {
-    const amount = Number(rf.amount);
-    if (!rf.title.trim() || !rf.description.trim() || !(amount > 0)) {
-      flash("Add a title, short description and a valid amount");
-      return;
-    }
-    const lockText = rf.type === "withdrawable" ? "withdrawable" : "non-withdrawable (invest only)";
-    if (
-      !confirm(
-        `Send ${usd(amount)} reward "${rf.title.trim()}" to ${user.firstName} ${user.lastName}'s ${WALLET_LABELS[rf.wallet]} as ${lockText}?`,
-      )
-    )
-      return;
-
-    setRewardBusy(true);
+  const saveChanges = async () => {
+    setBusy(true);
     try {
-      const res = await fetch(`/api/admin/users/${user.id}/rewards`, {
-        method: "POST",
+      const res = await fetch(`/api/admin/users/${user.userId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: rf.title.trim(),
-          description: rf.description.trim(),
-          wallet: rf.wallet,
-          type: rf.type,
-          amount,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          mobileNumber: user.mobileNumber,
+          country: user.country,
+          twoFA: user.twoFAEnabled,
+          wallets: user.wallets,
         }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      const { reward } = (await res.json()) as { reward: Reward };
-
-      // apply the same change to both current + saved copies (keeps "dirty" correct)
-      const apply = (u: User): User => ({
-        ...u,
-        rewards: [reward, ...u.rewards],
-        wallets: {
-          ...u.wallets,
-          [reward.wallet]: {
-            ...u.wallets[reward.wallet],
-            balance: u.wallets[reward.wallet].balance + reward.amount,
-            lockedBalance:
-              u.wallets[reward.wallet].lockedBalance +
-              (reward.type === "non_withdrawable" ? reward.amount : 0),
-          },
-        },
-      });
-      setUser(apply);
-      setSaved(apply);
-      setRf(rewardInitial);
-      flash("Reward sent");
+      flash("Changes saved");
     } catch {
-      flash("Reward failed. Check your API route.");
+      flash("Save failed");
     } finally {
-      setRewardBusy(false);
+      setBusy(false);
     }
-  }
+  };
 
-  // ---------- derived numbers ----------
-  const wallet = user.wallets[walletKey];
-  const totalWallets = user.wallets.main.balance + user.wallets.investment.balance;
+  const toggleSuspend = async () => {
+    const suspending = user.status === "active";
+    if (!confirm(`${suspending ? "Suspend" : "Activate"} ${user.firstName} ${user.lastName}?`)) return;
+    
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: suspending ? "suspended" : "active" }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setUser(prev => ({ ...prev, status: suspending ? "suspended" : "active" }));
+      flash(suspending ? "User suspended" : "User activated");
+    } catch {
+      flash("Operation failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const refTotals = useMemo(
-    () => ({
-      count: user.referrals.length,
-      deposit: user.referrals.reduce((s, r) => s + r.totalDeposit, 0),
-      balance: user.referrals.reduce((s, r) => s + r.balance, 0),
-    }),
-    [user.referrals],
-  );
+  const disable2FA = async () => {
+    if (!confirm(`Disable 2FA for ${user.firstName} ${user.lastName}?`)) return;
+    
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.userId}/disable-2fa`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setUser(prev => ({ ...prev, twoFAEnabled: false }));
+      flash("2FA disabled");
+    } catch {
+      flash("Failed to disable 2FA");
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const invTotals = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return {
-      running: user.investments.filter((i) => i.status === "running").length,
-      invested: user.investments.reduce((s, i) => s + i.amount, 0),
-      earned: user.investments.reduce((s, i) => s + i.earned, 0),
-      profitDays: user.dailyProfits.length,
-      today: user.dailyProfits
-        .filter((p) => p.date.startsWith(today))
-        .reduce((s, p) => s + p.profit, 0),
-    };
-  }, [user.investments, user.dailyProfits]);
+  const loginAsUser = async () => {
+    if (!confirm(`Login as ${user.firstName} ${user.lastName}?`)) return;
+    
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.userId}/login-as`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const { token } = await res.json();
+      
+      // Set session token and redirect to user dashboard
+      document.cookie = `session_token=${token}; path=/; max-age=2592000`;
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      flash(err.message || "Login as user failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const filteredProfits = useMemo(
-    () => (invFilter === "all" ? user.dailyProfits : user.dailyProfits.filter((p) => p.investmentId === invFilter)),
-    [user.dailyProfits, invFilter],
-  );
-  const filteredProfitTotal = useMemo(
-    () => filteredProfits.reduce((s, p) => s + p.profit, 0),
-    [filteredProfits],
-  );
-
-  const ai = useMemo(() => {
-    const s = user.aiStrategies;
-    const allocated = s.reduce((a, x) => a + x.allocated, 0);
-    const net = s.reduce((a, x) => a + x.pnl, 0);
-    return {
-      count: s.length,
-      active: s.filter((x) => x.status === "active" || x.status === "running").length,
-      allocated,
-      net,
-      roi: allocated ? (net / allocated) * 100 : 0,
-      avgWin: s.length ? s.reduce((a, x) => a + x.winRate, 0) / s.length : 0,
-      trades: user.aiTrades.length,
-    };
-  }, [user.aiStrategies, user.aiTrades]);
-
-  const trade = useMemo(() => {
-    const t = user.manualTrades;
-    return {
-      total: t.length,
-      long: t.filter((x) => x.direction === "long").length,
-      short: t.filter((x) => x.direction === "short").length,
-      wins: t.filter((x) => x.pnl > 0).length,
-      losses: t.filter((x) => x.pnl < 0).length,
-      net: t.reduce((s, x) => s + x.pnl, 0),
-    };
-  }, [user.manualTrades]);
-
-  const rewardTotals = useMemo(
-    () => ({
-      count: user.rewards.length,
-      total: user.rewards.reduce((s, r) => s + r.amount, 0),
-      locked: user.rewards.filter((r) => r.type === "non_withdrawable").reduce((s, r) => s + r.amount, 0),
-      free: user.rewards.filter((r) => r.type === "withdrawable").reduce((s, r) => s + r.amount, 0),
-    }),
-    [user.rewards],
-  );
-
-  // ---------- columns ----------
-  const txCols = useMemo<TableColumn<Tx>[]>(
-    () => [
-      ro<Tx>("date", "Date", { width: "170px" }),
-      ro<Tx>("type", "Type", { width: "120px" }),
-      ro<Tx>("amount", "Amount", { width: "120px", align: "right" }),
-      ro<Tx>("status", "Status", { width: "120px" }),
-      ro<Tx>("hash", "Tx Hash / Ref", { width: "1fr" }),
-    ],
-    [],
-  );
-  const refCols = useMemo<TableColumn<ReferralMember>[]>(
-    () => [
-      col<ReferralMember>("id", "User ID", { width: "120px" }),
-      col<ReferralMember>("name", "Name", { width: "1fr" }),
-      col<ReferralMember>("email", "Email", { width: "1.4fr" }),
-      col<ReferralMember>("joinedAt", "Joined", { width: "120px" }),
-      col<ReferralMember>("level", "Level", { width: "90px", align: "right" }),
-      col<ReferralMember>("totalDeposit", "Total Deposit", { width: "140px", align: "right" }),
-      col<ReferralMember>("balance", "Balance", { width: "120px", align: "right" }),
-    ],
-    [],
-  );
-  const invCols = useMemo<TableColumn<Investment>[]>(
-    () => [
-      col<Investment>("id", "ID", { width: "120px" }),
-      col<Investment>("plan", "Plan", { width: "120px" }),
-      col<Investment>("amount", "Amount", { width: "120px", align: "right" }),
-      col<Investment>("dailyRoi", "Daily ROI %", { width: "120px", align: "right" }),
-      col<Investment>("startDate", "Start", { width: "120px" }),
-      col<Investment>("endDate", "End", { width: "120px" }),
-      col<Investment>("earned", "Earned", { width: "110px", align: "right" }),
-      col<Investment>("status", "Status", { width: "120px" }),
-    ],
-    [],
-  );
-  const profitCols = useMemo<TableColumn<DailyProfit>[]>(
-    () => [
-      ro<DailyProfit>("date", "Date", { width: "130px" }),
-      ro<DailyProfit>("investmentId", "Investment ID", { width: "130px" }),
-      ro<DailyProfit>("plan", "Plan", { width: "120px" }),
-      ro<DailyProfit>("invested", "Invested", {
-        width: "120px",
-        align: "right",
-        cell: (r) => <span className="tabular-nums">{usd(r.invested)}</span>,
-      }),
-      ro<DailyProfit>("roi", "Daily ROI %", { width: "120px", align: "right" }),
-      ro<DailyProfit>("profit", "Profit", {
-        width: "120px",
-        align: "right",
-        cell: (r) => <span className="tabular-nums text-emerald-500">{usd(r.profit)}</span>,
-      }),
-      ro<DailyProfit>("wallet", "Credited To", { width: "140px" }),
-      ro<DailyProfit>("status", "Status", {
-        width: "120px",
-        cell: (r) => <Badge tone={r.status === "credited" ? "green" : "amber"}>{r.status}</Badge>,
-      }),
-    ],
-    [],
-  );
-  const aiCols = useMemo<TableColumn<AiStrategy>[]>(
-    () => [
-      col<AiStrategy>("id", "ID", { width: "110px" }),
-      col<AiStrategy>("name", "Strategy", { width: "1fr" }),
-      col<AiStrategy>("pair", "Pair", { width: "120px" }),
-      col<AiStrategy>("allocated", "Allocated", { width: "120px", align: "right" }),
-      col<AiStrategy>("pnl", "PnL", { width: "100px", align: "right" }),
-      col<AiStrategy>("winRate", "Win Rate %", { width: "110px", align: "right" }),
-      col<AiStrategy>("status", "Status", { width: "110px" }),
-    ],
-    [],
-  );
-  const aiTradeCols = useMemo<TableColumn<AiTrade>[]>(
-    () => [
-      ro<AiTrade>("id", "ID", { width: "110px" }),
-      ro<AiTrade>("date", "Date", { width: "160px" }),
-      ro<AiTrade>("strategy", "Strategy", { width: "1fr" }),
-      ro<AiTrade>("pair", "Pair", { width: "110px" }),
-      ro<AiTrade>("direction", "Direction", { width: "110px" }),
-      ro<AiTrade>("size", "Size", { width: "100px", align: "right" }),
-      ro<AiTrade>("entry", "Entry", { width: "100px", align: "right" }),
-      ro<AiTrade>("exit", "Exit", { width: "100px", align: "right" }),
-      ro<AiTrade>("pnl", "PnL", {
-        width: "100px",
-        align: "right",
-        cell: (r) => (
-          <span className={cn("tabular-nums", r.pnl >= 0 ? "text-emerald-500" : "text-rose-500")}>
-            {usd(r.pnl)}
-          </span>
-        ),
-      }),
-      ro<AiTrade>("status", "Status", { width: "100px" }),
-    ],
-    [],
-  );
-  const tradeCols = useMemo<TableColumn<ManualTrade>[]>(
-    () => [
-      col<ManualTrade>("id", "ID", { width: "110px" }),
-      col<ManualTrade>("date", "Date", { width: "160px" }),
-      col<ManualTrade>("pair", "Pair", { width: "110px" }),
-      col<ManualTrade>("direction", "Direction", { width: "110px" }),
-      col<ManualTrade>("size", "Size", { width: "100px", align: "right" }),
-      col<ManualTrade>("entry", "Entry", { width: "100px", align: "right" }),
-      col<ManualTrade>("exit", "Exit", { width: "100px", align: "right" }),
-      col<ManualTrade>("pnl", "PnL", { width: "100px", align: "right" }),
-      col<ManualTrade>("status", "Status", { width: "100px" }),
-    ],
-    [],
-  );
-  const rewardCols = useMemo<TableColumn<Reward>[]>(
-    () => [
-      ro<Reward>("sentAt", "Sent On", { width: "160px" }),
-      ro<Reward>("title", "Title", { width: "1fr" }),
-      ro<Reward>("description", "Description", { width: "1.6fr" }),
-      ro<Reward>("amount", "Amount", {
-        width: "120px",
-        align: "right",
-        cell: (r) => <span className="tabular-nums">{usd(r.amount)}</span>,
-      }),
-      ro<Reward>("wallet", "Wallet", { width: "140px", cell: (r) => WALLET_LABELS[r.wallet] }),
-      ro<Reward>("type", "Type", {
-        width: "170px",
-        cell: (r) => (
-          <Badge tone={r.type === "withdrawable" ? "green" : "amber"}>
-            {r.type === "withdrawable" ? "Withdrawable" : "Invest only"}
-          </Badge>
-        ),
-      }),
-      ro<Reward>("sentBy", "Sent By", { width: "130px" }),
-    ],
-    [],
-  );
-  const loginCols = useMemo<TableColumn<LoginRecord>[]>(
-    () => [
-      col<LoginRecord>("at", "Date & Time", { width: "160px" }),
-      col<LoginRecord>("ip", "IP Address", { width: "140px" }),
-      col<LoginRecord>("device", "Device", { width: "140px" }),
-      col<LoginRecord>("browser", "Browser", { width: "130px" }),
-      col<LoginRecord>("app", "Application", { width: "160px" }),
-      col<LoginRecord>("location", "Location", { width: "130px" }),
-      col<LoginRecord>("status", "Result", { width: "100px" }),
-    ],
-    [],
-  );
+  const totalBalance = user.wallets.main.balance + user.wallets.investment.balance + user.wallets.trading.balance;
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
-      {/* ---------- header + account actions ---------- */}
+      {/* Header */}
       <div className="flex flex-col gap-4 rounded-2xl border border-border p-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid size-12 place-items-center rounded-full bg-foreground text-sm font-semibold text-background">
-            {user.firstName[0]}
-            {user.lastName[0]}
+            {user.firstName[0]}{user.lastName[0]}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -468,7 +180,7 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
               <Badge tone={user.status === "active" ? "green" : "red"}>{user.status}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {user.id} · {user.email}
+              {user.userId} · {user.email}
             </p>
           </div>
         </div>
@@ -479,13 +191,13 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
           <Btn tone={user.status === "active" ? "danger" : "default"} onClick={toggleSuspend} disabled={busy}>
             {user.status === "active" ? "Suspend user" : "Activate user"}
           </Btn>
-          <Btn tone="primary" onClick={() => persist(user, "Saved")} disabled={!dirty || busy}>
-            {busy ? "Saving..." : dirty ? "Save changes" : "Saved"}
+          <Btn tone="primary" onClick={saveChanges} disabled={busy}>
+            {busy ? "Saving..." : "Save changes"}
           </Btn>
         </div>
       </div>
 
-      {/* ---------- tabs ---------- */}
+      {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto rounded-xl bg-muted p-1">
         {TABS.map((t) => (
           <button
@@ -504,318 +216,618 @@ export function UserDetail({ initialUser }: { initialUser: User }) {
         ))}
       </div>
 
-      {/* ---------- PROFILE ---------- */}
+      {/* Profile Tab */}
       {tab === "Profile" && (
         <div className="grid gap-6 lg:grid-cols-2">
           <Card title="Personal Information">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="First Name" value={user.firstName} onChange={(v) => set("firstName", v)} />
-              <Field label="Last Name" value={user.lastName} onChange={(v) => set("lastName", v)} />
-              <Field label="User ID" value={user.id} onChange={(v) => set("id", v)} />
-              <Field label="First Join Date" type="date" value={user.joinedAt} onChange={(v) => set("joinedAt", v)} />
-              <Field label="Email ID" type="email" value={user.email} onChange={(v) => set("email", v)} />
-              <Field label="Date of Birth" type="date" value={user.dob} onChange={(v) => set("dob", v)} />
-              <Field label="Country" value={user.country} onChange={(v) => set("country", v)} />
-              <Field
-                label="Referred By (User ID or OWNER)"
-                value={user.referredBy}
-                onChange={(v) => set("referredBy", v)}
+              <Field label="First Name" value={user.firstName} onChange={(v) => updateField("firstName", v)} />
+              <Field label="Last Name" value={user.lastName} onChange={(v) => updateField("lastName", v)} />
+              <Field label="User ID" value={user.userId} readOnly />
+              <Field label="Email" type="email" value={user.email} onChange={(v) => updateField("email", v)} />
+              <Field label="Phone" value={user.phone} readOnly />
+              <Field 
+                label="Mobile Number" 
+                value={user.mobileNumber || ""} 
+                onChange={(v) => updateField("mobileNumber", v || null)} 
+                placeholder="Optional"
               />
-            </div>
-            <div className="mt-4">
-              <Field label="Main Wallet Address" value={user.walletAddress} readOnly />
+              <Field label="Country" value={user.country} onChange={(v) => updateField("country", v)} />
+              <Field label="Date of Birth" type="date" value={user.dob} readOnly />
+              <Field label="Joined At" type="date" value={user.joinedAt} readOnly />
+              <Field label="Referred By" value={user.referredBy || "Direct signup"} readOnly />
             </div>
           </Card>
 
           <div className="flex flex-col gap-6">
-            <Card title="KYC Details">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <SelectField
-                  label="KYC Status"
-                  value={user.kyc.status}
-                  onChange={(v) => set("kyc", { ...user.kyc, status: v as User["kyc"]["status"] })}
-                  options={[
-                    { value: "verified", label: "Verified" },
-                    { value: "pending", label: "Pending" },
-                    { value: "rejected", label: "Rejected" },
-                    { value: "not_submitted", label: "Not submitted" },
-                  ]}
-                />
-                <Field
-                  label="Document Type"
-                  value={user.kyc.documentType}
-                  onChange={(v) => set("kyc", { ...user.kyc, documentType: v })}
-                />
-                <Field
-                  label="Document Number"
-                  value={user.kyc.documentNumber}
-                  onChange={(v) => set("kyc", { ...user.kyc, documentNumber: v })}
-                />
-                <Field
-                  label="Submitted On"
-                  type="date"
-                  value={user.kyc.submittedAt}
-                  onChange={(v) => set("kyc", { ...user.kyc, submittedAt: v })}
-                />
+            <Card title="KYC Status">
+              <div className="flex items-center gap-2">
+                <Badge tone={user.kycStatus === 'verified' ? 'green' : user.kycStatus === 'pending' ? 'amber' : 'gray'}>
+                  {user.kycStatus.replace('_', ' ')}
+                </Badge>
               </div>
             </Card>
 
             <Card title="Two-Factor Authentication">
-              <Checkbox
-                checked={user.twoFA}
-                onCheckedChange={(v) => set("twoFA", v)}
-                label={user.twoFA ? "2FA is enabled" : "2FA is disabled"}
-              />
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {/* ---------- WALLETS (Main + Investment only, balances editable) ---------- */}
-      {tab === "Wallets" && (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {(Object.keys(WALLET_LABELS) as WalletKey[]).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setWalletKey(k)}
-                className={cn(
-                  "rounded-2xl border p-4 text-left transition-colors",
-                  walletKey === k ? "border-foreground bg-muted" : "border-border hover:bg-muted/50",
+              <div className="flex items-center justify-between">
+                <span className="text-sm">{user.twoFAEnabled ? "2FA is enabled" : "2FA is disabled"}</span>
+                {user.twoFAEnabled && (
+                  <Btn size="sm" tone="danger" onClick={disable2FA} disabled={busy}>
+                    Disable 2FA
+                  </Btn>
                 )}
-              >
-                <p className="text-xs text-muted-foreground">{WALLET_LABELS[k]}</p>
-                <p className="mt-1 text-lg font-semibold tabular-nums">{usd(user.wallets[k].balance)}</p>
-              </button>
-            ))}
-            <StatCard label="Total Balance" value={usd(totalWallets)} />
+              </div>
+            </Card>
           </div>
-
-          <Card title={WALLET_LABELS[walletKey]}>
-            <div
-              className={cn(
-                "grid gap-4",
-                walletKey === "main" ? "md:grid-cols-[1fr_200px]" : "md:grid-cols-[200px]",
-              )}
-            >
-              {/* Investment wallet has no address, so only Main shows one */}
-              {walletKey === "main" ? (
-                <Field label="Wallet Address" value={wallet.address} readOnly />
-              ) : null}
-              <Field
-                label="Balance (USD)"
-                type="number"
-                value={wallet.balance}
-                onChange={(v) => setBalance(walletKey, Number(v) || 0)}
-              />
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Edit the balance, then press “Save changes” at the top to apply it.
-            </p>
-          </Card>
-
-          <Card title={`Transactions (${wallet.transactions.length})`}>
-            <Grid data={wallet.transactions} columns={txCols} />
-          </Card>
         </div>
       )}
 
-      {/* ---------- REFERRALS ---------- */}
+      {/* Wallets Tab */}
+      {tab === "Wallets" && (
+        <WalletsTab user={user} setUser={setUser} />
+      )}
+
+      {/* Referrals Tab */}
       {tab === "Referrals" && (
-        <div className="flex flex-col gap-4">
-          <Card title="Referred By">
-            <div className="max-w-sm">
-              <Field
-                label="Referrer (User ID or OWNER)"
-                value={user.referredBy}
-                onChange={(v) => set("referredBy", v)}
-              />
-            </div>
-          </Card>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StatCard label="Members Referred" value={refTotals.count} />
-            <StatCard label="Total Deposit (Team)" value={usd(refTotals.deposit)} />
-            <StatCard label="Total Balance (Team)" value={usd(refTotals.balance)} />
-          </div>
-          <Card title="Referred Members">
-            <Grid data={user.referrals} columns={refCols} onCellEdit={editList("referrals")} />
-          </Card>
-        </div>
+        <ReferralsTab user={user} flash={flash} />
       )}
 
-      {/* ---------- INVESTMENTS (daily profit details) ---------- */}
+      {/* Investments Tab */}
       {tab === "Investments" && (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatCard label="Running Plans" value={invTotals.running} />
-            <StatCard label="Total Invested" value={usd(invTotals.invested)} />
-            <StatCard label="Total Earned" value={usd(invTotals.earned)} />
-            <StatCard label="Today's Profit" value={usd(invTotals.today)} />
-            <StatCard label="Profit Credits" value={invTotals.profitDays} hint="Daily payouts so far" />
-          </div>
-
-          <Card title="Investment Plans">
-            <Grid data={user.investments} columns={invCols} onCellEdit={editList("investments")} />
-          </Card>
-
-          <Card title={`Daily Profit History (${filteredProfits.length})`}>
-            <div className="mb-3 grid gap-3 sm:grid-cols-[240px_1fr] sm:items-end">
-              <SelectField
-                label="Investment"
-                value={invFilter}
-                onChange={setInvFilter}
-                options={[
-                  { value: "all", label: "All investments" },
-                  ...user.investments.map((i) => ({ value: i.id, label: `${i.id} · ${i.plan}` })),
-                ]}
-              />
-              <p className="text-sm text-muted-foreground sm:text-right">
-                Total profit shown:{" "}
-                <span className="font-semibold tabular-nums text-emerald-500">{usd(filteredProfitTotal)}</span>
-              </p>
-            </div>
-            <Grid data={filteredProfits} columns={profitCols} height={380} />
-          </Card>
-        </div>
+        <InvestmentsTab user={user} />
       )}
 
-      {/* ---------- TRADING (AI strategy details + manual) ---------- */}
+      {/* Trading Tab */}
       {tab === "Trading" && (
-        <div className="flex flex-col gap-6">
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold">AI Trading</h2>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-              <StatCard label="Strategies" value={ai.count} hint={`${ai.active} active`} />
-              <StatCard label="Total Invested" value={usd(ai.allocated)} />
-              <StatCard
-                label="Net PnL"
-                value={<span className={ai.net >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(ai.net)}</span>}
-              />
-              <StatCard label="ROI" value={`${ai.roi.toFixed(2)}%`} />
-              <StatCard label="Avg Win Rate" value={`${ai.avgWin.toFixed(1)}%`} />
-              <StatCard label="AI Trades" value={ai.trades} />
-            </div>
-            <Card title="Invested Strategies">
-              <Grid data={user.aiStrategies} columns={aiCols} onCellEdit={editList("aiStrategies")} height={240} />
-            </Card>
-            <Card title={`AI Trade History (${user.aiTrades.length})`}>
-              <Grid data={user.aiTrades} columns={aiTradeCols} height={360} />
-            </Card>
-          </section>
-
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold">Manual Trading</h2>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <StatCard label="Total Trades" value={trade.total} />
-              <StatCard label="Long / Short" value={`${trade.long} / ${trade.short}`} />
-              <StatCard label="Wins / Losses" value={`${trade.wins} / ${trade.losses}`} />
-              <StatCard
-                label="Overall Result"
-                value={<span className={trade.net >= 0 ? "text-emerald-500" : "text-rose-500"}>{usd(trade.net)}</span>}
-                hint={trade.net >= 0 ? "In profit" : "In loss"}
-              />
-              <StatCard
-                label="Win Rate"
-                value={`${trade.total ? Math.round((trade.wins / trade.total) * 100) : 0}%`}
-              />
-            </div>
-            <Card title="All Trades">
-              <Grid data={user.manualTrades} columns={tradeCols} onCellEdit={editList("manualTrades")} />
-            </Card>
-          </section>
-        </div>
+        <TradingTab user={user} />
       )}
 
-      {/* ---------- REWARDS ---------- */}
+      {/* Rewards Tab */}
       {tab === "Rewards" && (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Rewards Sent" value={rewardTotals.count} />
-            <StatCard label="Total Rewarded" value={usd(rewardTotals.total)} />
-            <StatCard label="Withdrawable" value={usd(rewardTotals.free)} />
-            <StatCard label="Invest Only" value={usd(rewardTotals.locked)} />
+        <RewardsTab user={user} setUser={setUser} flash={flash} />
+      )}
+
+      {/* Security & Logins Tab */}
+      {tab === "Security & Logins" && (
+        <SecurityTab 
+          user={user} 
+          isOwner={isOwner} 
+          disable2FA={disable2FA} 
+          loginAsUser={loginAsUser}
+          busy={busy}
+        />
+      )}
+    </div>
+  );
+}
+
+// Sub-components for each tab
+function WalletsTab({ user, setUser }: { user: UserDetail; setUser: React.Dispatch<React.SetStateAction<UserDetail>> }) {
+  const [selectedWallet, setSelectedWallet] = useState<'main' | 'investment' | 'trading'>('main');
+  
+  const walletLabels = {
+    main: 'Main Wallet',
+    investment: 'Investment Wallet',
+    trading: 'Trading Wallet'
+  };
+
+  const totalBalance = user.wallets.main.balance + user.wallets.investment.balance + user.wallets.trading.balance;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        {(['main', 'investment', 'trading'] as const).map((w) => (
+          <button
+            key={w}
+            type="button"
+            onClick={() => setSelectedWallet(w)}
+            className={cn(
+              "rounded-2xl border p-4 text-left transition-colors",
+              selectedWallet === w ? "border-foreground bg-muted" : "border-border hover:bg-muted/50",
+            )}
+          >
+            <p className="text-xs text-muted-foreground">{walletLabels[w]}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{usd(user.wallets[w].balance)}</p>
+          </button>
+        ))}
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Total Balance</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{usd(totalBalance)}</p>
+        </div>
+      </div>
+
+      <Card title={walletLabels[selectedWallet]}>
+        <div className="grid gap-4 md:grid-cols-2">
+          {selectedWallet === 'main' && user.wallets.main.address && (
+            <Field label="Wallet Address" value={user.wallets.main.address} readOnly />
+          )}
+          <Field
+            label="Balance (USD)"
+            type="number"
+            value={user.wallets[selectedWallet].balance}
+            onChange={(v) => {
+              const newBalance = Number(v) || 0;
+              setUser(prev => ({
+                ...prev,
+                wallets: {
+                  ...prev.wallets,
+                  [selectedWallet]: { ...prev.wallets[selectedWallet], balance: newBalance }
+                }
+              }));
+            }}
+          />
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Edit the balance, then press "Save changes" at the top to apply it.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+function ReferralsTab({ user, flash }: { user: UserDetail; flash: (msg: string) => void }) {
+  const [newReferralUserId, setNewReferralUserId] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const addReferral = async () => {
+    if (!newReferralUserId.trim()) {
+      flash('Enter a user ID');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.userId}/add-referral`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referredUserId: newReferralUserId.trim() })
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      flash('Referral added');
+      setNewReferralUserId('');
+      window.location.reload();
+    } catch {
+      flash('Failed to add referral');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card title="Referred By">
+        <p className="text-sm">{user.referrals.referrerId || 'Direct signup (no referrer)'}</p>
+      </Card>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Total Referred</p>
+          <p className="mt-1 text-lg font-semibold">{user.referrals.totalReferred}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Active Referred</p>
+          <p className="mt-1 text-lg font-semibold">{user.referrals.activeReferred}</p>
+        </div>
+      </div>
+
+      <Card title="Add Referral">
+        <div className="flex gap-2">
+          <Field 
+            label="User ID" 
+            value={newReferralUserId} 
+            onChange={setNewReferralUserId}
+            placeholder="Enter user ID"
+          />
+          <div className="flex items-end">
+            <Btn onClick={addReferral} disabled={busy}>
+              {busy ? 'Adding...' : 'Add'}
+            </Btn>
           </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
 
-          <Card title="Send Reward">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field
-                label="Reward Title"
-                value={rf.title}
-                onChange={(v) => setRf((s) => ({ ...s, title: v }))}
-              />
-              <Field
-                label="Amount (USD)"
-                type="number"
-                value={rf.amount}
-                onChange={(v) => setRf((s) => ({ ...s, amount: v }))}
-              />
-              <SelectField
-                label="Wallet"
-                value={rf.wallet}
-                onChange={(v) => setRf((s) => ({ ...s, wallet: v as RewardWallet }))}
-                options={[
-                  { value: "main", label: "Main Wallet" },
-                  { value: "investment", label: "Investment Wallet" },
-                ]}
-              />
-              <SelectField
-                label="Reward Use"
-                value={rf.type}
-                onChange={(v) => setRf((s) => ({ ...s, type: v as RewardType }))}
-                options={[
-                  { value: "non_withdrawable", label: "Non-withdrawable (invest only, profit withdrawable)" },
-                  { value: "withdrawable", label: "Withdrawable (user can withdraw)" },
-                ]}
-              />
-            </div>
+function InvestmentsTab({ user }: { user: UserDetail }) {
+  const totalInvested = user.investments.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+  const totalProfit = user.investments.reduce((sum, inv) => sum + (inv.total_profit || 0), 0);
+  const runningCount = user.investments.filter(inv => inv.status === 'active').length;
 
-            <label className="mt-4 flex flex-col gap-1.5">
-              <span className="text-xs text-muted-foreground">Short Description</span>
-              <textarea
-                value={rf.description}
-                onChange={(e) => setRf((s) => ({ ...s, description: e.target.value }))}
-                rows={3}
-                maxLength={200}
-                placeholder="Shown to the user with the reward"
-                className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </label>
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Running Plans</p>
+          <p className="mt-1 text-lg font-semibold">{runningCount}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Total Invested</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{usd(totalInvested)}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Total Earned</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums text-emerald-500">{usd(totalProfit)}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Total Plans</p>
+          <p className="mt-1 text-lg font-semibold">{user.investments.length}</p>
+        </div>
+      </div>
 
-            <p className="mt-3 text-xs text-muted-foreground">
-              {rf.type === "withdrawable"
-                ? "The user can withdraw this reward like normal balance."
-                : "The user can only invest this reward. Profit earned from it can be withdrawn."}
+      <Card title="Investment Plans">
+        {user.investments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No investments yet</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="py-2 text-left">Plan</th>
+                  <th className="py-2 text-right">Amount</th>
+                  <th className="py-2 text-right">Daily Rate</th>
+                  <th className="py-2 text-right">Profit</th>
+                  <th className="py-2 text-left">Status</th>
+                  <th className="py-2 text-left">Started</th>
+                </tr>
+              </thead>
+              <tbody>
+                {user.investments.map((inv) => (
+                  <tr key={inv.id} className="border-b border-border/50">
+                    <td className="py-2">{inv.plan_name}</td>
+                    <td className="py-2 text-right tabular-nums">{usd(inv.amount)}</td>
+                    <td className="py-2 text-right">{inv.daily_rate}%</td>
+                    <td className="py-2 text-right tabular-nums text-emerald-500">{usd(inv.total_profit)}</td>
+                    <td className="py-2">
+                      <Badge tone={inv.status === 'active' ? 'green' : 'gray'}>{inv.status}</Badge>
+                    </td>
+                    <td className="py-2">{new Date(inv.started_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function TradingTab({ user }: { user: UserDetail }) {
+  const totalInvested = user.aiTradingInvestments.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+  const totalProfit = user.aiTradingInvestments.reduce((sum, inv) => sum + (inv.total_profit || 0), 0);
+  const runningCount = user.aiTradingInvestments.filter(inv => inv.status === 'running').length;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Running Strategies</p>
+          <p className="mt-1 text-lg font-semibold">{runningCount}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Total Invested</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{usd(totalInvested)}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Net P&L</p>
+          <p className={cn("mt-1 text-lg font-semibold tabular-nums", totalProfit >= 0 ? "text-emerald-500" : "text-rose-500")}>
+            {usd(totalProfit)}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Total Strategies</p>
+          <p className="mt-1 text-lg font-semibold">{user.aiTradingInvestments.length}</p>
+        </div>
+      </div>
+
+      <Card title="AI Trading Investments">
+        {user.aiTradingInvestments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No AI trading investments yet</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="py-2 text-left">Strategy</th>
+                  <th className="py-2 text-right">Amount</th>
+                  <th className="py-2 text-right">Current Value</th>
+                  <th className="py-2 text-right">P&L</th>
+                  <th className="py-2 text-left">Status</th>
+                  <th className="py-2 text-left">Unlock Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {user.aiTradingInvestments.map((inv) => (
+                  <tr key={inv.id} className="border-b border-border/50">
+                    <td className="py-2">{inv.strategy_name}</td>
+                    <td className="py-2 text-right tabular-nums">{usd(inv.amount)}</td>
+                    <td className="py-2 text-right tabular-nums">{usd(inv.current_value)}</td>
+                    <td className={cn("py-2 text-right tabular-nums", inv.total_profit >= 0 ? "text-emerald-500" : "text-rose-500")}>
+                      {usd(inv.total_profit)}
+                    </td>
+                    <td className="py-2">
+                      <Badge tone={inv.status === 'running' ? 'green' : inv.status === 'unlocked' ? 'amber' : 'gray'}>
+                        {inv.status}
+                      </Badge>
+                    </td>
+                    <td className="py-2">{new Date(inv.unlock_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function RewardsTab({ 
+  user, 
+  setUser,
+  flash 
+}: { 
+  user: UserDetail;
+  setUser: React.Dispatch<React.SetStateAction<UserDetail>>;
+  flash: (msg: string) => void;
+}) {
+  const [rewardForm, setRewardForm] = useState({
+    title: '',
+    description: '',
+    amount: '',
+    wallet: 'main' as 'main' | 'investment' | 'trading',
+    type: 'non_withdrawable' as 'withdrawable' | 'non_withdrawable'
+  });
+  const [busy, setBusy] = useState(false);
+
+  const sendReward = async () => {
+    const amount = Number(rewardForm.amount);
+    if (!rewardForm.title.trim() || !rewardForm.description.trim() || !(amount > 0)) {
+      flash('Fill all fields with valid data');
+      return;
+    }
+
+    if (!confirm(`Send ${usd(amount)} reward "${rewardForm.title}" to ${user.firstName} ${user.lastName}?`)) return;
+
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.userId}/rewards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rewardForm)
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      
+      const { reward } = await res.json();
+      setUser(prev => ({
+        ...prev,
+        rewards: [reward, ...prev.rewards],
+        wallets: {
+          ...prev.wallets,
+          [rewardForm.wallet]: {
+            ...prev.wallets[rewardForm.wallet],
+            balance: prev.wallets[rewardForm.wallet].balance + amount
+          }
+        }
+      }));
+      setRewardForm({
+        title: '',
+        description: '',
+        amount: '',
+        wallet: 'main',
+        type: 'non_withdrawable'
+      });
+      flash('Reward sent');
+    } catch {
+      flash('Failed to send reward');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const totalRewarded = user.rewards.reduce((sum, r) => sum + (r.amount || 0), 0);
+  const withdrawable = user.rewards.filter(r => r.reward_type === 'withdrawable').reduce((sum, r) => sum + (r.amount || 0), 0);
+  const nonWithdrawable = totalRewarded - withdrawable;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Rewards Sent</p>
+          <p className="mt-1 text-lg font-semibold">{user.rewards.length}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Total Rewarded</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{usd(totalRewarded)}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Withdrawable</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums text-emerald-500">{usd(withdrawable)}</p>
+        </div>
+        <div className="rounded-2xl border border-border p-4">
+          <p className="text-xs text-muted-foreground">Invest Only</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums text-amber-500">{usd(nonWithdrawable)}</p>
+        </div>
+      </div>
+
+      <Card title="Send Reward">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field
+            label="Reward Title"
+            value={rewardForm.title}
+            onChange={(v) => setRewardForm(prev => ({ ...prev, title: v }))}
+          />
+          <Field
+            label="Amount (USD)"
+            type="number"
+            value={rewardForm.amount}
+            onChange={(v) => setRewardForm(prev => ({ ...prev, amount: v }))}
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted-foreground">Wallet</label>
+            <select
+              value={rewardForm.wallet}
+              onChange={(e) => setRewardForm(prev => ({ ...prev, wallet: e.target.value as any }))}
+              className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="main">Main Wallet</option>
+              <option value="investment">Investment Wallet</option>
+              <option value="trading">Trading Wallet</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted-foreground">Reward Type</label>
+            <select
+              value={rewardForm.type}
+              onChange={(e) => setRewardForm(prev => ({ ...prev, type: e.target.value as any }))}
+              className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="non_withdrawable">Non-withdrawable (invest only)</option>
+              <option value="withdrawable">Withdrawable</option>
+            </select>
+          </div>
+        </div>
+
+        <label className="mt-4 flex flex-col gap-1.5">
+          <span className="text-xs text-muted-foreground">Description</span>
+          <textarea
+            value={rewardForm.description}
+            onChange={(e) => setRewardForm(prev => ({ ...prev, description: e.target.value }))}
+            rows={3}
+            maxLength={200}
+            placeholder="Shown to the user with the reward"
+            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+        </label>
+
+        <div className="mt-4 flex justify-end">
+          <Btn tone="primary" onClick={sendReward} disabled={busy}>
+            {busy ? 'Sending...' : 'Send reward'}
+          </Btn>
+        </div>
+      </Card>
+
+      <Card title={`Reward History (${user.rewards.length})`}>
+        {user.rewards.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No rewards sent yet</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="py-2 text-left">Title</th>
+                  <th className="py-2 text-left">Description</th>
+                  <th className="py-2 text-right">Amount</th>
+                  <th className="py-2 text-left">Wallet</th>
+                  <th className="py-2 text-left">Type</th>
+                  <th className="py-2 text-left">Sent At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {user.rewards.map((reward) => (
+                  <tr key={reward.id} className="border-b border-border/50">
+                    <td className="py-2">{reward.title}</td>
+                    <td className="py-2 text-muted-foreground">{reward.description}</td>
+                    <td className="py-2 text-right tabular-nums">{usd(reward.amount)}</td>
+                    <td className="py-2 capitalize">{reward.wallet}</td>
+                    <td className="py-2">
+                      <Badge tone={reward.reward_type === 'withdrawable' ? 'green' : 'amber'}>
+                        {reward.reward_type === 'withdrawable' ? 'Withdrawable' : 'Invest only'}
+                      </Badge>
+                    </td>
+                    <td className="py-2">{new Date(reward.created_at).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function SecurityTab({ 
+  user, 
+  isOwner, 
+  disable2FA, 
+  loginAsUser,
+  busy
+}: { 
+  user: UserDetail;
+  isOwner: boolean;
+  disable2FA: () => void;
+  loginAsUser: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <Card title="Two-Factor Authentication">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">{user.twoFAEnabled ? "2FA is enabled" : "2FA is disabled"}</p>
+            <p className="text-xs text-muted-foreground">
+              {user.twoFAEnabled ? "User has 2FA protection active" : "User does not have 2FA enabled"}
             </p>
+          </div>
+          {user.twoFAEnabled && (
+            <Btn tone="danger" onClick={disable2FA} disabled={busy}>
+              Disable 2FA
+            </Btn>
+          )}
+        </div>
+      </Card>
 
-            <div className="mt-4 flex justify-end">
-              <Btn tone="primary" onClick={sendReward} disabled={rewardBusy}>
-                {rewardBusy ? "Sending..." : "Send reward"}
+      {isOwner && (
+        <Card title="Owner Actions">
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              As an owner, you can login as this user without password or 2FA verification.
+            </p>
+            <div className="flex justify-end">
+              <Btn tone="primary" onClick={loginAsUser} disabled={busy || user.status === 'suspended'}>
+                {busy ? 'Logging in...' : 'Login as this user'}
               </Btn>
             </div>
-          </Card>
-
-          <Card title={`Reward History (${user.rewards.length})`}>
-            <Grid data={user.rewards} columns={rewardCols} />
-          </Card>
-        </div>
+          </div>
+        </Card>
       )}
 
-      {/* ---------- SECURITY & LOGINS ---------- */}
-      {tab === "Security & Logins" && (
-        <div className="flex flex-col gap-4">
-          <Card title="Two-Factor Authentication">
-            <Checkbox
-              checked={user.twoFA}
-              onCheckedChange={(v) => set("twoFA", v)}
-              label={user.twoFA ? "2FA is enabled" : "2FA is disabled"}
-            />
-          </Card>
-          <Card title="Login History (IP, device, app, time)">
-            <Grid data={user.logins} columns={loginCols} onCellEdit={editList("logins")} />
-          </Card>
-        </div>
-      )}
+      <Card title={`Login History (${user.loginHistory.length})`}>
+        {user.loginHistory.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No login history</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="py-2 text-left">Date & Time</th>
+                  <th className="py-2 text-left">IP Address</th>
+                  <th className="py-2 text-left">Device</th>
+                  <th className="py-2 text-left">Browser</th>
+                  <th className="py-2 text-left">Location</th>
+                  <th className="py-2 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {user.loginHistory.map((login) => (
+                  <tr key={login.id} className="border-b border-border/50">
+                    <td className="py-2">{new Date(login.created_at).toLocaleString()}</td>
+                    <td className="py-2 font-mono text-xs">{login.ip_address}</td>
+                    <td className="py-2">{login.device_type || 'Unknown'}</td>
+                    <td className="py-2">{login.browser || 'Unknown'}</td>
+                    <td className="py-2">{login.location || login.country || 'Unknown'}</td>
+                    <td className="py-2">
+                      <Badge tone={login.status === 'success' ? 'green' : 'red'}>{login.status}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

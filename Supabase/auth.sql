@@ -5,6 +5,7 @@ create table if not exists public.auth_users (
   last_name text not null,
   email text not null unique,
   phone text not null,
+  mobile_number text,
   country text not null,
   dob_month text,
   dob_day text,
@@ -12,7 +13,7 @@ create table if not exists public.auth_users (
   dob_raw jsonb not null default '{}'::jsonb,
   referral_code text,
   password_hash text not null,
-  status text not null default 'pending' check (status in ('pending', 'active')),
+  status text not null default 'pending' check (status in ('pending', 'active', 'suspended')),
   role text not null default 'user' check (role in ('user', 'admin', 'owner')),
   created_ip_hash text not null,
   created_device_hash text not null,
@@ -85,6 +86,7 @@ create table if not exists public.auth_sessions (
   token_hash text not null unique,
   expires_at timestamptz not null,
   revoked_at timestamptz,
+  last_activity_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 
@@ -1457,3 +1459,165 @@ begin
     );
   end if;
 end $$;
+
+-- ════════════════════════════════════════════════════════════
+-- USER REWARDS SYSTEM
+-- ════════════════════════════════════════════════════════════
+
+-- User rewards (admin-sent)
+create table if not exists public.user_rewards (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  title text not null,
+  description text not null,
+  amount numeric(18, 2) not null check (amount > 0),
+  wallet text not null check (wallet in ('main', 'investment', 'trading')),
+  reward_type text not null check (reward_type in ('withdrawable', 'non_withdrawable')),
+  sent_by uuid not null references public.auth_users(id),
+  viewed boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists user_rewards_user_idx on public.user_rewards (user_id, created_at desc);
+create index if not exists user_rewards_unviewed_idx on public.user_rewards (user_id, viewed) where viewed = false;
+
+alter table public.user_rewards enable row level security;
+
+-- Function: send reward to user
+create or replace function public.send_user_reward(
+  p_user_id uuid,
+  p_admin_id uuid,
+  p_title text,
+  p_description text,
+  p_amount numeric,
+  p_wallet text,
+  p_reward_type text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_reward_id uuid;
+  v_tx_hash text;
+begin
+  -- Validate inputs
+  if trim(p_title) = '' or trim(p_description) = '' or p_amount <= 0 then
+    raise exception 'Invalid reward parameters';
+  end if;
+
+  -- Create reward record
+  insert into public.user_rewards (user_id, title, description, amount, wallet, reward_type, sent_by)
+  values (p_user_id, trim(p_title), trim(p_description), p_amount, p_wallet, p_reward_type, p_admin_id)
+  returning id into v_reward_id;
+
+  -- Add to user's wallet
+  update public.wallet_accounts
+  set balance = balance + p_amount, updated_at = now()
+  where user_id = p_user_id and wallet = p_wallet;
+
+  -- Record transaction
+  v_tx_hash := gen_random_uuid()::text;
+  insert into public.wallet_transactions (user_id, wallet, type, amount, status, tx_hash)
+  values (p_user_id, p_wallet, 'admin_reward', p_amount, 'completed', v_tx_hash);
+
+  return v_reward_id;
+end;
+$$;
+
+-- ════════════════════════════════════════════════════════════
+-- SESSION MANAGEMENT & AUTO-LOGOUT
+-- ════════════════════════════════════════════════════════════
+
+-- Function: revoke all sessions for a user (for suspend/logout)
+create or replace function public.revoke_user_sessions(p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.auth_sessions
+  set revoked_at = now()
+  where user_id = p_user_id and revoked_at is null;
+end;
+$$;
+
+-- Function: cleanup expired sessions (5 hour timeout)
+create or replace function public.cleanup_expired_sessions()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.auth_sessions
+  set revoked_at = now()
+  where revoked_at is null 
+    and (expires_at < now() or last_activity_at < now() - interval '5 hours');
+end;
+$$;
+
+-- Cron: cleanup expired sessions (every 5 minutes)
+do $$
+begin
+  if not exists (select 1 from cron.job where jobname = 'cleanup-expired-sessions') then
+    perform cron.schedule(
+      'cleanup-expired-sessions',
+      '*/5 * * * *',
+      'select public.cleanup_expired_sessions();'
+    );
+  end if;
+end $$;
+
+-- Function: update session activity timestamp
+create or replace function public.update_session_activity(p_token_hash text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.auth_sessions
+  set last_activity_at = now()
+  where token_hash = p_token_hash and revoked_at is null;
+end;
+$$;
+
+-- ════════════════════════════════════════════════════════════
+-- ADMIN ACTIONS LOG
+-- ════════════════════════════════════════════════════════════
+
+-- Admin action log
+create table if not exists public.admin_actions (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid not null references public.auth_users(id) on delete cascade,
+  target_user_id uuid references public.auth_users(id) on delete set null,
+  action text not null,
+  details jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists admin_actions_admin_idx on public.admin_actions (admin_id, created_at desc);
+create index if not exists admin_actions_target_idx on public.admin_actions (target_user_id, created_at desc);
+
+alter table public.admin_actions enable row level security;
+
+-- Function: log admin action
+create or replace function public.log_admin_action(
+  p_admin_id uuid,
+  p_target_user_id uuid,
+  p_action text,
+  p_details jsonb default '{}'::jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.admin_actions (admin_id, target_user_id, action, details)
+  values (p_admin_id, p_target_user_id, p_action, p_details);
+end;
+$$;

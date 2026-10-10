@@ -4,10 +4,24 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Table, type TableColumn } from "@/components/motion/table";
-import type { UserRow } from "@/lib/users-data";
 import { Badge, SelectField, StatCard } from "./ui";
 
-const kycTone = { verified: "green", pending: "amber", rejected: "red", not_submitted: "gray" } as const;
+type UserRow = {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  mobileNumber: string | null;
+  country: string;
+  joinedAt: string;
+  kyc: 'verified' | 'pending' | 'rejected' | 'not_verified';
+  twoFA: boolean;
+  status: 'active' | 'suspended' | 'pending';
+  referredBy: string | null;
+  totalBalance: number;
+};
+
+const kycTone = { verified: "green", pending: "amber", rejected: "red", not_verified: "gray" } as const;
 const usd = (n: number) => `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
 export function UsersManagement({ rows }: { rows: UserRow[] }) {
@@ -21,7 +35,7 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
       total: rows.length,
       active: rows.filter((r) => r.status === "active").length,
       suspended: rows.filter((r) => r.status === "suspended").length,
-      byOwner: rows.filter((r) => r.referredBy === "OWNER").length,
+      byOwner: rows.filter((r) => r.referredBy === null).length,
       kycVerified: rows.filter((r) => r.kyc === "verified").length,
       kycPending: rows.filter((r) => r.kyc === "pending").length,
       twoFA: rows.filter((r) => r.twoFA).length,
@@ -39,13 +53,13 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
         (!term ||
           r.name.toLowerCase().includes(term) ||
           r.email.toLowerCase().includes(term) ||
-          r.id.toLowerCase().includes(term)),
+          r.userId.toLowerCase().includes(term)),
     );
   }, [rows, q, status, kyc]);
 
   const columns = useMemo<TableColumn<UserRow>[]>(
     () => [
-      { key: "id", header: "User ID", sortable: true, width: "120px" },
+      { key: "userId", header: "User ID", sortable: true, width: "120px" },
       {
         key: "name",
         header: "Name",
@@ -76,7 +90,7 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
         header: "Referred By",
         sortable: true,
         width: "130px",
-        cell: (r) => (r.referredBy === "OWNER" ? <Badge tone="amber">Owner</Badge> : r.referredBy),
+        cell: (r) => (r.referredBy ? r.referredBy : <Badge tone="amber">Direct</Badge>),
       },
       {
         key: "totalBalance",
@@ -91,7 +105,7 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
         header: "Status",
         sortable: true,
         width: "120px",
-        cell: (r) => <Badge tone={r.status === "active" ? "green" : "red"}>{r.status}</Badge>,
+        cell: (r) => <Badge tone={r.status === "active" ? "green" : r.status === "suspended" ? "red" : "amber"}>{r.status}</Badge>,
       },
     ],
     [],
@@ -106,7 +120,7 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Total Users" value={stats.total.toLocaleString()} />
-        <StatCard label="Referred By Owner" value={stats.byOwner.toLocaleString()} hint="Direct owner referrals" />
+        <StatCard label="Direct Signups" value={stats.byOwner.toLocaleString()} hint="No referrer" />
         <StatCard label="Active / Suspended" value={`${stats.active} / ${stats.suspended}`} />
         <StatCard label="Total User Balance" value={usd(stats.balance)} />
         <StatCard label="KYC Verified" value={stats.kycVerified} />
@@ -145,7 +159,7 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
               { value: "verified", label: "Verified" },
               { value: "pending", label: "Pending" },
               { value: "rejected", label: "Rejected" },
-              { value: "not_submitted", label: "Not submitted" },
+              { value: "not_verified", label: "Not verified" },
             ]}
           />
         </div>
@@ -155,11 +169,11 @@ export function UsersManagement({ rows }: { rows: UserRow[] }) {
         <Table
           data={filtered}
           columns={columns}
-          getRowId={(r) => r.id}
+          getRowId={(r) => r.userId}
           resizable
           reorderable
           defaultSort={{ key: "joinedAt", direction: "desc" }}
-          onRowClick={(r) => router.push(`/admin/users/${r.id}`)}
+          onRowClick={(r) => router.push(`/admin/users/${r.userId}`)}
           height={560}
           rowHeight={52}
           className="rounded-2xl"
