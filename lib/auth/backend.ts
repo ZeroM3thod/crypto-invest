@@ -315,8 +315,8 @@ export async function createPendingUser(input: {
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify([
       { user_id: user.id, wallet: "main", balance: 0, address: body.wallet_address },
-      { user_id: user.id, wallet: "investment", balance: 0 },
-      { user_id: user.id, wallet: "trading", balance: 0 },
+      { user_id: user.id, wallet: "investment", balance: 0, address: null },
+      { user_id: user.id, wallet: "trading", balance: 0, address: null },
     ]),
   });
   return user;

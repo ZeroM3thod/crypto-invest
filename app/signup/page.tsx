@@ -2,16 +2,19 @@
 
 import { useCallback, useMemo, useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { User, Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Checkbox } from "@/components/motion/checkbox";
 import { CountrySelect } from "@/components/motion/country-select";
 import { DobField, type DobValue } from "@/components/motion/dob-field";
 import { Input } from "@/components/motion/input";
 import { OTPInput, type OTPStatus } from "@/components/motion/otp-input";
+import { PhoneInput } from "@/components/motion/phone-input";
 import { StepCard } from "@/components/motion/step-card";
 import { WizardShell } from "@/components/motion/wizard-shell";
 import { FloatingThemeToggle } from "@/components/theme-toggle";
 import { passwordStrength } from "@/components/motion/signup-form-extended"; // reuse the same scoring fn
+import { COUNTRIES } from "@/lib/countries";
+import { DIAL_CODES } from "@/lib/dial-codes";
 
 const TOTAL_STEPS = 6;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -44,6 +47,12 @@ function SignUpWizardContent() {
 
   const [otp, setOtp] = useState("");
   const [otpStatus, setOtpStatus] = useState<OTPStatus>("idle");
+
+  const setCountryAndPrefix = (nextCountry: string) => {
+    setCountry(nextCountry);
+    const code = DIAL_CODES[COUNTRIES.find((c) => c.name === nextCountry)?.code || ""];
+    if (code) setMobile((value) => `${code} ${value.replace(/^\+\d+\s*/, "")}`.trim());
+  };
 
   // Pre-fill referral code from URL
   useEffect(() => {
@@ -203,12 +212,10 @@ function SignUpWizardContent() {
             reserveErrorLine
             success={touched.email && !stepErrors.email && Boolean(email)}
           />
-          <Input
+          <PhoneInput
             label="Mobile number"
-            type="tel"
-            inputMode="tel"
-            placeholder="+1 555 000 1234"
-            leftIcon={<Phone />}
+            country={country}
+            onCountryChange={setCountryAndPrefix}
             value={mobile}
             onChange={setMobile}
             onBlur={() => touch("mobile")}
@@ -229,7 +236,7 @@ function SignUpWizardContent() {
           <CountrySelect
             value={country}
             onValueChange={(v) => {
-              setCountry(v);
+              setCountryAndPrefix(v);
               touch("country");
             }}
             error={shownError("country")}
