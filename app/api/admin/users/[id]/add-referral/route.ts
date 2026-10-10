@@ -1,7 +1,7 @@
 // app/api/admin/users/[id]/add-referral/route.ts
 import { NextResponse } from 'next/server';
 import { adminUnauthorized, getAdminOrNull } from '@/lib/auth/require-admin';
-import { addReferral } from '@/lib/admin/users-service';
+import { addReferral, getUserDetail } from '@/lib/admin/users-service';
 
 export async function POST(
   req: Request,
@@ -20,6 +20,9 @@ export async function POST(
       return NextResponse.json({ error: 'referredUserId is required' }, { status: 400 });
     }
 
+    if (!(await getUserDetail(id)) || !(await getUserDetail(referredUserId))) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
     await addReferral(id, referredUserId, session.id);
     return NextResponse.json({ ok: true });
   } catch (error: any) {

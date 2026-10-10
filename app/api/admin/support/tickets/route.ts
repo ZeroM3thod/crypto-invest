@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
         first_name,
         last_name,
         email,
-        phone
+        phone,
+        hidden_from_admins
       )
     `)
     .order('created_at', { ascending: false });
@@ -36,5 +37,5 @@ export async function GET(req: NextRequest) {
     return bad("Failed to fetch tickets");
   }
 
-  return Response.json({ tickets });
+  return Response.json({ tickets: session.user.role === 'owner' ? tickets : (tickets || []).filter((t: any) => !t.user?.hidden_from_admins) });
 }

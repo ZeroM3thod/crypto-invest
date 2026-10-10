@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { createClient } from "@supabase/supabase-js";
+import { canSeeUser } from "@/lib/admin/visibility";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -20,6 +21,11 @@ export async function POST(
 
     const { id } = await params;
     const { reason } = await req.json();
+
+    const { data: submission } = await supabase.from("kyc_submissions").select("user_id").eq("id", id).maybeSingle();
+    if (!submission || !(await canSeeUser(submission.user_id, session.role))) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
     if (!reason || !reason.trim()) {
       return NextResponse.json(

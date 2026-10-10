@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { bad, getSession, supabase, q } from "@/lib/auth/backend";
+import { visibleUserIdsFor, inFilter } from "@/lib/admin/visibility";
 
 export async function GET(req: NextRequest) {
   const session = await getSession(req);
@@ -13,9 +14,11 @@ export async function GET(req: NextRequest) {
     return bad("Forbidden", 403);
   }
 
-  // Fetch all withdrawals with user information
+  const visibleIds = await visibleUserIdsFor(session.user.role);
+  if (!visibleIds.length) return Response.json({ withdrawals: [] });
+
   const withdrawals = await supabase<any[]>(
-    `withdrawals?select=id,user_id,coin,network_code,amount,fee_amount,net_payout,wallet_address,status,rejection_reason,created_at,updated_at&order=created_at.desc`
+    `withdrawals?select=id,user_id,coin,network_code,amount,fee_amount,net_payout,wallet_address,status,rejection_reason,created_at,updated_at&user_id=in.${inFilter(visibleIds.map(q))}&order=created_at.desc`
   );
 
   // Fetch user details for each withdrawal
@@ -66,6 +69,12 @@ export async function PATCH(req: NextRequest) {
 
   if (!withdrawalId) return bad("withdrawalId required");
   if (!["approve", "reject"].includes(action)) return bad("Invalid action");
+
+  if (userRoles[0].role !== "owner") {
+    const rows = await supabase<{ user_id: string }[]>(`withdrawals?select=user_id&id=eq.${q(withdrawalId)}&limit=1`);
+    const visibleIds = await visibleUserIdsFor(session.user.role);
+    if (!rows[0] || !visibleIds.includes(rows[0].user_id)) return bad("Not found", 404);
+  }
 
   if (action === "approve") {
     // Call approve_withdrawal function

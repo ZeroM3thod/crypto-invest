@@ -1,7 +1,7 @@
 // app/api/admin/users/[id]/disable-2fa/route.ts
 import { NextResponse } from 'next/server';
 import { adminUnauthorized, getAdminOrNull } from '@/lib/auth/require-admin';
-import { disable2FA } from '@/lib/admin/users-service';
+import { disable2FA, getUserDetail } from '@/lib/admin/users-service';
 
 export async function POST(
   req: Request,
@@ -13,6 +13,7 @@ export async function POST(
   const { id } = await params;
 
   try {
+    if (!(await getUserDetail(id))) return NextResponse.json({ error: 'User not found' }, { status: 404 });
     await disable2FA(id, session.id);
     return NextResponse.json({ ok: true });
   } catch (error: any) {

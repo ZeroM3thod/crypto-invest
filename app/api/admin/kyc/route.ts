@@ -23,9 +23,10 @@ export async function GET(req: NextRequest) {
         user:auth_users!kyc_submissions_user_id_fkey (
           user_id,
           email,
-          phone,
-          first_name,
-          last_name
+            phone,
+            first_name,
+            last_name,
+            hidden_from_admins
         ),
         reviewer:auth_users!kyc_submissions_reviewed_by_fkey (
           user_id,
@@ -38,8 +39,12 @@ export async function GET(req: NextRequest) {
     if (error) throw error;
 
     // Get history for each submission
+    const visibleSubmissions = session.role === "owner"
+      ? (submissions || [])
+      : (submissions || []).filter((sub) => !sub.user?.hidden_from_admins);
+
     const submissionsWithHistory = await Promise.all(
-      (submissions || []).map(async (sub) => {
+      visibleSubmissions.map(async (sub) => {
         const { data: history } = await supabase
           .from("kyc_history")
           .select(`

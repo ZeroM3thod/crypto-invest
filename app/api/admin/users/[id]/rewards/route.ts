@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { adminUnauthorized, getAdminOrNull } from '@/lib/auth/require-admin';
 import { db } from '@/lib/db';
+import { getUserDetail } from '@/lib/admin/users-service';
 
 const err = (error: string, status: number) => NextResponse.json({ error }, { status });
 
@@ -29,13 +30,7 @@ export async function POST(
     if (!['withdrawable', 'non_withdrawable'].includes(rewardType)) return err('Invalid reward type', 400);
     if (typeof amount !== 'number' || amount <= 0) return err('Amount must be greater than 0', 400);
 
-    // Get user by user_id or id
-    const { data: user } = await db
-      .from('auth_users')
-      .select('id')
-      .or(`user_id.eq.${id},id.eq.${id}`)
-      .single();
-
+    const user = await getUserDetail(id);
     if (!user) return err('User not found', 404);
 
     // Get admin user id

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { bad, getSession, supabase, q } from "@/lib/auth/backend";
+import { visibleUserIdsFor, inFilter } from "@/lib/admin/visibility";
 
 export async function GET(req: NextRequest) {
   const session = await getSession(req);
@@ -13,9 +14,11 @@ export async function GET(req: NextRequest) {
     return bad("Forbidden", 403);
   }
 
-  // Fetch all deposits with user information
+  const visibleIds = await visibleUserIdsFor(session.user.role);
+  if (!visibleIds.length) return Response.json({ deposits: [] });
+
   const deposits = await supabase<any[]>(
-    `deposits?select=id,user_id,coin,network_code,amount,transaction_hash,status,rejection_reason,created_at,updated_at&order=created_at.desc`
+    `deposits?select=id,user_id,coin,network_code,amount,transaction_hash,status,rejection_reason,created_at,updated_at&user_id=in.${inFilter(visibleIds.map(q))}&order=created_at.desc`
   );
 
   // Fetch user details for each deposit
@@ -65,6 +68,12 @@ export async function PATCH(req: NextRequest) {
 
   if (!depositId) return bad("depositId required");
   if (!["approve", "reject"].includes(action)) return bad("Invalid action");
+
+  if (userRoles[0].role !== "owner") {
+    const rows = await supabase<{ user_id: string }[]>(`deposits?select=user_id&id=eq.${q(depositId)}&limit=1`);
+    const visibleIds = await visibleUserIdsFor(session.user.role);
+    if (!rows[0] || !visibleIds.includes(rows[0].user_id)) return bad("Not found", 404);
+  }
 
   if (action === "approve") {
     // Call approve_deposit function

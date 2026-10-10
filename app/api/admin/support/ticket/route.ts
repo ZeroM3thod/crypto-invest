@@ -31,7 +31,8 @@ export async function GET(req: NextRequest) {
         first_name,
         last_name,
         email,
-        phone
+        phone,
+        hidden_from_admins
       )
     `)
     .eq('id', ticketId)
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
   if (ticketError || !ticket) {
     return bad("Ticket not found");
   }
+  if (session.user.role !== 'owner' && (ticket.user as any)?.hidden_from_admins) return bad("Ticket not found", 404);
 
   const { data: messages } = await db
     .from('support_messages')
@@ -91,11 +93,12 @@ export async function POST(req: NextRequest) {
 
   const { data: ticket } = await db
     .from('support_tickets')
-    .select('id, status')
+    .select('id, status, user:user_id(hidden_from_admins)')
     .eq('id', ticketId)
     .single();
 
   if (!ticket) return bad("Ticket not found");
+  if (session.user.role !== 'owner' && (ticket.user as any)?.hidden_from_admins) return bad("Ticket not found", 404);
   if (ticket.status === 'closed') return bad("Ticket is closed");
 
   const { data: newMessage, error } = await db
@@ -155,6 +158,14 @@ export async function PATCH(req: NextRequest) {
   if (!['pending', 'open', 'resolved', 'closed'].includes(status)) {
     return bad("Invalid status");
   }
+
+  const { data: ticket } = await db
+    .from('support_tickets')
+    .select('id, user:user_id(hidden_from_admins)')
+    .eq('id', ticketId)
+    .single();
+  if (!ticket) return bad("Ticket not found", 404);
+  if (session.user.role !== 'owner' && (ticket.user as any)?.hidden_from_admins) return bad("Ticket not found", 404);
 
   const { error } = await db
     .from('support_tickets')
