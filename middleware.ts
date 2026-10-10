@@ -27,7 +27,7 @@ export async function middleware(req: NextRequest) {
   // Admin routes - admin and owner can access
   if (pathname.startsWith("/admin")) {
     if (!session) {
-      return NextResponse.redirect(new URL("/signin", req.url));
+      return NextResponse.redirect(new URL("/404", req.url));
     }
     if (session.role !== "admin" && session.role !== "owner") {
       return NextResponse.redirect(new URL("/404", req.url));

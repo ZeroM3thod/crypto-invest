@@ -8,6 +8,7 @@ import {
   findUserByEmail,
   getDevice,
   normalizeEmail,
+  recordFailedAuthAttempt,
   setDeviceCookie,
   validatePhone,
 } from "@/lib/auth/backend";
@@ -26,11 +27,18 @@ export async function POST(req: NextRequest) {
     const country = String(body?.country || "").trim();
     const password = String(body?.password || "");
     if (!firstName || !lastName || !email || !mobile || !country || password.length < 8) {
+      await recordFailedAuthAttempt("signup", limits.ipHash, limits.deviceHash);
       return setDeviceCookie(bad("Please complete all required fields."), device.id);
     }
-    if (!validatePhone(mobile)) return setDeviceCookie(bad("Phone number must include + country code."), device.id);
+    if (!validatePhone(mobile)) {
+      await recordFailedAuthAttempt("signup", limits.ipHash, limits.deviceHash);
+      return setDeviceCookie(bad("Phone number must include + country code."), device.id);
+    }
     const existing = await findUserByEmail(email);
-    if (existing?.status === "active") return setDeviceCookie(bad("That email is already registered.", 409), device.id);
+    if (existing?.status === "active") {
+      await recordFailedAuthAttempt("signup", limits.ipHash, limits.deviceHash);
+      return setDeviceCookie(bad("That email is already registered.", 409), device.id);
+    }
     const user = existing || await createPendingUser({
       firstName,
       lastName,

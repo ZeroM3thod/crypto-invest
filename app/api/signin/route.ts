@@ -8,6 +8,7 @@ import {
   getDevice,
   getIp,
   hash,
+  recordFailedAuthAttempt,
   setDeviceCookie,
   verifyPassword,
 } from "@/lib/auth/backend";
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
 
     // User not found or wrong password
     if (!user || user.status !== "active" || !verifyPassword(password, user.password_hash)) {
+      await recordFailedAuthAttempt("signin", ipHash, deviceHash);
       await recordLoginAttempt({
         userId: user?.id,
         email: user?.email || identifier,

@@ -1,5 +1,6 @@
 // lib/admin/users-service.ts
 import { db } from '@/lib/db';
+import { getSessionUser } from '@/lib/auth/session';
 
 export type UserRow = {
   id: string;
@@ -50,21 +51,12 @@ export type UserDetail = {
 };
 
 export async function getAllUsers(): Promise<UserRow[]> {
+  const session = await getSessionUser();
   const { data: users, error } = await db
     .from('auth_users')
-    .select(`
-      id,
-      user_id,
-      first_name,
-      last_name,
-      email,
-      country,
-      created_at,
-      kyc_status,
-      two_fa_enabled,
-      status,
-      role
-    `)
+    .select('*')
+    .eq('role', 'user')
+    .or(session?.role === 'owner' ? 'hidden_from_admins.eq.true,hidden_from_admins.eq.false' : 'hidden_from_admins.eq.false')
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -117,6 +109,7 @@ export async function getAllUsers(): Promise<UserRow[]> {
 }
 
 export async function getUserDetail(userId: string): Promise<UserDetail | null> {
+  const session = await getSessionUser();
   // Try to find by user_id first, then by UUID
   let user = null;
   
@@ -138,6 +131,7 @@ export async function getUserDetail(userId: string): Promise<UserDetail | null> 
   }
 
   if (!user) return null;
+  if (session?.role !== 'owner' && user.hidden_from_admins) return null;
 
   // Get wallets
   const { data: wallets } = await db

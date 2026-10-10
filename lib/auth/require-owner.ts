@@ -7,7 +7,7 @@ export type OwnerSession = SessionUser;
 /** Resolve the owner session for a server component, or send them to sign-in. */
 export async function requireOwner(): Promise<OwnerSession> {
   const session = await getSessionUser();
-  if (!session || session.role !== "owner") redirect("/signin");
+  if (!session || session.role !== "owner") redirect("/404");
   return session;
 }
 

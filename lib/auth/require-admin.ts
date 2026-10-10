@@ -12,7 +12,7 @@ const ADMIN_ROLES = new Set(["admin", "owner"]);
 /** Resolve the admin session for a server component, or send them to sign-in. */
 export async function requireAdmin(): Promise<AdminSession> {
   const session = await getSessionUser();
-  if (!session || !ADMIN_ROLES.has(session.role)) redirect("/signin");
+  if (!session || !ADMIN_ROLES.has(session.role)) redirect("/404");
   return session;
 }
 

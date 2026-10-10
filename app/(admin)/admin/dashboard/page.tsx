@@ -4,9 +4,11 @@
 import { AdminShell } from "../../_components/admin-shell";
 import { DashboardView } from "../../_components/dashboard-view";
 import { getDashboardData } from "@/lib/admin-dashboard-data";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 export default async function AdminDashboardPage() {
-  const data = getDashboardData(); // swap for your DB / API call
+  await requireAdmin();
+  const data = await getDashboardData();
 
   return (
     <AdminShell active="Dashboard">

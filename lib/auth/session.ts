@@ -15,6 +15,11 @@ export type SessionUser = {
   kyc_status?: string;
 };
 
+async function sha256(value: string) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /**
  * Resolve the signed-in user on the server.
  */
@@ -28,7 +33,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       const { data: session } = await supabase
         .from("auth_sessions")
         .select("user_id, expires_at, revoked_at")
-        .eq("token_hash", token)
+        .eq("token_hash", await sha256(token))
         .maybeSingle();
       
       if (session && !session.revoked_at && new Date(session.expires_at) > new Date()) {

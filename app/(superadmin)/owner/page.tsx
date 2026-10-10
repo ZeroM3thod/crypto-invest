@@ -7,7 +7,7 @@ import { requireOwner } from "@/lib/auth/require-owner";
 
 export default async function OwnerDashboardPage() {
   await requireOwner();
-  const data = getDashboardData(); // swap for your DB / API call
+  const data = await getDashboardData(true);
 
   return (
     <SuperAdminShell active="Dashboard">

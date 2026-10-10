@@ -1,130 +1,72 @@
-// lib/admin-dashboard-data.ts
+import { db } from "@/lib/db";
+
 export type Period = "today" | "7d" | "30d" | "all";
-
-export type PeriodStats = {
-  newUsers: number;
-  deposit: number;
-  withdraw: number;
-  manualTradingProfit: number;
-  sendMoneyFeeProfit: number;
-  withdrawalFeeProfit: number;
-  tradesCount: number;
-  sendCount: number;
-  withdrawCount: number;
-};
-
+export type PeriodStats = { newUsers: number; deposit: number; withdraw: number; manualTradingProfit: number; sendMoneyFeeProfit: number; withdrawalFeeProfit: number; tradesCount: number; sendCount: number; withdrawCount: number };
 export type TxnType = "Deposit" | "Withdraw" | "Send Money" | "Manual Trade";
 export type TxnStatus = "completed" | "pending" | "failed";
+export type Txn = { id: string; user: string; type: TxnType; amount: number; fee: number; status: TxnStatus; date: string };
+export type AdminUser = { id: string; name: string; email: string; balance: number; status: "verified" | "pending" | "blocked"; joined: string };
+export type DashboardData = { totalUsers: number; activeUsers: number; pendingWithdrawals: number; pendingKyc: number; totalDeposit: number; totalWithdraw: number; fundingAvailable: number; periods: Record<Period, PeriodStats>; transactions: Txn[]; users: AdminUser[] };
 
-export type Txn = {
-  id: string;
-  user: string;
-  type: TxnType;
-  amount: number;
-  fee: number;
-  status: TxnStatus;
-  date: string;
-};
+const emptyStats = (): PeriodStats => ({ newUsers: 0, deposit: 0, withdraw: 0, manualTradingProfit: 0, sendMoneyFeeProfit: 0, withdrawalFeeProfit: 0, tradesCount: 0, sendCount: 0, withdrawCount: 0 });
+const date = (v?: string) => v ? new Date(v).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : "";
+const nameOf = (u: any) => `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.email || "User";
+const statusOf = (s: string): TxnStatus => s === "approved" ? "completed" : s === "rejected" ? "failed" : "pending";
+const since = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-export type AdminUser = {
-  id: string;
-  name: string;
-  email: string;
-  balance: number;
-  status: "verified" | "pending" | "blocked";
-  joined: string;
-};
+function inPeriod(created: string, period: Period) {
+  if (period === "all") return true;
+  const t = new Date(created).getTime();
+  if (period === "today") return t >= new Date().setHours(0, 0, 0, 0);
+  return t >= new Date(since(period === "7d" ? 7 : 30)).getTime();
+}
 
-export type DashboardData = {
-  totalUsers: number;
-  activeUsers: number;
-  pendingWithdrawals: number;
-  pendingKyc: number;
-  totalDeposit: number;
-  totalWithdraw: number;
-  fundingAvailable: number;
-  periods: Record<Period, PeriodStats>;
-  transactions: Txn[];
-  users: AdminUser[];
-};
+export async function getDashboardData(includeHidden = false): Promise<DashboardData> {
+  let userQuery = db
+    .from("auth_users")
+    .select("id,user_id,first_name,last_name,email,status,kyc_status,hidden_from_admins,created_at")
+    .eq("role", "user")
+    .order("created_at", { ascending: false });
+  if (!includeHidden) userQuery = userQuery.eq("hidden_from_admins", false);
+  const { data: users } = await userQuery;
+  const visibleUsers = users || [];
+  const visibleIds = visibleUsers.map((u) => u.id);
 
-export function getDashboardData(): DashboardData {
-  const periods: Record<Period, PeriodStats> = {
-    today: {
-      newUsers: 14,
-      deposit: 8450,
-      withdraw: 3120,
-      manualTradingProfit: 640,
-      sendMoneyFeeProfit: 96.5,
-      withdrawalFeeProfit: 62.4,
-      tradesCount: 38,
-      sendCount: 112,
-      withdrawCount: 41,
-    },
-    "7d": {
-      newUsers: 96,
-      deposit: 61200,
-      withdraw: 24800,
-      manualTradingProfit: 4720,
-      sendMoneyFeeProfit: 702.3,
-      withdrawalFeeProfit: 496,
-      tradesCount: 264,
-      sendCount: 801,
-      withdrawCount: 298,
-    },
-    "30d": {
-      newUsers: 412,
-      deposit: 248900,
-      withdraw: 101400,
-      manualTradingProfit: 19350,
-      sendMoneyFeeProfit: 2980.75,
-      withdrawalFeeProfit: 2028,
-      tradesCount: 1102,
-      sendCount: 3390,
-      withdrawCount: 1247,
-    },
-    all: {
-      newUsers: 3860,
-      deposit: 1284500,
-      withdraw: 612300,
-      manualTradingProfit: 96420,
-      sendMoneyFeeProfit: 15210.4,
-      withdrawalFeeProfit: 12246,
-      tradesCount: 5480,
-      sendCount: 17120,
-      withdrawCount: 6310,
-    },
-  };
+  const [{ data: wallets }, { data: deposits }, { data: withdrawals }] = await Promise.all([
+    visibleIds.length ? db.from("wallet_accounts").select("user_id,balance").in("user_id", visibleIds) : Promise.resolve({ data: [] as any[] }),
+    visibleIds.length ? db.from("deposits").select("id,user_id,amount,status,created_at,auth_users(first_name,last_name,email)").in("user_id", visibleIds).order("created_at", { ascending: false }).limit(50) : Promise.resolve({ data: [] as any[] }),
+    visibleIds.length ? db.from("withdrawals").select("id,user_id,amount,fee_amount,status,created_at,auth_users(first_name,last_name,email)").in("user_id", visibleIds).order("created_at", { ascending: false }).limit(50) : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  const balances = new Map<string, number>();
+  for (const w of wallets || []) balances.set(w.user_id, (balances.get(w.user_id) || 0) + Number(w.balance || 0));
+
+  const periods: Record<Period, PeriodStats> = { today: emptyStats(), "7d": emptyStats(), "30d": emptyStats(), all: emptyStats() };
+  for (const p of Object.keys(periods) as Period[]) {
+    periods[p].newUsers = visibleUsers.filter((u) => inPeriod(u.created_at, p)).length;
+    periods[p].deposit = (deposits || []).filter((d) => d.status === "approved" && inPeriod(d.created_at, p)).reduce((s, d) => s + Number(d.amount || 0), 0);
+    periods[p].withdraw = (withdrawals || []).filter((w) => w.status === "approved" && inPeriod(w.created_at, p)).reduce((s, w) => s + Number(w.amount || 0), 0);
+    periods[p].withdrawalFeeProfit = (withdrawals || []).filter((w) => w.status === "approved" && inPeriod(w.created_at, p)).reduce((s, w) => s + Number(w.fee_amount || 0), 0);
+    periods[p].withdrawCount = (withdrawals || []).filter((w) => inPeriod(w.created_at, p)).length;
+  }
+
+  const transactions: Txn[] = [
+    ...(deposits || []).map((d: any) => ({ id: d.id, user: nameOf(d.auth_users), type: "Deposit" as const, amount: Number(d.amount || 0), fee: 0, status: statusOf(d.status), date: date(d.created_at) })),
+    ...(withdrawals || []).map((w: any) => ({ id: w.id, user: nameOf(w.auth_users), type: "Withdraw" as const, amount: Number(w.amount || 0), fee: Number(w.fee_amount || 0), status: statusOf(w.status), date: date(w.created_at) })),
+  ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date)).slice(0, 10);
 
   const totalDeposit = periods.all.deposit;
   const totalWithdraw = periods.all.withdraw;
-
   return {
-    totalUsers: 3860,
-    activeUsers: 1245,
-    pendingWithdrawals: 23,
-    pendingKyc: 57,
+    totalUsers: visibleUsers.length,
+    activeUsers: visibleUsers.filter((u) => u.status === "active").length,
+    pendingWithdrawals: (withdrawals || []).filter((w) => w.status === "pending").length,
+    pendingKyc: visibleUsers.filter((u) => u.kyc_status === "pending").length,
     totalDeposit,
     totalWithdraw,
     fundingAvailable: totalDeposit - totalWithdraw,
     periods,
-    transactions: [
-      { id: "TX-10492", user: "Rahim Uddin", type: "Deposit", amount: 1200, fee: 0, status: "completed", date: "Oct 03, 2026" },
-      { id: "TX-10491", user: "Sadia Akter", type: "Withdraw", amount: 450, fee: 9, status: "pending", date: "Oct 03, 2026" },
-      { id: "TX-10490", user: "Tanvir Hasan", type: "Send Money", amount: 300, fee: 3, status: "completed", date: "Oct 03, 2026" },
-      { id: "TX-10489", user: "Nusrat Jahan", type: "Manual Trade", amount: 2100, fee: 0, status: "completed", date: "Oct 02, 2026" },
-      { id: "TX-10488", user: "Imran Khan", type: "Withdraw", amount: 800, fee: 16, status: "failed", date: "Oct 02, 2026" },
-      { id: "TX-10487", user: "Mim Chowdhury", type: "Deposit", amount: 5000, fee: 0, status: "completed", date: "Oct 02, 2026" },
-      { id: "TX-10486", user: "Arif Hossain", type: "Send Money", amount: 150, fee: 1.5, status: "completed", date: "Oct 01, 2026" },
-      { id: "TX-10485", user: "Farhana Islam", type: "Withdraw", amount: 620, fee: 12.4, status: "completed", date: "Oct 01, 2026" },
-    ],
-    users: [
-      { id: "U-3860", name: "Rahim Uddin", email: "rahim@example.com", balance: 1840.5, status: "verified", joined: "Oct 03, 2026" },
-      { id: "U-3859", name: "Sadia Akter", email: "sadia@example.com", balance: 320, status: "pending", joined: "Oct 03, 2026" },
-      { id: "U-3858", name: "Tanvir Hasan", email: "tanvir@example.com", balance: 90.25, status: "verified", joined: "Oct 02, 2026" },
-      { id: "U-3857", name: "Nusrat Jahan", email: "nusrat@example.com", balance: 4210, status: "verified", joined: "Oct 02, 2026" },
-      { id: "U-3856", name: "Imran Khan", email: "imran@example.com", balance: 0, status: "blocked", joined: "Oct 01, 2026" },
-      { id: "U-3855", name: "Mim Chowdhury", email: "mim@example.com", balance: 5120, status: "verified", joined: "Oct 01, 2026" },
-    ],
+    transactions,
+    users: visibleUsers.slice(0, 10).map((u) => ({ id: u.user_id || u.id, name: nameOf(u), email: u.email, balance: balances.get(u.id) || 0, status: u.status === "suspended" ? "blocked" : u.kyc_status === "verified" ? "verified" : "pending", joined: date(u.created_at) })),
   };
 }

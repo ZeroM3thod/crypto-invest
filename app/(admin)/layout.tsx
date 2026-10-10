@@ -12,7 +12,7 @@ export default async function AdminLayout({
 }) {
   const effective = await getEffectiveAdminId();
   const adminName = effective.impersonating
-    ? getAdminById(effective.id ?? "")?.name ?? "admin"
+    ? (await getAdminById(effective.id ?? ""))?.name ?? "admin"
     : "";
 
   return (

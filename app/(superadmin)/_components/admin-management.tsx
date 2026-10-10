@@ -4,7 +4,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Table, type TableColumn } from "@/components/motion/table";
-import type { AdminRow, ManagedUser } from "@/lib/admin-data";
+import type { AdminRow, ManagedUser, RestrictedEntry } from "@/lib/admin-data";
 import { Badge, Btn, StatCard } from "./ui";
 import { Drawer, InfoRow, api, usd } from "./finance-ui";
 
@@ -14,14 +14,6 @@ const kycTone = {
   rejected: "red",
   not_submitted: "gray",
 } as const;
-
-/** A user or admin whose ID, when used as a referral code, keeps a new signup visible to admins. */
-type RestrictedEntry = {
-  id: string;
-  name: string;
-  kind: "Admin" | "User";
-  addedAt: string;
-};
 
 /** Shared columns for both user tables (selection checkboxes come from `Table`'s `selectable`). */
 const userColumns: TableColumn<ManagedUser>[] = [
@@ -63,9 +55,13 @@ const userColumns: TableColumn<ManagedUser>[] = [
 export function AdminManagement({
   admins,
   users: initialUsers,
+  restrictedMode: initialRestrictedMode,
+  restrictedPeople,
 }: {
   admins: AdminRow[];
   users: ManagedUser[];
+  restrictedMode: boolean;
+  restrictedPeople: RestrictedEntry[];
 }) {
   const router = useRouter();
   const [users, setUsers] = useState<ManagedUser[]>(initialUsers);
@@ -77,8 +73,8 @@ export function AdminManagement({
   const [note, setNote] = useState<string | null>(null);
 
   // ---------- restricted mode (demo) ----------
-  const [restrictedMode, setRestrictedMode] = useState(false);
-  const [restricted, setRestricted] = useState<RestrictedEntry[]>([]);
+  const [restrictedMode, setRestrictedMode] = useState(initialRestrictedMode);
+  const [restricted, setRestricted] = useState<RestrictedEntry[]>(restrictedPeople);
   const [idInput, setIdInput] = useState("");
 
   const flash = (m: string) => {
@@ -198,8 +194,7 @@ export function AdminManagement({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setRestricted((list) => list.filter((x) => x.id !== r.id));
-              flash(`${r.id} removed from restricted list`);
+              removeRestrictedId(r.id);
             }}
             className="h-8 rounded-lg border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
           >
@@ -218,17 +213,21 @@ export function AdminManagement({
     );
 
   // ---------- restricted mode actions (demo only, no API calls) ----------
-  function toggleRestrictedMode() {
+  async function toggleRestrictedMode() {
     const next = !restrictedMode;
-    setRestrictedMode(next);
-    flash(
-      next
-        ? "Restricted mode on. New users are hidden from admins unless referred by a restricted ID."
-        : "Restricted mode off. All new users are visible to admins.",
-    );
+    setBusy(true);
+    try {
+      await api("/api/owner/restricted-mode", "PATCH", { enabled: next });
+      setRestrictedMode(next);
+      flash(next ? "Restricted mode on." : "Restricted mode off.");
+    } catch {
+      flash("Could not update restricted mode.");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function addRestrictedIds() {
+  async function addRestrictedIds() {
     const ids = Array.from(
       new Set(
         idInput
@@ -242,32 +241,30 @@ export function AdminManagement({
       return;
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const added: RestrictedEntry[] = [];
-    const missing: string[] = [];
-    let duplicates = 0;
-
-    for (const raw of ids) {
-      const key = raw.toLowerCase();
-      if (restricted.some((r) => r.id.toLowerCase() === key)) {
-        duplicates++;
-        continue;
-      }
-      const admin = admins.find((a) => a.id.toLowerCase() === key);
-      const user = users.find((u) => u.id.toLowerCase() === key);
-      if (admin) added.push({ id: admin.id, name: admin.name, kind: "Admin", addedAt: today });
-      else if (user) added.push({ id: user.id, name: user.name, kind: "User", addedAt: today });
-      else missing.push(raw);
+    setBusy(true);
+    try {
+      const result = await api("/api/owner/restricted-people", "POST", { ids }) as { added: RestrictedEntry[]; missing: string[] };
+      setRestricted((list) => [...result.added, ...list.filter((x) => !result.added.some((a) => a.id === x.id))]);
+      setIdInput(result.missing.join(", "));
+      flash(`${result.added.length} added${result.missing.length ? `, not found: ${result.missing.join(", ")}` : ""}`);
+    } catch {
+      flash("Could not add IDs.");
+    } finally {
+      setBusy(false);
     }
+  }
 
-    if (added.length) setRestricted((list) => [...added, ...list]);
-    setIdInput(missing.join(", "));
-
-    const parts: string[] = [];
-    if (added.length) parts.push(`${added.length} ID(s) added`);
-    if (duplicates) parts.push(`${duplicates} already listed`);
-    if (missing.length) parts.push(`not found: ${missing.join(", ")}`);
-    flash(parts.join(" · "));
+  async function removeRestrictedId(id: string) {
+    setBusy(true);
+    try {
+      await api("/api/owner/restricted-people", "DELETE", { id });
+      setRestricted((list) => list.filter((x) => x.id !== id));
+      flash(`${id} removed from restricted list`);
+    } catch {
+      flash("Could not remove ID.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   // ---------- actions ----------

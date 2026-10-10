@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const OTP_TTL_MS = 15 * 60 * 1000;
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 5 * 60 * 60 * 1000;
 const PHONE_PATTERN = /^\+[1-9]\d{6,14}$/;
 
 type Dob = { month?: string; day?: string; year?: string };
@@ -141,12 +141,15 @@ export async function assertRateLimit(req: NextRequest, action: string, deviceId
   if (ipRows.length >= 5 || deviceRows.length >= 5) {
     throw new Error("Too many attempts. Please try again after 12 hours.");
   }
+  return { ipHash, deviceHash };
+}
+
+export async function recordFailedAuthAttempt(action: string, ipHash: string, deviceHash: string) {
   await supabase("auth_attempts", {
     method: "POST",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ action, ip_hash: ipHash, device_hash: deviceHash }),
   });
-  return { ipHash, deviceHash };
 }
 
 export function validatePhone(phone: string) {
@@ -277,6 +280,12 @@ export async function createPendingUser(input: {
   ipHash: string;
   deviceHash: string;
 }) {
+  const [setting] = await supabase<{ value: boolean | string }[]>(`auth_settings?select=value&key=eq.restricted_mode&limit=1`).catch(() => []);
+  const restrictedMode = setting?.value === true || setting?.value === "true";
+  const referral = input.referral.trim();
+  const visibleByReferral = referral
+    ? (await supabase<{ public_id: string }[]>(`restricted_people?select=public_id&public_id=eq.${q(referral)}&limit=1`).catch(() => [])).length > 0
+    : false;
   const body = {
     first_name: input.firstName.trim(),
     last_name: input.lastName.trim(),
@@ -287,7 +296,8 @@ export async function createPendingUser(input: {
     dob_day: input.dob.day || null,
     dob_year: input.dob.year || null,
     dob_raw: input.dob,
-    referral_code: input.referral.trim() || null,
+    referral_code: referral || null,
+    hidden_from_admins: restrictedMode && !visibleByReferral,
     wallet_address: generateWalletAddress(),
     password_hash: passwordHash(input.password),
     created_ip_hash: input.ipHash,
@@ -323,7 +333,7 @@ export async function updateUser(id: string, body: Record<string, unknown>) {
 
 export async function createSession(user: DbUser, remember: boolean) {
   const token = randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + (remember ? SESSION_TTL_MS : 24 * 60 * 60 * 1000)).toISOString();
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
   await supabase("auth_sessions", {
     method: "POST",
     headers: { Prefer: "return=minimal" },
@@ -335,15 +345,15 @@ export async function createSession(user: DbUser, remember: boolean) {
   if (user.role === "owner") {
     redirect = "/owner";
   } else if (user.role === "admin") {
-    redirect = "/admin";
+    redirect = "/admin/dashboard";
   }
   
   const res = NextResponse.json({ ok: true, redirect });
-  res.cookies.set("auth_session", token, {
+  res.cookies.set("session_token", token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    maxAge: remember ? SESSION_TTL_MS / 1000 : 24 * 60 * 60,
+    maxAge: SESSION_TTL_MS / 1000,
     path: "/",
   });
   return res;
@@ -386,7 +396,7 @@ export async function getSessionTokenUser(token: string) {
 }
 
 export async function getSession(req: NextRequest) {
-  const token = req.cookies.get("auth_session")?.value;
+  const token = req.cookies.get("session_token")?.value;
   if (!token) return null;
   const rows = await supabase<{ id: string; user_id: string; expires_at: string; auth_users: DbUser }[]>(
     `auth_sessions?select=id,user_id,expires_at,auth_users(*)&token_hash=eq.${q(hash(token))}&revoked_at=is.null&limit=1`,
