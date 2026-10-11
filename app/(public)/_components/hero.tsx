@@ -29,16 +29,16 @@ export function Hero() {
       {/* CTAs */}
       <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-24">
         <Link
-          href="/signup"
+          href="/signin"
           className="inline-flex items-center justify-center bg-primary text-on-primary font-button text-button px-8 py-4 rounded-full hover:opacity-90 transition-opacity w-full sm:w-auto"
         >
-          Start Investing
+          Dashboard
         </Link>
         <a
-          href="#features"
+          href="/signup"
           className="inline-flex items-center justify-center bg-transparent border border-outline-variant text-on-surface font-button text-button px-8 py-4 rounded-full hover:bg-surface-container transition-colors w-full sm:w-auto"
         >
-          Explore Platform
+          Get Started
         </a>
       </div>
 

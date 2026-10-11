@@ -1600,6 +1600,46 @@ begin
   end if;
 end $$;
 
+-- ════════════════════════════════════════════════════════════
+-- ANNOUNCEMENTS SYSTEM
+-- ════════════════════════════════════════════════════════════
+
+-- Announcements table
+create table if not exists public.announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  category text not null check (category in ('Platform Update', 'Maintenance', 'New Feature', 'Important')),
+  content text not null,
+  pinned boolean not null default false,
+  status text not null default 'draft' check (status in ('draft', 'published')),
+  published_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  views int not null default 0,
+  created_by uuid references public.auth_users(id) on delete set null,
+  updated_by uuid references public.auth_users(id) on delete set null
+);
+
+create index if not exists announcements_pinned_idx on public.announcements (pinned, published_at desc);
+create index if not exists announcements_status_idx on public.announcements (status, published_at desc);
+create index if not exists announcements_category_idx on public.announcements (category);
+
+alter table public.announcements enable row level security;
+
+-- Function: increment announcement views
+create or replace function public.increment_announcement_views(p_announcement_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.announcements
+  set views = views + 1
+  where id = p_announcement_id;
+end;
+$$;
+
 -- Function: update session activity timestamp
 create or replace function public.update_session_activity(p_token_hash text)
 returns void

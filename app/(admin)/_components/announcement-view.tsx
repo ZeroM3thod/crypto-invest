@@ -119,6 +119,7 @@ export function AnnouncementView({ initial }: { initial: Announcement[] }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [busy, setBusy] = useState(false);
 
   const closeForm = useCallback(() => {
     setFormOpen(false);
@@ -144,9 +145,18 @@ export function AnnouncementView({ initial }: { initial: Announcement[] }) {
     setFormOpen(true);
   }, []);
 
-  /* ---------- actions (local state only — no DB) ---------- */
+  async function api<T>(url: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || "Request failed");
+    return data as T;
+  }
 
-  const save = () => {
+  const save = async () => {
     if (draft.title.trim().length < 3) {
       showToast("Please enter a title (at least 3 characters).");
       return;
@@ -165,61 +175,63 @@ export function AnnouncementView({ initial }: { initial: Announcement[] }) {
       content: draft.content.trim(),
     };
 
-    if (editingId) {
-      // TODO: call your API here (update announcement)
-      setItems((prev) =>
-        prev.map((a) => (a.id === editingId ? { ...a, ...clean } : a)),
-      );
-      showToast("✓ Announcement updated.");
-    } else {
-      // TODO: call your API here (create announcement)
-      setItems((prev) => [
-        { id: `a${Date.now()}`, views: 0, ...clean },
-        ...prev,
-      ]);
-      showToast(
-        clean.status === "published"
-          ? "✓ Announcement published."
-          : "✓ Saved as draft.",
-      );
+    setBusy(true);
+    try {
+      if (editingId) {
+        const data = await api<{ announcement: Announcement }>(`/api/admin/announcements/${editingId}`, "PUT", clean);
+        setItems((prev) => prev.map((a) => (a.id === editingId ? data.announcement : a)));
+        showToast("✓ Announcement updated.");
+      } else {
+        const data = await api<{ announcement: Announcement }>("/api/admin/announcements", "POST", clean);
+        setItems((prev) => [data.announcement, ...prev]);
+        showToast(clean.status === "published" ? "✓ Announcement published." : "✓ Saved as draft.");
+      }
+      closeForm();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Request failed.");
+    } finally {
+      setBusy(false);
     }
-    closeForm();
   };
 
   const togglePin = useCallback(
-    (a: Announcement) => {
-      // TODO: call your API here (pin / unpin)
-      setItems((prev) =>
-        prev.map((x) => (x.id === a.id ? { ...x, pinned: !x.pinned } : x)),
-      );
-      showToast(a.pinned ? "Announcement unpinned." : "📌 Announcement pinned.");
+    async (a: Announcement) => {
+      try {
+        const data = await api<{ announcement: Announcement }>(`/api/admin/announcements/${a.id}`, "PATCH", { pinned: !a.pinned });
+        setItems((prev) => prev.map((x) => (x.id === a.id ? data.announcement : x)));
+        showToast(a.pinned ? "Announcement unpinned." : "Announcement pinned.");
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : "Request failed.");
+      }
     },
     [showToast],
   );
 
   const toggleStatus = useCallback(
-    (a: Announcement) => {
-      // TODO: call your API here (publish / unpublish)
+    async (a: Announcement) => {
       const next: AnnouncementStatus =
         a.status === "published" ? "draft" : "published";
-      setItems((prev) =>
-        prev.map((x) => (x.id === a.id ? { ...x, status: next } : x)),
-      );
-      showToast(
-        next === "published"
-          ? "✓ Announcement published."
-          : "Announcement moved to drafts.",
-      );
+      try {
+        const data = await api<{ announcement: Announcement }>(`/api/admin/announcements/${a.id}`, "PATCH", { status: next });
+        setItems((prev) => prev.map((x) => (x.id === a.id ? data.announcement : x)));
+        showToast(next === "published" ? "✓ Announcement published." : "Announcement moved to drafts.");
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : "Request failed.");
+      }
     },
     [showToast],
   );
 
   const remove = useCallback(
-    (a: Announcement) => {
+    async (a: Announcement) => {
       if (!window.confirm(`Delete "${a.title}"? This cannot be undone.`)) return;
-      // TODO: call your API here (delete announcement)
-      setItems((prev) => prev.filter((x) => x.id !== a.id));
-      showToast("✕ Announcement deleted.");
+      try {
+        await api(`/api/admin/announcements/${a.id}`, "DELETE");
+        setItems((prev) => prev.filter((x) => x.id !== a.id));
+        showToast("Announcement deleted.");
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : "Request failed.");
+      }
     },
     [showToast],
   );
@@ -481,10 +493,10 @@ export function AnnouncementView({ initial }: { initial: Announcement[] }) {
         </div>
 
         <div className="flex justify-end gap-2 border-t border-border p-4">
-          <Button size="md" variant="ghost" onClick={closeForm}>
+          <Button size="md" variant="ghost" onClick={closeForm} disabled={busy}>
             Cancel
           </Button>
-          <Button size="md" variant="primary" onClick={save}>
+          <Button size="md" variant="primary" onClick={save} disabled={busy}>
             {editingId ? "Save changes" : "Create announcement"}
           </Button>
         </div>

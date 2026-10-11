@@ -1,12 +1,13 @@
 // app/(admin)/admin/announcement/page.tsx
 // Access route: /admin/announcement
-// Add your admin auth guard here later.
 import { AdminShell } from "../../_components/admin-shell";
 import { AnnouncementView } from "../../_components/announcement-view";
 import { getAnnouncements } from "@/lib/admin-announcement-data";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 export default async function AdminAnnouncementPage() {
-  const announcements = getAnnouncements(); // swap for your own data source
+  await requireAdmin();
+  const announcements = await getAnnouncements(true);
 
   return (
     <AdminShell active="Announcements">
