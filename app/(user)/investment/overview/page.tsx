@@ -187,122 +187,6 @@ type InvestedPackage = {
   details: DetailRow[];  // rows shown inside the View Details dialog
 };
 
-// NOTE: this is the same mock data used on the Daily Profit and AI Trading pages.
-// When you connect real data, build this list from those two sources.
-const INVESTED_PACKAGES: InvestedPackage[] = [
-  // ── Daily Profit ──────────────────────────────────────────────
-  {
-    id: "dp-ap1",
-    kind: "Daily Profit",
-    name: "Growth Plan",
-    tier: "Growth",
-    status: "Active",
-    invested: 100,
-    rateLabel: "Daily Rate",
-    rateValue: "2.1%",
-    startDate: "2025-07-18",
-    endDate: "Ongoing",
-    earned: 4.2,
-    details: [
-      { label: "Package Type",      value: "Daily Profit" },
-      { label: "Plan",              value: "Growth Plan" },
-      { label: "Amount Invested",   value: fmt(100), tone: "strong" },
-      { label: "Daily Rate",        value: "2.1%" },
-      { label: "Profit Per Cycle",  value: "+" + fmt(2.1), tone: "success" },
-      { label: "Credits Received",  value: "2" },
-      { label: "Total Earned",      value: "+" + fmt(4.2), tone: "success" },
-      { label: "Started",           value: "2025-07-18" },
-      { label: "Payout",            value: "Principal + profits" },
-      { label: "Cancel Policy",     value: "After 24 hours" },
-      { label: "Wallet Credited",   value: "Investment Wallet" },
-    ],
-  },
-  {
-    id: "dp-ap2",
-    kind: "Daily Profit",
-    name: "Starter Plan",
-    tier: "Starter",
-    status: "Active",
-    invested: 50,
-    rateLabel: "Daily Rate",
-    rateValue: "1.7%",
-    startDate: "2025-07-19",
-    endDate: "Ongoing",
-    earned: 0,
-    details: [
-      { label: "Package Type",      value: "Daily Profit" },
-      { label: "Plan",              value: "Starter Plan" },
-      { label: "Amount Invested",   value: fmt(50), tone: "strong" },
-      { label: "Daily Rate",        value: "1.7%" },
-      { label: "Profit Per Cycle",  value: "+" + fmt(0.85), tone: "success" },
-      { label: "Credits Received",  value: "0" },
-      { label: "Total Earned",      value: "+" + fmt(0), tone: "success" },
-      { label: "Started",           value: "2025-07-19" },
-      { label: "Payout",            value: "Principal + profits" },
-      { label: "Cancel Policy",     value: "After 24 hours" },
-      { label: "Wallet Credited",   value: "Investment Wallet" },
-    ],
-  },
-
-  // ── AI Trading ────────────────────────────────────────────────
-  {
-    id: "ai-s2",
-    kind: "AI Trading",
-    name: "Momentum Breakout",
-    tier: "Pro",
-    status: "Active",
-    invested: 40,
-    rateLabel: "Strategy ROI",
-    rateValue: "+24.1%",
-    startDate: "2025-07-09",
-    endDate: "2025-07-24",
-    earned: 9.64,
-    progress: 60,
-    details: [
-      { label: "Package Type",      value: "AI Trading" },
-      { label: "Strategy",          value: "Momentum Breakout" },
-      { label: "Exchange",          value: "Binance" },
-      { label: "Amount Staked",     value: fmt(40), tone: "strong" },
-      { label: "Strategy ROI",      value: "+24.1%", tone: "success" },
-      { label: "Total Profit",      value: "+" + fmt(9.64), tone: "success" },
-      { label: "Lock Period",       value: "15 days" },
-      { label: "Days Elapsed",      value: "9 of 15" },
-      { label: "Start Date",        value: "2025-07-09" },
-      { label: "Unlock Date",       value: "2025-07-24" },
-      { label: "Payout",            value: "Stake + profits after lock" },
-      { label: "Wallet Credited",   value: "AI Trading Wallet" },
-    ],
-  },
-  {
-    id: "ai-s1",
-    kind: "AI Trading",
-    name: "9 EMA Strategy",
-    tier: "Starter",
-    status: "Active",
-    invested: 20,
-    rateLabel: "Strategy ROI",
-    rateValue: "+18.4%",
-    startDate: "2025-07-03",
-    endDate: "2025-07-18",
-    earned: 3.68,
-    progress: 100,
-    details: [
-      { label: "Package Type",      value: "AI Trading" },
-      { label: "Strategy",          value: "9 EMA Strategy" },
-      { label: "Exchange",          value: "Binance" },
-      { label: "Amount Staked",     value: fmt(20), tone: "strong" },
-      { label: "Strategy ROI",      value: "+18.4%", tone: "success" },
-      { label: "Total Profit",      value: "+" + fmt(3.68), tone: "success" },
-      { label: "Lock Period",       value: "15 days" },
-      { label: "Days Elapsed",      value: "15 of 15" },
-      { label: "Start Date",        value: "2025-07-03" },
-      { label: "Unlock Date",       value: "2025-07-18" },
-      { label: "Payout",            value: "Stake + profits after lock" },
-      { label: "Wallet Credited",   value: "AI Trading Wallet" },
-    ],
-  },
-];
-
 type HistoryRow = {
   id: string;
   name: string;
@@ -550,7 +434,30 @@ function PackageDetailsDialog({
 export default function InvestmentOverviewPage() {
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("All");
   const [selectedPackage, setSelectedPackage] = useState<InvestedPackage | null>(null);
-  const loading = false;
+  const [loading, setLoading] = useState(true);
+  const [packages, setPackages] = useState<InvestedPackage[]>([]);
+  const [summary, setSummary] = useState({ totalInvested: 0, totalEarned: 0, activeCount: 0 });
+
+  // Fetch investments from backend
+  useEffect(() => {
+    const fetchInvestments = async () => {
+      try {
+        const res = await fetch("/api/investment/overview");
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        setPackages(data.packages || []);
+        setSummary(data.summary || { totalInvested: 0, totalEarned: 0, activeCount: 0 });
+      } catch (err) {
+        console.error("Failed to fetch investments:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInvestments();
+    const interval = setInterval(fetchInvestments, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   const filteredHistory =
     historyFilter === "All"
@@ -558,9 +465,9 @@ export default function InvestmentOverviewPage() {
       : INVESTMENT_HISTORY.filter((r) => r.status === historyFilter);
 
   // Summary stats derived from the packages shown below
-  const totalInvested = INVESTED_PACKAGES.reduce((s, p) => s + p.invested, 0);
-  const totalEarned   = INVESTED_PACKAGES.reduce((s, p) => s + p.earned, 0);
-  const activeCount   = INVESTED_PACKAGES.filter((p) => p.status === "Active").length;
+  const totalInvested = summary.totalInvested;
+  const totalEarned   = summary.totalEarned;
+  const activeCount   = summary.activeCount;
   const roi           = totalInvested > 0 ? (totalEarned / totalInvested) * 100 : 0;
 
   return (
@@ -581,7 +488,7 @@ export default function InvestmentOverviewPage() {
         <section aria-label="Investment Summary">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Total Invested",       value: fmt(totalInvested),        delta: { value: `Across ${INVESTED_PACKAGES.length} packages`, positive: true } },
+              { label: "Total Invested",       value: fmt(totalInvested),        delta: { value: `Across ${packages.length} packages`, positive: true } },
               { label: "Total Returns Earned", value: `+${fmt(totalEarned)}`,    delta: { value: "All time",                                     positive: true } },
               { label: "Active Plans",         value: String(activeCount),       delta: { value: "Running now",                                  positive: true } },
               { label: "ROI %",                value: `+${roi.toFixed(1)}%`,     delta: { value: "Lifetime return",                              positive: true } },
@@ -612,7 +519,7 @@ export default function InvestmentOverviewPage() {
         {/* ── Active Plans (Daily Profit + AI Trading) ── */}
         <section aria-label="Active Investment Plans">
           <SectionHeader title="Active Plans" actionLabel="View all plans" action={() => {}} />
-          {INVESTED_PACKAGES.length === 0 ? (
+          {packages.length === 0 ? (
             <Card>
               <EmptyState
                 icon={TrendingUp}
@@ -622,7 +529,7 @@ export default function InvestmentOverviewPage() {
             </Card>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {INVESTED_PACKAGES.map((pkg) => (
+              {packages.map((pkg) => (
                 <PackageCard key={pkg.id} pkg={pkg} onView={setSelectedPackage} />
               ))}
             </div>
