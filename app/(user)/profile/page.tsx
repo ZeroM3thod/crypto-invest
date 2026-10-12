@@ -68,22 +68,6 @@ interface UserProfile {
   profileStrength: number;
 }
 
-const INITIAL_PROFILE: UserProfile = {
-  firstName: "",
-  lastName: "",
-  fullName: "Ava Thompson",
-  userId: "USR-4821093",
-  email: "ava.thompson@example.com",
-  mobile: "",
-  dob: "1994-06-12",
-  memberSince: "2023-03-18",
-  walletAddress: "0x9F3a1C2b4E5d6F7a8B9c0D1e2F3a4B5c6D7e8F90",
-  country: "United States",
-  kycVerified: true,
-  twoFaEnabled: false,
-  profileStrength: 0,
-};
-
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-foreground/60";
@@ -279,14 +263,15 @@ function Field({
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile>(INITIAL_PROFILE);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [editing, setEditing] = useState(false);
-  const [draftFirstName, setDraftFirstName] = useState(profile.firstName);
-  const [draftLastName, setDraftLastName] = useState(profile.lastName);
-  const [draftMobile, setDraftMobile] = useState(profile.mobile);
-  const [draftDob, setDraftDob] = useState(profile.dob);
-  const [draftCountry, setDraftCountry] = useState(profile.country);
+  const [draftFirstName, setDraftFirstName] = useState("");
+  const [draftLastName, setDraftLastName] = useState("");
+  const [draftMobile, setDraftMobile] = useState("");
+  const [draftDob, setDraftDob] = useState("");
+  const [draftCountry, setDraftCountry] = useState("");
   const [nameErr, setNameErr] = useState(false);
   const [formErr, setFormErr] = useState<string>();
   const [saving, setSaving] = useState(false);
@@ -295,9 +280,22 @@ export default function ProfilePage() {
   useEffect(() => {
     fetch("/api/profile")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => setProfile(d.profile))
-      .catch(() => undefined);
+      .then((d) => {
+        setProfile(d.profile);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
+
+  if (loading || !profile) {
+    return (
+      <UserShell active="Profile">
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+        </div>
+      </UserShell>
+    );
+  }
 
   const startEditing = () => {
     setDraftFirstName(profile.firstName);
