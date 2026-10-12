@@ -45,51 +45,7 @@ type OnlineUser = {
   lang: string;
 };
 
-// ── Mock data ────────────────────────────────────────────────────────────
-
-const PINNED_MESSAGE: ChatMessageData = {
-  id: "pin1",
-  userId: "admin",
-  username: "Admin",
-  avatar: "A",
-  text: "Welcome to the International Community Chat! Please follow the community rules. Spam, abuse, and off-topic promotions are not allowed.",
-  timestamp: "09:00",
-  pinned: true,
-};
-
-const INITIAL_MESSAGES: ChatMessageData[] = [
-  { id: "m1", userId: "u2", username: "Carlos_M", avatar: "C", text: "Good morning everyone! 🌅", timestamp: "09:14", lang: "EN" },
-  { id: "m2", userId: "u3", username: "Yuki_T", avatar: "Y", text: "Has anyone checked today's BTC price?", timestamp: "09:15", lang: "EN" },
-  { id: "m3", userId: "u4", username: "Fatima_A", avatar: "F", text: "It's pumping 🚀 up 4% since midnight.", timestamp: "09:15", lang: "EN" },
-  { id: "m4", userId: "u1", username: "Ava", avatar: "A", text: "Mining earnings look solid today too.", timestamp: "09:16", lang: "EN", own: true },
-  { id: "m5", userId: "u5", username: "Raj_K", avatar: "R", text: "Agreed! My contract credited early.", timestamp: "09:17", lang: "EN" },
-  { id: "m6", userId: "u2", username: "Carlos_M", avatar: "C", text: "Anyone tried the new AI trading plan?", timestamp: "09:18", lang: "EN" },
-  { id: "m7", userId: "u1", username: "Ava", avatar: "A", text: "Yes! ROI has been great this week. Highly recommend the Growth tier.", timestamp: "09:19", lang: "EN", own: true },
-  { id: "m8", userId: "u6", username: "Lena_V", avatar: "L", text: "@Ava which strategy did you pick?", timestamp: "09:20", lang: "EN" },
-  { id: "m9", userId: "u1", username: "Ava", avatar: "A", text: "BTC/USDT with the momentum strategy 📈", timestamp: "09:21", lang: "EN", own: true },
-  { id: "m10", userId: "u3", username: "Yuki_T", avatar: "Y", text: "Thanks for the tip! Will try it.", timestamp: "09:22", lang: "JP" },
-];
-
-const ONLINE_USERS: OnlineUser[] = [
-  { id: "u1", username: "Ava", avatar: "A", lang: "EN" },
-  { id: "u2", username: "Carlos_M", avatar: "C", lang: "ES" },
-  { id: "u3", username: "Yuki_T", avatar: "Y", lang: "JP" },
-  { id: "u4", username: "Fatima_A", avatar: "F", lang: "AR" },
-  { id: "u5", username: "Raj_K", avatar: "R", lang: "EN" },
-  { id: "u6", username: "Lena_V", avatar: "L", lang: "DE" },
-  { id: "u7", username: "Omar_H", avatar: "O", lang: "AR" },
-  { id: "u8", username: "Sophie_B", avatar: "S", lang: "FR" },
-];
-
 const EMOJIS = ["😀", "😂", "🔥", "🚀", "📈", "💰", "👍", "🎉", "💎", "⚡", "🌙", "💯"];
-
-const COMMUNITY_RULES = [
-  "Be respectful to all members.",
-  "No spam, scam links, or unsolicited promotions.",
-  "No hate speech, racism, or personal attacks.",
-  "Do not share private keys or wallet credentials.",
-  "English is preferred but all languages are welcome.",
-];
 
 const PROFANITY = ["badword1", "badword2"];
 
@@ -117,7 +73,7 @@ function PinnedMessage({ msg }: { msg: ChatMessageData }) {
   );
 }
 
-function RulesBanner() {
+function RulesBanner({ rules }: { rules: string[] }) {
   const [open, setOpen] = useState(false);
   return (
     <Card className="mx-4 mb-2 overflow-hidden">
@@ -135,7 +91,7 @@ function RulesBanner() {
       </button>
       {open && (
         <div className="space-y-1.5 border-t border-border px-4 pb-3 pt-2">
-          {COMMUNITY_RULES.map((rule, i) => (
+          {rules.map((rule, i) => (
             <p key={rule} className="text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">{i + 1}.</span> {rule}
             </p>
@@ -148,10 +104,12 @@ function RulesBanner() {
 
 function OnlineSidebar({
   users,
+  onlineCount,
   open,
   onClose,
 }: {
   users: OnlineUser[];
+  onlineCount: number;
   open: boolean;
   onClose: () => void;
 }) {
@@ -179,7 +137,7 @@ function OnlineSidebar({
           <p className="flex items-center gap-1.5 text-[11px] font-semibold">
             <Users className="size-3.5" /> Online
           </p>
-          <Badge variant="outline">{users.length}</Badge>
+          <Badge variant="outline">{onlineCount}</Badge>
         </div>
         {list}
       </aside>
@@ -193,7 +151,7 @@ function OnlineSidebar({
                 <Users className="size-3.5" /> Online
               </p>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">{users.length}</Badge>
+                <Badge variant="outline">{onlineCount}</Badge>
                 <button
                   type="button"
                   onClick={onClose}
@@ -273,11 +231,15 @@ function MessageBubble({ msg }: { msg: ChatMessageData }) {
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export default function CommunityChat() {
-  const [messages, setMessages] = useState<ChatMessageData[]>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [input, setInput] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modNotice, setModNotice] = useState<string | null>(null);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [onlineCount, setOnlineCount] = useState(0);
+  const [rules, setRules] = useState<string[]>([]);
+  const [pinnedMsg, setPinnedMsg] = useState<ChatMessageData | null>(null);
 
   const modTimer = useRef<number | undefined>(undefined);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -290,7 +252,56 @@ export default function CommunityChat() {
     }
   }, [messages]);
 
-  const handleSend = useCallback(() => {
+  // Fetch messages from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [msgRes, rulesRes, onlineRes] = await Promise.all([
+          fetch("/api/chat/messages"),
+          fetch("/api/chat/rules"),
+          fetch("/api/chat/online"),
+        ]);
+        
+        if (msgRes.ok) {
+          const data = await msgRes.json();
+          const formatted = data.map((m: any) => ({
+            id: m.id,
+            userId: m.user_id || "system",
+            username: `${m.first_name}_${m.last_name?.charAt(0) || "U"}`,
+            avatar: m.first_name?.charAt(0) || "U",
+            text: m.message,
+            timestamp: new Date(m.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            lang: "EN",
+            own: false, // ponytail: match with current user_id
+            pinned: m.pinned,
+          }));
+          setMessages(formatted);
+          
+          const pinned = formatted.find((m: ChatMessageData) => m.pinned);
+          if (pinned) setPinnedMsg(pinned);
+        }
+
+        if (rulesRes.ok) {
+          const rulesData = await rulesRes.json();
+          setRules(rulesData.map((r: any) => r.rule_text));
+        }
+
+        if (onlineRes.ok) {
+          const onlineData = await onlineRes.json();
+          setOnlineUsers(onlineData.users);
+          setOnlineCount(onlineData.count);
+        }
+      } catch (err) {
+        console.error("Failed to fetch chat data:", err);
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSend = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
@@ -303,26 +314,27 @@ export default function CommunityChat() {
       return;
     }
 
-    const now = new Date();
-    const ts = `${now.getHours().toString().padStart(2, "0")}:${now
-      .getMinutes()
-      .toString()
-      .padStart(2, "0")}`;
+    try {
+      const res = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+      });
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `m${Date.now()}`,
-        userId: "u1",
-        username: "Ava",
-        avatar: "A",
-        text: trimmed,
-        timestamp: ts,
-        lang: "EN",
-        own: true,
-      },
-    ]);
-    setInput("");
+      if (!res.ok) {
+        const data = await res.json();
+        setModNotice(data.message || "Failed to send message");
+        window.clearTimeout(modTimer.current);
+        modTimer.current = window.setTimeout(() => setModNotice(null), 3000);
+        return;
+      }
+
+      setInput("");
+    } catch (err: any) {
+      setModNotice(err.message || "Failed to send message");
+      window.clearTimeout(modTimer.current);
+      modTimer.current = window.setTimeout(() => setModNotice(null), 3000);
+    }
   }, [input]);
 
   return (
@@ -338,7 +350,7 @@ export default function CommunityChat() {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">International Chat</p>
               <p className="truncate text-[11px] text-muted-foreground">
-                {ONLINE_USERS.length} members online
+                {onlineCount} members online
               </p>
             </div>
             <Button
@@ -348,14 +360,14 @@ export default function CommunityChat() {
               onClick={() => setSidebarOpen(true)}
             >
               <span className="inline-block size-1.5 rounded-full bg-foreground" />
-              {ONLINE_USERS.length} Online
+              {onlineCount} Online
             </Button>
           </header>
 
           {/* ── Rules + Pinned ───────────────────────────── */}
           <div className="shrink-0 border-b border-border pb-1 pt-3">
-            <RulesBanner />
-            <PinnedMessage msg={PINNED_MESSAGE} />
+            <RulesBanner rules={rules} />
+            {pinnedMsg && <PinnedMessage msg={pinnedMsg} />}
           </div>
 
           {/* ── Moderation notice ─────────────────────────── */}
@@ -410,7 +422,7 @@ export default function CommunityChat() {
           </div>
         </div>
 
-        <OnlineSidebar users={ONLINE_USERS} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <OnlineSidebar users={onlineUsers} onlineCount={onlineCount} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </div>
     </UserShell>
   );

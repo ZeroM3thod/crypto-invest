@@ -1690,3 +1690,310 @@ begin
   values (p_admin_id, p_target_user_id, p_action, p_details);
 end;
 $$;
+
+-- ════════════════════════════════════════════════════════════
+-- COMMUNITY CHAT SYSTEM
+-- ════════════════════════════════════════════════════════════
+
+-- Community rules
+create table if not exists public.community_rules (
+  id uuid primary key default gen_random_uuid(),
+  rule_text text not null,
+  rule_order int not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Chat messages
+create table if not exists public.chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.auth_users(id) on delete set null,
+  username text not null,
+  first_name text not null,
+  last_name text not null,
+  message text not null,
+  is_admin boolean not null default false,
+  pinned boolean not null default false,
+  deleted boolean not null default false,
+  deleted_at timestamptz,
+  deleted_by uuid references public.auth_users(id) on delete set null,
+  deleted_reason text,
+  reply_to uuid references public.chat_messages(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+-- Chat bans
+create table if not exists public.chat_bans (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.auth_users(id) on delete cascade,
+  banned_by uuid not null references public.auth_users(id) on delete cascade,
+  reason text not null,
+  banned_at timestamptz not null default now(),
+  unbanned_at timestamptz,
+  unbanned_by uuid references public.auth_users(id) on delete set null,
+  active boolean not null default true
+);
+
+-- Chat settings
+create table if not exists public.chat_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+-- Chat scripts (admin)
+create table if not exists public.chat_scripts (
+  id uuid primary key default gen_random_uuid(),
+  script_name text not null,
+  script_content text not null,
+  created_by uuid not null references public.auth_users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Online users tracking
+create table if not exists public.chat_online_users (
+  user_id uuid primary key references public.auth_users(id) on delete cascade,
+  last_seen timestamptz not null default now()
+);
+
+-- Chat message reports
+create table if not exists public.chat_reports (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references public.chat_messages(id) on delete cascade,
+  reported_by uuid not null references public.auth_users(id) on delete cascade,
+  reason text not null,
+  status text not null default 'pending' check (status in ('pending', 'reviewed', 'dismissed')),
+  reviewed_by uuid references public.auth_users(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Indexes
+create index if not exists chat_messages_created_idx on public.chat_messages (created_at desc);
+create index if not exists chat_messages_user_idx on public.chat_messages (user_id, created_at desc);
+create index if not exists chat_messages_pinned_idx on public.chat_messages (pinned, created_at desc);
+create index if not exists chat_messages_deleted_idx on public.chat_messages (deleted, created_at desc);
+create index if not exists chat_bans_user_idx on public.chat_bans (user_id, active);
+create index if not exists chat_bans_active_idx on public.chat_bans (active, banned_at desc);
+create index if not exists chat_online_users_last_seen_idx on public.chat_online_users (last_seen desc);
+create index if not exists chat_reports_status_idx on public.chat_reports (status, created_at desc);
+
+-- Enable RLS
+alter table public.community_rules enable row level security;
+alter table public.chat_messages enable row level security;
+alter table public.chat_bans enable row level security;
+alter table public.chat_settings enable row level security;
+alter table public.chat_scripts enable row level security;
+alter table public.chat_online_users enable row level security;
+alter table public.chat_reports enable row level security;
+
+-- Insert default rules
+insert into public.community_rules (rule_text, rule_order) values
+  ('Be respectful to all members.', 1),
+  ('No spam, scam links, or unsolicited promotions.', 2),
+  ('No hate speech, racism, or personal attacks.', 3),
+  ('Do not share private keys or wallet credentials.', 4),
+  ('English is preferred but all languages are welcome.', 5)
+on conflict do nothing;
+
+-- Insert default chat settings
+insert into public.chat_settings (key, value) values
+  ('chat_locked', 'false'::jsonb),
+  ('online_count_override', 'null'::jsonb),
+  ('online_count_auto_adjust', 'true'::jsonb)
+on conflict (key) do nothing;
+
+-- Function: check if user is banned
+create or replace function public.is_user_banned(p_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_banned boolean;
+begin
+  select exists(
+    select 1 from public.chat_bans
+    where user_id = p_user_id and active = true
+  ) into v_banned;
+  return v_banned;
+end;
+$$;
+
+-- Function: ban user from chat
+create or replace function public.ban_user_from_chat(
+  p_user_id uuid,
+  p_admin_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.chat_bans (user_id, banned_by, reason)
+  values (p_user_id, p_admin_id, p_reason);
+end;
+$$;
+
+-- Function: unban user from chat
+create or replace function public.unban_user_from_chat(
+  p_user_id uuid,
+  p_admin_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.chat_bans
+  set active = false, unbanned_at = now(), unbanned_by = p_admin_id
+  where user_id = p_user_id and active = true;
+end;
+$$;
+
+-- Function: delete chat message
+create or replace function public.delete_chat_message(
+  p_message_id uuid,
+  p_admin_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.chat_messages
+  set deleted = true, deleted_at = now(), deleted_by = p_admin_id, deleted_reason = p_reason
+  where id = p_message_id;
+end;
+$$;
+
+-- Function: pin/unpin chat message
+create or replace function public.toggle_pin_message(
+  p_message_id uuid,
+  p_pinned boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.chat_messages
+  set pinned = p_pinned
+  where id = p_message_id;
+end;
+$$;
+
+-- Function: update user online status
+create or replace function public.update_user_online_status(p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.chat_online_users (user_id, last_seen)
+  values (p_user_id, now())
+  on conflict (user_id) do update set last_seen = now();
+end;
+$$;
+
+-- Function: get online users count
+create or replace function public.get_online_users_count()
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_override jsonb;
+  v_count int;
+begin
+  -- Check if there's an override
+  select value into v_override from public.chat_settings where key = 'online_count_override';
+  
+  if v_override is not null and v_override != 'null'::jsonb then
+    return (v_override::text)::int;
+  end if;
+  
+  -- Count users online in last 5 minutes
+  select count(*) into v_count
+  from public.chat_online_users
+  where last_seen > now() - interval '5 minutes';
+  
+  return v_count;
+end;
+$$;
+
+-- Function: cleanup old online users (every 10 minutes)
+create or replace function public.cleanup_old_online_users()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.chat_online_users
+  where last_seen < now() - interval '30 minutes';
+end;
+$$;
+
+-- Cron: cleanup old online users
+do $$
+begin
+  if not exists (select 1 from cron.job where jobname = 'cleanup-old-online-users') then
+    perform cron.schedule(
+      'cleanup-old-online-users',
+      '*/10 * * * *',
+      'select public.cleanup_old_online_users();'
+    );
+  end if;
+end $$;
+
+-- Function: parse and insert script messages
+create or replace function public.insert_script_messages(
+  p_script_content text,
+  p_admin_id uuid
+)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_line text;
+  v_time text;
+  v_username text;
+  v_message text;
+  v_pattern text := '^\[(\d{2}:\d{2})\]\s+([^:]+):\s+(.+)$';
+  v_count int := 0;
+begin
+  -- Parse format: [HH:MM] username: message
+  for v_line in select unnest(string_to_array(p_script_content, E'\n'))
+  loop
+    v_line := trim(v_line);
+    if v_line = '' then continue; end if;
+    
+    -- Extract time, username, message using regex
+    if v_line ~ v_pattern then
+      v_time := substring(v_line from '\[(\d{2}:\d{2})\]');
+      v_username := trim(substring(v_line from '\]\s+([^:]+):'));
+      v_message := trim(substring(v_line from ':\s+(.+)$'));
+      
+      insert into public.chat_messages (user_id, username, first_name, last_name, message, is_admin)
+      values (null, v_username, split_part(v_username, '_', 1), coalesce(nullif(split_part(v_username, '_', 2), ''), 'U'), v_message, false);
+      
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  
+  return v_count;
+end;
+$$;
