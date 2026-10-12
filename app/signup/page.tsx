@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Checkbox } from "@/components/motion/checkbox";
@@ -189,6 +190,17 @@ function SignUpWizardContent() {
             reserveErrorLine
             success={touched.lastName && !stepErrors.lastName && Boolean(lastName)}
           />
+
+          {/* Sign in */}
+          <p className="px-1 text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link
+              href="/signin"
+              className="font-medium text-foreground underline-offset-4 outline-none transition-colors hover:underline focus-visible:underline"
+            >
+              Sign in
+            </Link>
+          </p>
         </StepCard>
       ) : null}
 
