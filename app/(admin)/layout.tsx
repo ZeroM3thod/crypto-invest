@@ -5,6 +5,8 @@ import { getEffectiveAdminId } from "@/lib/auth/session";
 import { getAdminById } from "@/lib/admin-data";
 import { ImpersonationBanner } from "./_components/impersonation-banner";
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminLayout({
   children,
 }: {

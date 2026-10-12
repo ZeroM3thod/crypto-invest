@@ -26,7 +26,8 @@ async function sha256(value: string) {
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
     // Get session token from cookies
-    const token = (await cookies()).get("session_token")?.value;
+    const cookieStore = await cookies();
+    const token = cookieStore.get("session_token")?.value;
     
     if (token) {
       // Verify token exists in auth_sessions and is not expired/revoked
@@ -78,12 +79,14 @@ export async function getEffectiveAdminId(): Promise<{
   impersonating: boolean;
 }> {
   const session = await getSessionUser();
-  const imp = (await cookies()).get("impersonating_admin_id")?.value;
+  const cookieStore = await cookies();
+  const imp = cookieStore.get("impersonating_admin_id")?.value;
   if (imp && session?.role === "owner") return { id: imp, impersonating: true };
   return { id: session?.id, impersonating: false };
 }
 
 /** True while the owner has an active admin-impersonation cookie. */
 export async function isImpersonating(): Promise<boolean> {
-  return (await cookies()).has("impersonating_admin_id");
+  const cookieStore = await cookies();
+  return cookieStore.has("impersonating_admin_id");
 }

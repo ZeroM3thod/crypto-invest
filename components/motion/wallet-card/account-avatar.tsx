@@ -6,9 +6,10 @@ export function AccountAvatar({
   account,
   className,
 }: {
-  account: WalletAccount;
+  account: WalletAccount | undefined;
   className?: string;
 }) {
+  if (!account) return null;
   if (account.avatar) return <>{account.avatar}</>;
   return (
     <img
