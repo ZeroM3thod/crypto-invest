@@ -67,7 +67,6 @@ const ROUTES: Record<string, string> = {
   "Deposits": "/owner/finance/deposits",
   "Withdrawals": "/owner/finance/withdrawals",
   "Transfers": "/owner/finance/transfers",
-  "Fund History": "/owner/finance/history",
 
   // Investment
   "Investment": "/owner/investment/plans",
@@ -110,7 +109,7 @@ const destinations = [
   {
     label: "Finance",
     icon: Landmark,
-    children: ["Deposits", "Withdrawals", "Fund History"],
+    children: ["Deposits", "Withdrawals"],
   },
 
 

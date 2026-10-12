@@ -692,14 +692,6 @@ export function OwnerDashboard() {
       <Card
         title="Recent transactions"
         description="Latest deposits, withdrawals and transfers."
-        action={
-          <Link
-            href="/owner/finance/history"
-            className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          >
-            View all
-          </Link>
-        }
       >
         <Tabs
           value={txFilter}
