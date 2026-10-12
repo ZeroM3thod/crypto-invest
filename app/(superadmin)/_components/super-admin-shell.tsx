@@ -62,12 +62,6 @@ const ROUTES: Record<string, string> = {
   "Dashboard": "/owner",
   "Admin Management": "/owner/admin-management",
 
-  // Users
-  "Users": "/owner/users",
-  "All Users": "/owner/users",
-  "KYC Requests": "/owner/users/kyc",
-  "Login History": "/owner/users/login-history",
-
   // Finance
   "Finance": "/owner/finance/deposits",
   "Deposits": "/owner/finance/deposits",
@@ -113,11 +107,6 @@ const ROUTES: Record<string, string> = {
 const destinations = [
   { label: "Dashboard", icon: Home },
   { label: "Admin Management", icon: UserCog },
-  {
-    label: "Users",
-    icon: Users,
-    children: ["All Users", "KYC Requests"],
-  },
   {
     label: "Finance",
     icon: Landmark,

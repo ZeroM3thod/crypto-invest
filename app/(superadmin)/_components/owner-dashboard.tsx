@@ -6,7 +6,6 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
-  BadgeCheck,
   Banknote,
   CandlestickChart,
   ChevronRight,
@@ -211,14 +210,6 @@ const QUEUE: {
     href: "/owner/finance/withdrawals",
     icon: ArrowUpFromLine,
     status: "warning",
-  },
-  {
-    label: "KYC requests",
-    count: 37,
-    detail: "Awaiting review",
-    href: "/owner/users/kyc",
-    icon: BadgeCheck,
-    status: "info",
   },
   {
     label: "Open tickets",
